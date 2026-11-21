@@ -42,4 +42,6 @@ Put HTTPS in front (Caddy or a load balancer), because browsers only allow the m
 - `/webhooks/bolna` and `/api/gate` have no authentication yet. Add a shared secret header before real callers use it.
 
 ## Vercel and the Dockerfile
-The container file now lives at `deploy/Dockerfile` (build with `docker build -f deploy/Dockerfile .`) for AWS or any container host. When it sat in the repo root, Vercel auto-detected it, built a container image for every deployment, and failed with "repository has reached the maximum allowed number of images". It is no longer in the root (and `deploy/` is in `.vercelignore`), so Vercel deploys the Node functions in `api/` as before. If a deployment still fails with that error, delete old images in the Vercel project (Sandboxes, then Container Registry) and redeploy.
+Vercel treats this project as a **container build**: the root `Dockerfile` is its entrypoint, and every deployment pushes an image to the project's container registry. The registry has a maximum number of images; when it is full every build fails with "denied: repository has reached the maximum allowed number of images". Fix: delete old images (project, Sandboxes, Container Registry) and redeploy.
+Do not move or delete the root `Dockerfile`: the build then fails with "Container service must specify an entrypoint".
+To save images, branch previews are off for the working branch (`vercel.json`, `git.deploymentEnabled`); only merges to `main` deploy.
