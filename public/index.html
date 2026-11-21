@@ -281,8 +281,10 @@ $('#gateBtn').onclick = async () => {
 // ---------------- Cases tab
 async function loadCases() {
   const saved = await fetch('/api/cases').then(r => r.json()).catch(() => []);
+  const silence = await fetch('/api/workers/silence').then(r => r.ok ? r.json() : []).catch(() => []);
   const demo = ['bc44db4c', '6bb7d5c6', '59dc411a', '96d83759', '3d12bcdc', 'd09a4337'];
-  $('#caseList').innerHTML = `<h3>Saved cases</h3>${saved.length ? `<table><tr><th>Case</th><th>Severity</th><th>Risks</th><th>Summary</th></tr>${saved.map(c => `<tr><td><a href="/cases/${encodeURIComponent(c.id)}" target="_blank">${esc(c.id)}</a></td><td>${esc(c.severity)}${c.escalate ? ' · ESCALATE' : ''}</td><td>${esc(c.risks.join(', '))}</td><td>${esc(c.summaryEn)}</td></tr>`).join('')}</table>` : '<p class="none">None yet — they appear when Bolna posts a finished call to /webhooks/bolna.</p>'}
+  const silenceHtml = `<h3>Silence watch (missed check-ins)</h3>${silence.length ? `<table><tr><th>Case</th><th>Worker</th><th>State</th><th>Why</th></tr>${silence.map(w => `<tr><td>${esc(w.caseId)}</td><td>${esc(w.name ?? '—')}</td><td>${w.state === 'escalate' ? '<b>ESCALATE</b>' : esc(w.state)}</td><td>${esc(w.reason)}</td></tr>`).join('')}</table>` : '<p class="none">No workers registered yet — POST /api/workers with caseId, departedOn, everyDays.</p>'}<br>`;
+  $('#caseList').innerHTML = silenceHtml + `<h3>Saved cases</h3>${saved.length ? `<table><tr><th>Case</th><th>Severity</th><th>Risks</th><th>Summary</th></tr>${saved.map(c => `<tr><td><a href="/cases/${encodeURIComponent(c.id)}" target="_blank">${esc(c.id)}</a></td><td>${esc(c.severity)}${c.escalate ? ' · ESCALATE' : ''}</td><td>${esc(c.risks.join(', '))}</td><td>${esc(c.summaryEn)}</td></tr>`).join('')}</table>` : '<p class="none">None yet — they appear when Bolna posts a finished call to /webhooks/bolna.</p>'}
   <h3 style="margin-top:14px">Demo case files from your recorded calls</h3><div class="clips">${demo.map(id => `<a class="btn ghost" style="text-decoration:none" href="/api/bolna/casefile/${id}" target="_blank">${id}</a>`).join('')}</div>`;
 }
 document.querySelector('nav button[data-tab=cases]').addEventListener('click', loadCases);

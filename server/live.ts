@@ -10,6 +10,7 @@ import { assessRisks } from './risk/engine.ts';
 import { buildCaseFile, renderCaseFileHtml, type CaseFile } from './casefile.ts';
 import type { CallContext } from './harness/types.ts';
 import { checkAgent, listAgents } from './risk/agents.ts';
+import { registerWorker, recordAttempt, listWorkers, silenceStatus } from './checkins.ts';
 import { GULF_TERMS } from './harness/lexicon.ts';
 import { MANDAL_DISTRICTS } from './harness/gazetteer.ts';
 
@@ -86,6 +87,10 @@ export function registerLive(app: Express) {
   // Post-call webhook (point the Bolna agent's webhook_url here). Accepts the Bolna execution payload.
   app.post('/webhooks/bolna', guard, (req, res) => {
     const e = req.body ?? {};
+    const rd0 = e.context_details?.recipient_data ?? {};
+    if (rd0.case_id && ['completed', 'no-answer', 'busy', 'failed', 'canceled'].includes(String(e.status))) {
+      recordAttempt(String(rd0.case_id), String(e.status) === 'completed' && typeof e.transcript === 'string' && /\nuser:/.test('\n' + e.transcript));
+    }
     if (!e.transcript || typeof e.transcript !== 'string') return res.json({ ok: true, ignored: 'no transcript yet' });
     const rd = e.context_details?.recipient_data ?? {};
     const ctx = contextFromRecipient(rd);
@@ -110,6 +115,17 @@ export function registerLive(app: Express) {
     const money = ['laksha', 'lakshalu', 'velu', 'dirhams', 'riyals', 'jeetham', 'లక్ష', 'లక్షలు', 'వేలు', 'జీతం', 'దిర్హామ్స్', 'రియాల్స్'];
     const keywords = [...new Set([...names, ...districts, ...mandals, ...gulf, ...money, 'Dubai', 'Riyadh', 'Muscat', 'Doha', 'Kuwait', 'Bahrain', 'Shamshabad'])];
     res.json({ keywords, prompt: `Telugu-English call from a Telangana Gulf migrant worker. ${keywords.slice(0, 120).join(', ')}.` });
+  });
+
+  // Silence tracking: register a worker's promise record + schedule; list who is overdue
+  app.post('/api/workers', guard, (req, res) => {
+    const b = req.body ?? {};
+    if (!b.caseId) return res.status(400).json({ error: 'caseId required' });
+    res.json(registerWorker(b));
+  });
+  app.get('/api/workers/silence', guard, (_req, res) => {
+    const order = { escalate: 0, overdue: 1, due: 2, ok: 3 };
+    res.json(listWorkers().map(w => silenceStatus(w)).sort((a, b) => order[a.state] - order[b.state]));
   });
 
   app.get('/api/cases', guard, (_req, res) => {

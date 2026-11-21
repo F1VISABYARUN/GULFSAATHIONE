@@ -179,3 +179,13 @@ test('"agent mosam chesindu" is fraud, not a name; "vanda pani" is not ₹100', 
   assert.equal(h.slots.feeINR, undefined);
   assert.ok(assessRisks(h.slots).some(r => r.id === 'AGENT_FRAUD_REPORTED'));
 });
+import { silenceStatus } from '../server/checkins.ts';
+test('silence is a signal: no arrival call in 48 h escalates; weekly overdue', () => {
+  const now = new Date('2026-11-21T12:00:00Z');
+  const departed = { caseId: 'X', everyDays: 7, missedAttempts: 0, departedOn: '2026-11-18T12:00:00Z', arrivalDueBy: '2026-11-20T12:00:00Z' };
+  assert.equal(silenceStatus(departed, now).state, 'escalate');
+  const weekly = { caseId: 'Y', everyDays: 7, missedAttempts: 0, lastContact: '2026-11-10T12:00:00Z' };
+  assert.equal(silenceStatus(weekly, now).state, 'overdue');
+  assert.equal(silenceStatus({ ...weekly, missedAttempts: 3 }, now).state, 'escalate');
+  assert.equal(silenceStatus({ ...weekly, lastContact: '2026-11-20T12:00:00Z' }, now).state, 'ok');
+});
