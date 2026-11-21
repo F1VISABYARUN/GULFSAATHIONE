@@ -28,6 +28,8 @@ export const tools = {
     { caller_said: 'The landmark where the caller is, copied exactly.', city: 'City if known, else empty.', destination: 'Where they want to go.', mode: 'walking or transit.' }, 'ఒక్క క్షణం.'),
   translate: tool('translate', '/tools/translate', 'Live translator. Worker speaks Telugu and needs Arabic for someone nearby: pass caller_said and target_lang=ar, then tell the worker "ఇలా చెప్పండి:" and read pronounce_te (the Arabic written in Telugu letters) slowly so the worker can say it to the other person. If the worker repeats what the other person said, pass it as other_said and read sayTe back to the worker. Never translate signatures, confessions or police statements; read the returned instruction.',
     { caller_said: 'The worker\'s Telugu words, copied exactly. Empty when relaying the other person.', other_said: 'The other person\'s words as heard. Empty when relaying the worker.', target_lang: 'ar for Gulf Arabic, en English, hi Hindi, ur Urdu, ml Malayalam.' }, 'ఒక్క క్షణం.'),
+  exit_path: tool('exit_path', '/tools/exit-path', 'Guided steps for someone abroad whose visa is ending or has expired, who has no passport, or who wants to go home. Pass what you know and an empty string for the rest. It returns the next question to ask, or the sourced plan in short parts. Never add facts of your own.',
+    { caller_said: 'The caller\'s exact words, copied.', country: 'Country they are in, as said, else empty.', visa_type: 'visit/tourist, work or residence, else empty.', expiry: 'The visa end date exactly as said (or "5 days"), else empty.', passport_with_worker: 'yes if the passport is with them, no if not, else empty.', problem: 'Their problem in a few words, or "none", else empty.', intent: 'go home or stay, else empty.', case_id: 'Their GS- case number if known, else empty.', caller_phone: 'Always the user_number from the call information.' }, 'ఒక్క క్షణం.'),
   record_checkin: tool('record_checkin', '/tools/record-checkin', 'Save the worker\'s answers. Call once after the questions, or IMMEDIATELY on any danger, help request, or the code phrase. Then say exactly the returned instruction.',
     { case_id: 'Always exactly {case_id}.', call_kind: 'Always exactly {call_kind}.', caller_said: 'Everything the worker said on this call, copied exactly.', pickup_status: 'Arrival only: employer, other_person, nobody, or empty.', salary_received: 'yes, no or empty.', passport_with_worker: 'yes, no or empty.', threatened: 'yes if threats or violence, else empty.', movement_restricted: 'yes if not allowed to go out, else empty.', code_phrase_used: 'yes only if they said the code phrase, else empty.', notes: 'Short English notes: papers, location, city, job, salary, months unpaid, employer changed, briefing understood. Else empty.' }, 'సరే.'),
 };
@@ -49,6 +51,11 @@ const TALK = `# Section 2 How to talk
 const EMBASSY = `"మీరు వెతకాల్సిన అవసరం లేదు. మీ కేసు అత్యవసరంగా నమోదైంది. సాథి కేస్‌వర్కర్ మీ వివరాలతో రాయబార కార్యాలయానికి తెలియజేస్తారు. ఈ ఫోన్ మీ దగ్గరే ఉంచుకోండి."`;
 const NEVER = `# Never
 Never call an agent safe or good. Never promise rescue, salary recovery, or that anyone will come. Never say the family or the embassy were told unless a tool's instruction says so. Never ask for passport number, bank details or OTP. Never tell anyone to run away, go to a hotel, or search for and call a number themselves: Saathi's team acts for them. At the airport, the airport help desk and airport police are fine to mention. Never end the call while someone is in danger. If you did not catch an important word (a number, a name, a place), repeat it back and ask to confirm. Tools decide, not you: always read a tool's instruction in calm Telugu.`;
+const EXIT = `# Exit path (visa ending or expired, afraid of a fine, no passport, wants to go home)
+- When they say any of these, call exit_path with what you know and an empty string for the rest. It returns the next question or the plan.
+- If its status is ask: say its sayTe, wait for the answer, then call exit_path again with everything known so far. One question at a time, in the order it gives.
+- When it returns parts: say one or two parts, then stop and let them answer before the next part. Read dates back the way the tool gives them, digit by digit.
+- Never say a fine, fee, number of days or law that the tool did not give. Never promise a return date, a ticket, or that the embassy will pay. Never tell them to work on a visit visa, to leave without clearing fines, or to hide.`;
 const NEARBY = `# Nearby places and translating
 - If they need a pharmacy, hospital, police, embassy or similar: remember the kind (use the English word for what: pharmacy, hospital, police, embassy). If no landmark was named, ask "మీ దగ్గర ఏ బిల్డింగ్ లేదా షాపు ఉంది?". The moment you have both the kind and a landmark, call find_place in that same turn with caller_said = their landmark words copied exactly and what = the kind. NEVER say "please wait" or "I am checking" without calling the tool in the same turn. Read sayTe aloud. If it says it could not find the landmark, ask once for another landmark, then call again. For "how do I get to X" call directions.
 - If they need to talk to someone who speaks Arabic (a taxi driver, a shop, a doctor): offer "నేను అరబిక్‌లో చెబుతాను", then use translate one sentence at a time and coach the worker with pronounce_te. This is a phrase helper, not a live interpreter: if the tool says needs_confirm, ask them to say it again.`;
@@ -74,10 +81,12 @@ ${TALK}
 # Section 7 After a tool
 Say in Telugu what its "instruction" tells you, then a short warm goodbye when they are done. If they cannot talk now, ask when to call back and end politely.
 
+${EXIT}
+
 ${NEARBY}
 
 ${NEVER}`,
-  tools: ['check_agent', 'check_fee', 'report_problem', 'find_place', 'directions', 'translate'] as const,
+  tools: ['check_agent', 'check_fee', 'report_problem', 'exit_path', 'find_place', 'directions', 'translate'] as const,
 };
 
 export const checkin = {
@@ -134,10 +143,12 @@ Never ask for passport number, bank details or OTP. If they cannot talk now, ask
 # Section 8 Alert call
 Only when call type is alert: this is a short safety warning, not a check-in. Say this warning slowly, once, in simple Telugu: "{alert_text}". Then ask: "ఏదైనా ప్రశ్న ఉందా?" Answer only about this warning. If they say they are in trouble, follow Danger first. Otherwise thank them and end the call. Do not call record_checkin unless there is danger.
 
+${EXIT}
+
 ${NEARBY}
 
 ${NEVER}`,
-  tools: ['record_checkin', 'find_place', 'directions', 'translate'] as const,
+  tools: ['record_checkin', 'exit_path', 'find_place', 'directions', 'translate'] as const,
 };
 
 function build(a: typeof helpline | typeof checkin, model: string) {

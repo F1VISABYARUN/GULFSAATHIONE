@@ -1,0 +1,31 @@
+{
+  "note": "Facts Saathi may speak about leaving, overstaying and getting home. Every fact carries a source, the date it was read, and a status. confirmed = the official page was opened and the figure read on it. official_headline = only the headline of an official page was read. official_snippet = an official page was found by search but not opened. Saathi speaks confirmed facts with 'according to the official website, check with the embassy'; it never speaks anything else as fact. Re-check every entry before launch.",
+  "asof": "2026-11-22",
+  "countries": {
+    "UAE": {
+      "aliases": ["uae", "dubai", "abu dhabi", "sharjah", "ajman", "emirates"],
+      "embassy_line": { "name": "Indian mission welfare line (800INDIA / PBSK)", "number": "800 46342", "hours": "24x7, from inside the UAE", "status": "official_snippet", "source": "server/data/research/helplines.json" },
+      "visit_visa": {
+        "overstay_fine_per_day": { "amount": 50, "currency": "AED", "status": "confirmed", "source": "https://icp.gov.ae/en/services-details/?serviceid=68e73faf5ae59b00117389f1", "note": "The page states no grace period. An older government fee page listed other rates; do not mention a grace period." },
+        "extension": { "application_fee": 100, "entry_fee": 500, "currency": "AED", "max_total_days": 120, "status": "confirmed", "source": "https://icp.gov.ae/en/services-details/?serviceid=64afe3c1035448005bd52e62", "note": "The page gives no filing deadline and does not say who must apply." },
+        "departure_permit": { "application_fee": 200, "service_fee": 100, "currency": "AED", "leave_within_days": 7, "fines_must_be_paid": true, "status": "confirmed", "source": "https://icp.gov.ae/en/services-details/?serviceid=64afe3c1035448005bd52e7e", "note": "A ticket with a departure date within 7 days is required; a fine of AED 50 a day starts from the eighth day after the permit expires." }
+      },
+      "no_passport": { "emergency_certificate_fee": 60, "currency": "AED", "eligible": "Indian citizen with no valid travel document, or an illegal resident", "documents": ["application form", "3 passport-size photos", "previous passport (copy or details) or another photo ID"], "status": "confirmed", "source": "https://www.cgidubai.gov.in/page/emergency-certificates/", "note": "A total of AED 87 including other charges appears in a search snippet but not on this page: do not say it." },
+      "labour": { "complaint_line": "80084", "passport_withholding": "Official guidance says confiscating a worker's passport is prohibited and workers need no permission to leave; MoHRE says domestic workers may keep their own documents, so the rule differs by worker category.", "status": "official_snippet", "source": "https://mohre.gov.ae/en/guidance-and-awareness-portal-new/employee-companies/dear-worker-know-your-rights" }
+    },
+    "Saudi Arabia": {
+      "aliases": ["saudi", "saudi arabia", "riyadh", "jeddah", "dammam", "ksa", "makkah", "madinah"],
+      "embassy_line": { "name": "Indian embassy Riyadh, 24x7 distress line", "number": "800 247 1234", "hours": "24x7 (distress only)", "status": "official_snippet", "source": "server/data/research/helplines.json" },
+      "visit_visa": {
+        "overstay_penalty": { "fine_up_to": 50000, "currency": "SAR", "prison": true, "deportation": true, "status": "official_headline", "source": "https://www.spa.gov.sa/en/N2633091", "note": "Only the headline was read: fine up to SAR 50,000, imprisonment and deportation. The length of imprisonment, any per-day fine and any entry ban are NOT confirmed: never quote a total." }
+      },
+      "labour": { "contact_centre": "19911", "status": "confirmed", "source": "https://www.hrsd.gov.sa/contact-us", "note": "The official page describes a general contact centre (Sunday to Thursday, 8 AM to 5 PM). It does not say the line takes labour complaints: do not call it a complaint line." }
+    },
+    "Oman": { "aliases": ["oman", "muscat"], "embassy_line": { "name": "Indian embassy Muscat community welfare", "number": "80071234", "hours": "24-hour", "status": "official_snippet", "source": "server/data/research/helplines.json" } },
+    "Kuwait": { "aliases": ["kuwait"], "embassy_line": null },
+    "Qatar": { "aliases": ["qatar", "doha"], "embassy_line": null },
+    "Bahrain": { "aliases": ["bahrain", "manama"], "embassy_line": null }
+  },
+  "not_verified": ["ICWF (welfare fund) coverage", "PBBY insurance", "Telangana ex-gratia amount", "flight prices", "Saudi huroob 60-day window", "who must file a UAE visit-visa extension and by when", "total emergency-certificate cost of AED 87"],
+  "never": ["promise a return date or that the embassy will pay", "claim an amnesty or grace period", "quote a total Saudi fine", "advise working on a visit visa", "advise leaving without clearing fines", "tell the worker to hide or run"]
+}

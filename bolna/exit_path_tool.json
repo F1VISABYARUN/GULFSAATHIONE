@@ -1,0 +1,83 @@
+{
+  "name": "exit_path",
+  "description": "Guided steps for someone abroad whose visa is ending or has expired, who has no passport, or who wants to go home. Pass what you know and an empty string for the rest. It returns the next question to ask, or the sourced plan in short parts. Never add facts of your own.",
+  "pre_call_message": "ఒక్క క్షణం.",
+  "parameters": {
+    "type": "object",
+    "required": [
+      "caller_said",
+      "country",
+      "visa_type",
+      "expiry",
+      "passport_with_worker",
+      "problem",
+      "intent",
+      "case_id",
+      "caller_phone"
+    ],
+    "properties": {
+      "caller_said": {
+        "type": "string",
+        "description": "The caller's exact words, copied."
+      },
+      "country": {
+        "type": "string",
+        "description": "Country they are in, as said, else empty."
+      },
+      "visa_type": {
+        "type": "string",
+        "description": "visit/tourist, work or residence, else empty."
+      },
+      "expiry": {
+        "type": "string",
+        "description": "The visa end date exactly as said (or \"5 days\"), else empty."
+      },
+      "passport_with_worker": {
+        "type": "string",
+        "description": "yes if the passport is with them, no if not, else empty."
+      },
+      "problem": {
+        "type": "string",
+        "description": "Their problem in a few words, or \"none\", else empty."
+      },
+      "intent": {
+        "type": "string",
+        "description": "go home or stay, else empty."
+      },
+      "case_id": {
+        "type": "string",
+        "description": "Their GS- case number if known, else empty."
+      },
+      "caller_phone": {
+        "type": "string",
+        "description": "Always the user_number from the call information."
+      }
+    }
+  },
+  "key": "custom_task",
+  "value": {
+    "url": "https://gulfsaathione.vercel.app/tools/exit-path",
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "x-saathi-secret": "<YOUR SAATHI_SECRET>"
+    },
+    "api_token": null,
+    "nodes": null,
+    "scope": null,
+    "pre_call_message": null,
+    "pre_call_webhook_url": null,
+    "pre_call_webhook_param": null,
+    "param": {
+      "caller_said": "%(caller_said)s",
+      "country": "%(country)s",
+      "visa_type": "%(visa_type)s",
+      "expiry": "%(expiry)s",
+      "passport_with_worker": "%(passport_with_worker)s",
+      "problem": "%(problem)s",
+      "intent": "%(intent)s",
+      "case_id": "%(case_id)s",
+      "caller_phone": "%(caller_phone)s"
+    }
+  }
+}

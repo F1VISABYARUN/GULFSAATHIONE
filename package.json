@@ -15,7 +15,8 @@
     "export:python": "tsx scripts/export-lexicon.ts",
     "benchmark": "tsx eval/reliability/run.ts",
     "eval:robust": "tsx eval/robustness/run.ts",
-    "eval:fuzz": "tsx eval/robustness/fuzz.ts"
+    "eval:fuzz": "tsx eval/robustness/fuzz.ts",
+    "eval:translate": "tsx eval/translation/run.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.10",

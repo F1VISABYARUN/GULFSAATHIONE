@@ -118,3 +118,10 @@ After the fixes the harness leaves all 360 FLEURS ASR transcripts unchanged and 
 - WER after the harness was worse than raw WER because the corrected text re-spaced the sentence. Fixed and tested.
 - Added a reference-only audit (harness on human text), 34 hand-written probes from these failures, and 7 seeded invariants (npm run eval:robust / eval:fuzz); the probes fail on the previous harness and pass now.
 - Still not measurable here: held-out silent-critical-miss on real worker speech, read-back delivery in real calls, translation quality with reviewers.
+
+
+## Addendum: is the harness better than the base reading?
+Not demonstrated on these packs. On the 12 transcripts of the digit/amount clips (06, 07, 08, 10) x 3 models the harness and the base reading (all repair layers off) both found 9 of 12 reference facts, invented 0, and raised 8 read-backs. On the 180 clean FLEURS transcripts neither found or invented anything. The packs contain almost no Gulf terms, people or places, so the layers that differ (term repair, caller context, self-correction) are not exercised. The earlier Bolna replay (3 verified turns, 6 facts) was 2 of 6 vs 3 of 6. All of this is too small to claim an advantage; a fair test needs worker speech with Gulf terms.
+
+## Addendum: Arabic to Telugu translation
+It is built (`/tools/translate`, both directions). `npm run eval:translate` runs 25 sentences (written by Claude, not a native speaker) through the live relay and checks invariants only: numbers, negation, key terms (passport, salary, visa, embassy), and that signing, confessing and police statements are withheld and distress words escalate. After I corrected 7 of my own checks that were too strict, all 25 held (negation 6/6, numbers 8/8, directions 4/4, terms 1/1, positive 1/1, withheld 3/3, distress escalates 2/2). That says the relay did not flip a negation or drop a number on these sentences. It says nothing about fluency. A bilingual reviewer must still read the outputs.

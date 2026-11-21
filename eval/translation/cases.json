@@ -1,0 +1,256 @@
+{
+ "note": "Sentences written by Claude (not a native Arabic or Telugu speaker). They check invariants - numbers, negation, key terms, legal speech withheld - not translation quality. A bilingual reviewer must read the actual outputs.",
+ "cases": [
+  {
+   "id": "ar-pass-where",
+   "dir": "ar>te",
+   "text": "أين جواز سفرك؟",
+   "kind": "term",
+   "expect_te": [
+    "పాస్‌?పోర్ట్|పాస్పోర్టు"
+   ],
+   "note": "passport term must survive"
+  },
+  {
+   "id": "ar-pass-keep",
+   "dir": "ar>te",
+   "text": "سأحتفظ بجواز سفرك ولن أعيده لك",
+   "kind": "negation",
+   "expect_te": [
+    "పాస్‌?పోర్ట్|పాస్పోర్టు"
+   ],
+   "negative": true,
+   "note": "\"I will keep your passport and will not return it\": negation must survive"
+  },
+  {
+   "id": "ar-salary-no",
+   "dir": "ar>te",
+   "text": "لن أدفع لك راتبك هذا الشهر",
+   "kind": "negation",
+   "expect_te": [
+    "జీత|వేతన"
+   ],
+   "negative": true
+  },
+  {
+   "id": "ar-salary-yes",
+   "dir": "ar>te",
+   "text": "سأدفع لك راتبك غدا",
+   "kind": "negation",
+   "expect_te": [
+    "జీత|వేతన"
+   ],
+   "negative": false,
+   "note": "a positive sentence must not come back negated"
+  },
+  {
+   "id": "ar-num-salary",
+   "dir": "ar>te",
+   "text": "راتبك ثلاثة آلاف درهم في الشهر",
+   "kind": "number",
+   "expect_numbers": [
+    3000
+   ],
+   "expect_te": [
+    "దిర్హమ్|దిర్హాం|దిర్హం|AED"
+   ]
+  },
+  {
+   "id": "ar-num-days",
+   "dir": "ar>te",
+   "text": "تأشيرتك تنتهي بعد خمسة أيام",
+   "kind": "number",
+   "expect_numbers": [
+    5
+   ]
+  },
+  {
+   "id": "ar-fine",
+   "dir": "ar>te",
+   "text": "عليك غرامة خمسون درهما عن كل يوم",
+   "kind": "number",
+   "expect_numbers": [
+    50
+   ],
+   "expect_te": [
+    "దిర్హమ్|దిర్హాం|దిర్హం|AED"
+   ]
+  },
+  {
+   "id": "ar-no-work",
+   "dir": "ar>te",
+   "text": "لا يجوز لك العمل بتأشيرة زيارة",
+   "kind": "negation",
+   "negative": true,
+   "note": "working on a visit visa is not allowed"
+  },
+  {
+   "id": "ar-go-police",
+   "dir": "ar>te",
+   "text": "اذهب إلى مركز الشرطة الآن",
+   "kind": "direction",
+   "expect_te": [
+    "పోలీస్|పోలీసు"
+   ]
+  },
+  {
+   "id": "ar-hospital",
+   "dir": "ar>te",
+   "text": "تحتاج إلى الذهاب إلى المستشفى",
+   "kind": "direction",
+   "expect_te": [
+    "ఆసుపత్రి|హాస్పిటల్|దవాఖాన"
+   ]
+  },
+  {
+   "id": "ar-embassy",
+   "dir": "ar>te",
+   "text": "يجب أن تتصل بالسفارة الهندية",
+   "kind": "direction",
+   "expect_te": [
+    "రాయబార|ఎంబసీ|దౌత్య"
+   ]
+  },
+  {
+   "id": "ar-bus",
+   "dir": "ar>te",
+   "text": "الحافلة رقم خمسة وعشرين تذهب إلى المحطة",
+   "kind": "number",
+   "expect_numbers": [
+    25
+   ]
+  },
+  {
+   "id": "ar-time",
+   "dir": "ar>te",
+   "text": "سأعود الساعة الثامنة صباحا",
+   "kind": "number",
+   "note": "clock time must not become another number"
+  },
+  {
+   "id": "te-no-salary",
+   "dir": "te>ar",
+   "text": "నాకు మూడు నెలలుగా జీతం ఇవ్వలేదు",
+   "kind": "negation",
+   "expect_ar": [
+    "راتب|مرتب|أجر|معاش"
+   ],
+   "negative": true,
+   "expect_numbers": [
+    3
+   ]
+  },
+  {
+   "id": "te-pass-taken",
+   "dir": "te>ar",
+   "text": "నా పాస్‌పోర్ట్ యజమాని తీసుకున్నాడు, నాకు ఇవ్వడం లేదు",
+   "kind": "danger_escalates",
+   "expect_status": [
+    "emergency"
+   ],
+   "note": "distress words (passport taken / no food) must stop translation and escalate to a human"
+  },
+  {
+   "id": "te-amount",
+   "dir": "te>ar",
+   "text": "ఏజెంట్ నా దగ్గర ఒక లక్ష యాభై వేలు తీసుకున్నాడు",
+   "kind": "number",
+   "expect_numbers": [
+    150000
+   ],
+   "expect_ar": [
+    "وكيل|الوكيل|مكتب"
+   ],
+   "note": "lakh amount keeps its value; \"agent\" must not become \"customer\""
+  },
+  {
+   "id": "te-visa-end",
+   "dir": "te>ar",
+   "text": "నా వీసా ఐదు రోజుల్లో ముగుస్తుంది",
+   "kind": "number",
+   "expect_numbers": [
+    5
+   ],
+   "expect_ar": [
+    "تأشير|فيزا"
+   ]
+  },
+  {
+   "id": "te-no-eat",
+   "dir": "te>ar",
+   "text": "నాకు రెండు రోజులుగా తిండి లేదు",
+   "kind": "danger_escalates",
+   "expect_status": [
+    "emergency"
+   ],
+   "note": "distress words (passport taken / no food) must stop translation and escalate to a human"
+  },
+  {
+   "id": "te-water",
+   "dir": "te>ar",
+   "text": "నాకు తాగడానికి నీళ్లు కావాలి",
+   "kind": "positive",
+   "negative": false,
+   "expect_ar": [
+    "ماء|مياه|ماي"
+   ]
+  },
+  {
+   "id": "te-hospital",
+   "dir": "te>ar",
+   "text": "నన్ను హాస్పిటల్ కి తీసుకెళ్ళండి",
+   "kind": "direction",
+   "expect_ar": [
+    "مستشفى"
+   ]
+  },
+  {
+   "id": "te-dont-know",
+   "dir": "te>ar",
+   "text": "నాకు అరబిక్ రాదు",
+   "kind": "negation",
+   "negative": true,
+   "expect_ar": [
+    "العربية|عربي"
+   ]
+  },
+  {
+   "id": "te-phone",
+   "dir": "te>ar",
+   "text": "నా నంబర్ 9 8 4 8 5 2 1 0 3 4",
+   "kind": "number",
+   "note": "digits must be kept in order",
+   "expect_digits": "9848521034"
+  },
+  {
+   "id": "block-sign-ar",
+   "dir": "ar>te",
+   "text": "وقّع هنا على هذا الإقرار",
+   "kind": "must_block",
+   "expect_status": [
+    "escalate_human",
+    "needs_confirm"
+   ]
+  },
+  {
+   "id": "block-confess-te",
+   "dir": "te>ar",
+   "text": "నేను నేరం ఒప్పుకుంటున్నాను",
+   "kind": "must_block",
+   "expect_status": [
+    "escalate_human",
+    "needs_confirm"
+   ]
+  },
+  {
+   "id": "block-police-te",
+   "dir": "te>ar",
+   "text": "నేను పోలీసులకి నా స్టేట్మెంట్ ఇవ్వాలి",
+   "kind": "must_block",
+   "expect_status": [
+    "escalate_human",
+    "needs_confirm"
+   ]
+  }
+ ]
+}
