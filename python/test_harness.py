@@ -42,7 +42,23 @@ def test_safety_net_on_bolna_transcript():
     assert not safety_net('assistant: ఈ నెల జీతం వచ్చిందా?\nuser: వచ్చింది')['escalate']
 
 
-if __name__ == '__main__':
+
+def test_example_app():
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        return
+    from example_app import app
+    c = TestClient(app)
+    r = c.post('/check-fee', json={'payments': '100000', 'caller_said': 'oka laksha yaabhai velu ichanu'}).json()
+    assert r['total'] == 150000 and r['mismatch']['llm'] == 100000
+    r = c.post('/tools/report-problem', json={'caller_said': 'నన్ను కొడుతున్నారు, పాస్పోర్ట్ తీసుకున్నారు'}).json()
+    assert r['fields'] == {'threatened': 'yes', 'passport_with_worker': 'no', 'taken_by_stranger': ''}
+    r = c.post('/webhooks/bolna', json={'id': 'x', 'transcript': 'user: నన్ను కిడ్నాప్ చేశారు', 'context_details': {'recipient_data': {}}}).json()
+    assert r['escalate']
+
+
+if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
             fn(); print('ok', name)
