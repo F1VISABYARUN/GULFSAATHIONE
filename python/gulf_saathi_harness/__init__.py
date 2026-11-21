@@ -7,6 +7,6 @@ safety_net(transcript)            -> flags that must open a case even if the voi
 
 Word lists come from lexicon.json, exported from the TypeScript harness (npm run export:python).
 """
-from .core import to_latin, tokenize, find_money, find_phones, normalize, safety_net, parse_bolna_transcript
+from .core import to_latin, tokenize, find_money, find_phones, normalize, safety_net, parse_bolna_transcript, confirm_list
 
-__all__ = ["to_latin", "tokenize", "find_money", "find_phones", "normalize", "safety_net", "parse_bolna_transcript"]
+__all__ = ["to_latin", "tokenize", "find_money", "find_phones", "normalize", "safety_net", "parse_bolna_transcript", "confirm_list"]

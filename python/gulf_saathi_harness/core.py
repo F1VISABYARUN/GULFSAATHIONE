@@ -360,6 +360,29 @@ def normalize(text: str = '', turns: list[dict] | None = None, code_phrase: str 
     return facts
 
 
+_CORRECTION = {'kadu', 'kaadu', 'kadhu', 'sorry', 'ledu', 'nahi', 'actually', 'correction', 'wait'}
+
+
+def confirm_list(text: str) -> list[dict]:
+    """What the voice agent must read back before saving (Telugu line to say + why)."""
+    toks = tokenize(text)
+    out = []
+    for s, e, p in find_phones(toks):
+        if not p['valid']:
+            out.append({'why': p.get('issue', 'phone incomplete'), 'say_te': f"నంబర్ మళ్ళీ చెప్పండి — {p['digits']} అని విన్నాను, ఇది పూర్తి కాదు."})
+    money = find_money(toks)
+    for a, b in zip(money, money[1:]):
+        if any(t in _CORRECTION for t in toks[a['end']:b['start']]) and a['amount'] != b['amount']:
+            out.append({'why': f"amount corrected {a['amount']:.0f} -> {b['amount']:.0f}", 'say_te': f"{b['amount']:,.0f} రూపాయలు — ఇది సరైనదేనా?"})
+    for d in LEX['distress']:
+        if d['kind'] not in ('violence', 'threat'):
+            continue
+        exact = any(_phrase_hits(toks, p, False) for p in d['phrases'])
+        if not exact and any(_phrase_hits(toks, p, True) for p in d['phrases']):
+            out.append({'why': f"possible distress word ({d['kind']})", 'say_te': 'మిమ్మల్ని ఎవరైనా కొడుతున్నారా లేదా బెదిరిస్తున్నారా? చెప్పండి.'})
+    return out
+
+
 def safety_net(transcript: str, code_phrase: str | None = None) -> dict:
     """Run on every finished call. If this says escalate, open the case even if the LLM never called a tool."""
     f = normalize(turns=parse_bolna_transcript(transcript), code_phrase=code_phrase)

@@ -58,6 +58,14 @@ def test_example_app():
     assert r['escalate']
 
 
+def test_confirm_list():
+    from gulf_saathi_harness import confirm_list
+    assert any('digits' in c['why'] for c in confirm_list('nine eight four eight five two one zero'))
+    assert any('corrected' in c['why'] for c in confirm_list('oka laksha kadu kadu oka laksha yaabhai velu ichanu'))
+    assert any('distress' in c['why'] for c in confirm_list('నన్ను ఓనర్ కోరుతున్నాడు'))
+    assert confirm_list('salary 1200 dirhams') == []
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
