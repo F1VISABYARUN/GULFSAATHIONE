@@ -72,6 +72,29 @@ Without a key the app runs in text mode: paste what the base model heard and see
 
 `npm run eval -- --reference` scores the human reference text. That is only a sanity check of the extractor, **not** a base-vs-harness result.
 
+## Live product pieces
+
+| Endpoint / page | What it does |
+|---|---|
+| `POST /api/gate` | Mid-call decision in code: `ESCALATE` / `CONFIRM` / `NOTE` / `CONTINUE`, the Telugu line to say, and an instruction that stops the LLM claiming actions it didn't take. Bolna can call it as a tool (`docs/BOLNA_INTEGRATION.md`). |
+| `POST /webhooks/bolna` | Post-call: parses the transcript, adds the bot's questions as context, runs the risk engine, and saves a **case file**. |
+| `/cases/:id`, `/api/cases` | Printable case file: risks with the exact words heard, promise vs now, recommended actions with official contacts, timeline. |
+| `/api/agents/check`, `/api/agents` | Recruiting-agent check against **MEA's official list of active RAs** (2,388 parsed, as on 08-04-2026; `server/data/ra_list.json`, parser in `scripts/`). |
+| `/api/hints` | STT keyword list for a call: the caller's people, mandals, Gulf terms. |
+| App tabs | Benchmark · Live · Gate · Case files · Agent check · Fact sheet |
+
+**Other data and signals:**
+- **Safety phrase:** agreed with the worker (e.g. "అమ్మ బాగుందా"); it is caught by sound and escalates silently.
+- **Mandal gazetteer:** 162 official mandals (`server/data/research/mandals.json`); a mandal also gives the district.
+- **Helplines:** 59 entries, 47 copied from official mission or MEA pages (`server/data/research/helplines.json`).
+
+Set `SAATHI_SECRET` to require an `x-saathi-secret` header on the gate, webhook and case endpoints.
+
+**Docs:**
+- `docs/RESEARCH_GULF_SAATHI.md`: cited research
+- `docs/BOLNA_INTEGRATION.md`: how to plug the harness into Bolna
+- `docs/DEPLOY.md`: deployment
+
 ## Real calls (Bolna logs) and the fact sheet
 
 `eval/bolna/` holds 27 real Saathi test calls pulled from Bolna:
@@ -114,7 +137,7 @@ Agent-licence risks aren't scored on real calls, because the agent list is sampl
 
 ## Data notes (verify before the demo)
 
-- `server/data/agents.sample.json` is **fictional sample data**. Replace it with the registered recruiting-agent list from emigrate.gov.in and an official flagged list.
+- `server/data/agents.sample.json` now holds only **fictional demo "flagged" names** for the template clips; registered agents come from the official MEA list (`ra_list.json`). The eMigrate unregistered-agent list (3,505 per Lok Sabha, 31-07-2026) is not machine-readable yet.
 - **Fee cap:** ₹30,000 + 18% GST, per MEA advisories (`server/data/rules.json`). Verify that this figure is current.
 - **Place list:** mandal spellings in `server/harness/lexicon.ts` should be checked against official lists.
 - **Model names:** OpenAI model names and parameters are env-configurable. Check the current docs.

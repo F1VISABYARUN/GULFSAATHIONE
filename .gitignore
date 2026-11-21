@@ -6,3 +6,4 @@ eval/cache/*
 !eval/cache/.gitkeep
 eval/results*.json
 server/data/records.json
+server/data/cases/

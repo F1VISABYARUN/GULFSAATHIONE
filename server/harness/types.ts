@@ -22,6 +22,7 @@ export interface CallContext {
   places?: string[];       // village / mandal / city expected
   employer?: string;
   promise?: CaseSlots;     // the stored promise record (for check-in calls)
+  codePhrase?: string;     // secret phrase agreed with the worker: saying it = silent distress
 }
 
 export interface CaseSlots {
@@ -42,5 +43,8 @@ export interface CaseSlots {
   places?: string[];
   country?: string;        // Gulf country (from city/country mentions)
   district?: string;       // Telangana district
+  mandal?: string;         // Telangana mandal (from the official gazetteer)
   takenByStranger?: boolean; // picked up by someone other than the employer
+  codePhrase?: boolean;    // worker said the agreed safety phrase
+  cheatedByAgent?: boolean; // worker says the agent cheated him
 }

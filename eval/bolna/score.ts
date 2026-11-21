@@ -9,7 +9,8 @@ import { assessRisks } from '../../server/risk/engine.ts';
 import { slotErrors } from '../scorer.ts';
 import { hasKey, transcribe, contextPrompt } from '../../server/stt/openai.ts';
 import type { CallContext, CaseSlots } from '../../server/harness/types.ts';
-import type { Call, Turn } from './build-calls.ts';
+import type { Call } from './build-calls.ts';
+import { withQuestionContext, type Turn } from '../../server/harness/qa.ts';
 
 export const BOLNA_DIR = dirname(fileURLToPath(import.meta.url));
 const EVAL_DIR = dirname(BOLNA_DIR);
@@ -22,29 +23,19 @@ export const loadFacts = (): FactSheet => JSON.parse(readFileSync(join(BOLNA_DIR
 export const saveFacts = (f: FactSheet) => writeFileSync(join(BOLNA_DIR, 'facts.json'), JSON.stringify(f, null, 2));
 
 // Agent-licence risks depend on the (fictional) sample agent list, so they are not scored on real calls.
-const IGNORED_RISKS = new Set(['AGENT_FLAGGED', 'AGENT_UNLICENSED']);
+const IGNORED_RISKS = new Set(['AGENT_FLAGGED', 'AGENT_NOT_IN_REGISTRY', 'AGENT_DISTRICT_MISMATCH']);
 
 export function contextFor(call: Call): CallContext {
   if (call.agent === 'checkin') {
     // the promise record the check-in agent was given (from Bolna context_details)
-    return { names: ['Mallaiah', 'AI NOOR CLEANING'], places: ['Dubai'], promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' } };
+    return { names: ['Mallaiah', 'AI NOOR CLEANING'], places: ['Dubai'], promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' }, codePhrase: 'అమ్మ బాగుందా' };
   }
   return {};
 }
 
 export const baseText = (turns: Turn[]) => turns.map(t => t.text).join(' . ');
 
-/** Harness L0 Q/A layer: a bare "no" after "is your passport with you?" becomes "passport ledu". */
-const NEG = /(లేదు|లేదండి|రాలేదు|రాలేదండి|ఇవ్వలేదు|నై|नहीं|no\b)/;
-export function harnessText(turns: Turn[]): string {
-  return turns.map(t => {
-    if (!t.q || !NEG.test(t.text)) return t.text;
-    if (/జీతం/.test(t.q)) return `${t.text} [జీతం రాలేదు]`;
-    if (/పాస్‌?పోర్ట్/.test(t.q)) return `${t.text} [పాస్పోర్ట్ లేదు]`;
-    if (/తీసుకెళ్ల|వాళ్లేనా/.test(t.q) && /వేరే|కొత్త/.test(t.text)) return `${t.text} [వేరే వాళ్ళు తీసుకెళ్లారు]`;
-    return t.text;
-  }).join(' . ');
-}
+export const harnessText = (turns: Turn[]) => withQuestionContext(turns);
 
 /** Optional: re-transcribe the caller channel (left) with Telugu context hints. Cached. */
 export async function hintedTranscript(call: Call): Promise<string | undefined> {

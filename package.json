@@ -11,7 +11,8 @@
     "eval": "tsx eval/run.ts",
     "typecheck": "tsc --noEmit",
     "eval:bolna": "tsx eval/bolna/run.ts",
-    "audio:bolna": "node eval/bolna/download-audio.mjs"
+    "audio:bolna": "node eval/bolna/download-audio.mjs",
+    "export:python": "tsx scripts/export-lexicon.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.10",

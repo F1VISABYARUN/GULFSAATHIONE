@@ -10,7 +10,9 @@ import { hasKey, transcribe, contextPrompt, llmExtract, safeTranslate } from './
 import { gulfTermById } from './harness/terms.ts';
 import { loadDataset, EVAL_DIR } from '../eval/evaluate.ts';
 import type { CallContext } from './harness/types.ts';
-import { loadCalls, loadFacts, saveFacts, scoreCall } from '../eval/bolna/score.ts';
+import { loadCalls, loadFacts, saveFacts, scoreCall, contextFor, harnessText } from '../eval/bolna/score.ts';
+import { registerLive } from './live.ts';
+import { buildCaseFile, renderCaseFileHtml } from './casefile.ts';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const app = express();
@@ -96,6 +98,16 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
   }
 });
 
+registerLive(app);
+
+// Case file for one of the recorded Bolna calls
+app.get('/api/bolna/casefile/:id8', (req, res) => {
+  const c = loadCalls().find(x => x.id8 === String(req.params.id8));
+  if (!c) return res.status(404).send('Call not found');
+  const cf = buildCaseFile([{ text: harnessText(c.turns), date: c.date, kind: c.agent, id: c.id8 }], contextFor(c), { id: `GS-DEMO-${c.id8}` });
+  res.type('html').send(renderCaseFileHtml(cf));
+});
+
 // ---- Real Bolna calls + fact sheet
 app.get('/api/bolna/calls', async (_req, res) => {
   const facts = loadFacts();
@@ -125,5 +137,10 @@ app.get('/api/results/bolna', (_req, res) => {
   res.json(JSON.parse(readFileSync(p, 'utf8')));
 });
 
-const port = Number(process.env.PORT || 3000);
-app.listen(port, () => console.log(`Gulf Saathi harness on http://localhost:${port}  (OpenAI key: ${hasKey() ? 'set' : 'NOT set — text mode only'})`));
+// Vercel runs the exported app as a function; locally we listen on a port.
+if (process.env.VERCEL && !process.env.STORE) process.env.STORE = 'memory'; // read-only disk on Vercel
+export default app;
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT || 3000);
+  app.listen(port, () => console.log(`Gulf Saathi harness on http://localhost:${port}  (OpenAI key: ${hasKey() ? 'set' : 'NOT set — text mode only'})`));
+}

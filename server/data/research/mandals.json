@@ -1,0 +1,1373 @@
+{
+  "verified_on": "2026-11-21",
+  "districts": [
+    {
+      "district": "Jagtial",
+      "district_te": "జగిత్యాల",
+      "district_aliases": [
+        "Jagitial",
+        "Jagityal",
+        "Jagityala",
+        "Jagtiyal"
+      ],
+      "mandals": [
+        {
+          "name": "Jagtial Urban",
+          "te": "జగిత్యాల",
+          "aliases": [
+            "Jagitial",
+            "Jagitial Urban",
+            "Jagityal",
+            "Jagtial"
+          ]
+        },
+        {
+          "name": "Jagtial Rural",
+          "te": "జగిత్యాల గ్రామీణ",
+          "aliases": [
+            "Jagitial Rural",
+            "Jagityal Rural"
+          ]
+        },
+        {
+          "name": "Raikal",
+          "te": "రాయకల్",
+          "aliases": [
+            "Raikel",
+            "Rayakal"
+          ]
+        },
+        {
+          "name": "Sarangapur",
+          "te": "సారంగాపూర్",
+          "aliases": [
+            "Sarangapoor"
+          ]
+        },
+        {
+          "name": "Beerpur",
+          "te": "బీర్పూర్",
+          "aliases": [
+            "Beerpoor",
+            "Birpoor",
+            "Birpur"
+          ]
+        },
+        {
+          "name": "Dharmapuri",
+          "te": "ధర్మపురి",
+          "aliases": [
+            "Dharmapoor",
+            "Dharmapur"
+          ]
+        },
+        {
+          "name": "Buggaram",
+          "te": "బుగ్గారం",
+          "aliases": []
+        },
+        {
+          "name": "Pegadapalli",
+          "te": "పెగడపల్లి",
+          "aliases": [
+            "Pegadapalle",
+            "Pegadapally"
+          ]
+        },
+        {
+          "name": "Gollapalli",
+          "te": "గొల్లపల్లి",
+          "aliases": [
+            "Gollapalle",
+            "Gollapally"
+          ]
+        },
+        {
+          "name": "Mallial",
+          "te": "మల్యాల",
+          "aliases": [
+            "Mallyal",
+            "Malyal",
+            "Malyala"
+          ]
+        },
+        {
+          "name": "Kodimial",
+          "te": "కొడిమ్యాల్",
+          "aliases": [
+            "Kodimyal",
+            "Kodimyala"
+          ]
+        },
+        {
+          "name": "Velgatoor",
+          "te": "వెల్గటూర్",
+          "aliases": [
+            "Velgatur"
+          ]
+        },
+        {
+          "name": "Endapalli",
+          "te": "ఎండపల్లి",
+          "aliases": [
+            "Endapalle",
+            "Endapally"
+          ],
+          "note": "New mandal notified Sept 2022 (carved from Velgatoor + part of Palakurthi, Peddapalli dist)"
+        },
+        {
+          "name": "Korutla",
+          "te": "కోరుట్ల",
+          "aliases": [
+            "Koratla",
+            "Korutala"
+          ]
+        },
+        {
+          "name": "Medipalli",
+          "te": "మేడిపల్లి",
+          "aliases": [
+            "Medipalle",
+            "Medipally"
+          ]
+        },
+        {
+          "name": "Kathalapur",
+          "te": "కత్లాపూర్",
+          "aliases": [
+            "Kathalapoor",
+            "Kathlapoor",
+            "Kathlapur",
+            "Katlapoor",
+            "Katlapur"
+          ]
+        },
+        {
+          "name": "Bheemaram",
+          "te": "భీమారం",
+          "aliases": [
+            "Bhimaram"
+          ],
+          "note": "New mandal notified Sept 2022 (carved from Medipalli). Do not confuse with Bheemaram mandal in Mancherial dist."
+        },
+        {
+          "name": "Metpally",
+          "te": "మెట్‌పల్లి",
+          "aliases": [
+            "Metpalle",
+            "Metpalli"
+          ]
+        },
+        {
+          "name": "Mallapur",
+          "te": "మల్లాపూర్",
+          "aliases": [
+            "Mallapoor"
+          ]
+        },
+        {
+          "name": "Ibrahimpatnam",
+          "te": "ఇబ్రహీంపట్నం",
+          "aliases": [
+            "Ibrahimpatnamu"
+          ],
+          "note": "Do not confuse with Ibrahimpatnam in Ranga Reddy dist."
+        }
+      ],
+      "source_url": "https://jagtial.telangana.gov.in/village-and-panchayats/",
+      "status": "official"
+    },
+    {
+      "district": "Karimnagar",
+      "district_te": "కరీంనగర్",
+      "district_aliases": [
+        "Karimnagaram",
+        "Kareemnagar"
+      ],
+      "mandals": [
+        {
+          "name": "Karimnagar",
+          "te": null,
+          "aliases": [
+            "Kareemnagar",
+            "Karimnagar Urban"
+          ]
+        },
+        {
+          "name": "Kothapally",
+          "te": null,
+          "aliases": [
+            "Karimnagar Rural 2",
+            "Karimnagar Rural-II",
+            "Kothapalle",
+            "Kothapalli"
+          ],
+          "note": "Listed on official page; Wikipedia lists 'Karimnagar (Rural-II)' in its place - likely the same mandal renamed."
+        },
+        {
+          "name": "Karimnagar Rural",
+          "te": null,
+          "aliases": [
+            "Karimnagar Rural 1",
+            "Karimnagar Rural-I"
+          ]
+        },
+        {
+          "name": "Manakondur",
+          "te": null,
+          "aliases": [
+            "Manakondoor",
+            "Manakonduru"
+          ]
+        },
+        {
+          "name": "Thimmapur",
+          "te": null,
+          "aliases": [
+            "LMD Colony",
+            "Thimmapoor",
+            "Timmapoor",
+            "Timmapur"
+          ]
+        },
+        {
+          "name": "Ganneruvaram",
+          "te": null,
+          "aliases": [
+            "Gannervaram"
+          ]
+        },
+        {
+          "name": "Gangadhara",
+          "te": null,
+          "aliases": [
+            "Gangadhar"
+          ]
+        },
+        {
+          "name": "Ramadugu",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Choppadandi",
+          "te": null,
+          "aliases": [
+            "Chopadandi"
+          ]
+        },
+        {
+          "name": "Chigurumamidi",
+          "te": null,
+          "aliases": [
+            "Chigurmamidi"
+          ]
+        },
+        {
+          "name": "Huzurabad",
+          "te": null,
+          "aliases": [
+            "Huzoorabad"
+          ]
+        },
+        {
+          "name": "Veenavanka",
+          "te": null,
+          "aliases": [
+            "Venavanka"
+          ]
+        },
+        {
+          "name": "V. Saidapur",
+          "te": null,
+          "aliases": [
+            "Saidapoor",
+            "Saidapur",
+            "V Saidapoor",
+            "V Saidapur",
+            "V. Saidapoor",
+            "Vangara Saidapoor",
+            "Vangara Saidapur"
+          ]
+        },
+        {
+          "name": "Jammikunta",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Ellandakunta",
+          "te": null,
+          "aliases": [
+            "Elandakunta",
+            "Illandakunta"
+          ],
+          "note": "Not the same as Ellanthakunta in Rajanna Sircilla; spellings overlap."
+        },
+        {
+          "name": "Shankarapatnam",
+          "te": null,
+          "aliases": [
+            "Sankarapatnam",
+            "Shankarapatnamu"
+          ]
+        }
+      ],
+      "source_url": "https://karimnagar.telangana.gov.in/about-district/administrative-setup/mandals-and-villages/",
+      "status": "official"
+    },
+    {
+      "district": "Rajanna Sircilla",
+      "district_te": "రాజన్న సిరిసిల్ల",
+      "district_aliases": [
+        "Sircilla",
+        "Siricilla",
+        "Sirisilla",
+        "Rajanna Siricilla",
+        "Rajanna Sirisilla"
+      ],
+      "mandals": [
+        {
+          "name": "Sircilla",
+          "te": null,
+          "aliases": [
+            "Siricilla",
+            "Sirisilla",
+            "Sirsilla"
+          ],
+          "note": "Official directory omits it but the site's About text says Sircilla is the HQ mandal and the district has 13 mandals."
+        },
+        {
+          "name": "Boinpally",
+          "te": null,
+          "aliases": [
+            "Boinpalle",
+            "Boinpalli",
+            "Boyinpalle",
+            "Boyinpalli",
+            "Boyinpally"
+          ]
+        },
+        {
+          "name": "Chandurthy",
+          "te": null,
+          "aliases": [
+            "Chandurthi",
+            "Chandurty"
+          ]
+        },
+        {
+          "name": "Ellanthakunta",
+          "te": null,
+          "aliases": [
+            "Illanthakunta",
+            "Yellanthakunta"
+          ]
+        },
+        {
+          "name": "Gambhiraopet",
+          "te": null,
+          "aliases": [
+            "Gambhiraopeta",
+            "Gambhiraopeth"
+          ]
+        },
+        {
+          "name": "Konaraopet",
+          "te": null,
+          "aliases": [
+            "Konaraopeta",
+            "Konaraopeth"
+          ]
+        },
+        {
+          "name": "Mustabad",
+          "te": null,
+          "aliases": [
+            "Mustabaad"
+          ]
+        },
+        {
+          "name": "Rudrangi",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Thangallapalli",
+          "te": null,
+          "aliases": [
+            "Tangallapalle",
+            "Tangallapalli",
+            "Tangallapally",
+            "Thangallapalle",
+            "Thangallapally"
+          ]
+        },
+        {
+          "name": "Veernapalli",
+          "te": null,
+          "aliases": [
+            "Veernapalle",
+            "Veernapally",
+            "Virnapalle",
+            "Virnapalli",
+            "Virnapally"
+          ]
+        },
+        {
+          "name": "Vemulawada",
+          "te": null,
+          "aliases": [
+            "Vemulavada",
+            "Vemulwada"
+          ]
+        },
+        {
+          "name": "Vemulawada Rural",
+          "te": null,
+          "aliases": [
+            "Vemulavada Rural"
+          ]
+        },
+        {
+          "name": "Yellareddipet",
+          "te": null,
+          "aliases": [
+            "Ellareddipet",
+            "Ellareddipeta",
+            "Ellareddypet",
+            "Ellareddypeta",
+            "Yellareddipeta",
+            "Yellareddypet",
+            "Yellareddypeta"
+          ]
+        }
+      ],
+      "source_url": "https://rajannasircilla.telangana.gov.in/",
+      "status": "official"
+    },
+    {
+      "district": "Nizamabad",
+      "district_te": null,
+      "district_aliases": [
+        "Nizamabadu",
+        "Indur",
+        "Induru"
+      ],
+      "mandals": [
+        {
+          "name": "Makloor",
+          "te": null,
+          "aliases": [
+            "Makhloor",
+            "Makhlur",
+            "Maklur",
+            "Makluru"
+          ]
+        },
+        {
+          "name": "Dichpally",
+          "te": null,
+          "aliases": [
+            "Dichaplly",
+            "Dichpalle",
+            "Dichpalli"
+          ],
+          "note": "Official page has typo 'Dichaplly'."
+        },
+        {
+          "name": "Sirikonda",
+          "te": null,
+          "aliases": [
+            "Sirkonda"
+          ]
+        },
+        {
+          "name": "Nizamabad South",
+          "te": null,
+          "aliases": [
+            "Nizamabad Urban South"
+          ]
+        },
+        {
+          "name": "Nizamabad North",
+          "te": null,
+          "aliases": [
+            "Nizamabad Urban North",
+            "Nzb North"
+          ]
+        },
+        {
+          "name": "Nizamabad Rural",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Dharpally",
+          "te": null,
+          "aliases": [
+            "Dharpalle",
+            "Dharpalli"
+          ]
+        },
+        {
+          "name": "Mugpal",
+          "te": null,
+          "aliases": [
+            "Mugpaal"
+          ]
+        },
+        {
+          "name": "Indalwai",
+          "te": null,
+          "aliases": [
+            "Indalvai"
+          ]
+        },
+        {
+          "name": "Navipet",
+          "te": null,
+          "aliases": [
+            "Navipeta"
+          ]
+        },
+        {
+          "name": "Armoor",
+          "te": null,
+          "aliases": [
+            "Armur",
+            "Armuru"
+          ]
+        },
+        {
+          "name": "Balkonda",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Nandipet",
+          "te": null,
+          "aliases": [
+            "Nandipeta"
+          ]
+        },
+        {
+          "name": "Vailpur",
+          "te": null,
+          "aliases": [
+            "Vailpoor",
+            "Velpoor",
+            "Velpur"
+          ]
+        },
+        {
+          "name": "Bheemgal",
+          "te": null,
+          "aliases": [
+            "Bheemgallu",
+            "Bhimgal"
+          ]
+        },
+        {
+          "name": "Kammarpally",
+          "te": null,
+          "aliases": [
+            "Kammarpalle",
+            "Kammarpalli"
+          ]
+        },
+        {
+          "name": "Morthad",
+          "te": null,
+          "aliases": [
+            "Mortaad",
+            "Mortad"
+          ]
+        },
+        {
+          "name": "Jakranpally",
+          "te": null,
+          "aliases": [
+            "Jakranpalle",
+            "Jakranpalli"
+          ]
+        },
+        {
+          "name": "Yergatla",
+          "te": null,
+          "aliases": [
+            "Erragatla"
+          ]
+        },
+        {
+          "name": "Mupkal",
+          "te": null,
+          "aliases": [
+            "Muppkal"
+          ]
+        },
+        {
+          "name": "Mendora",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Donkeshwar",
+          "te": null,
+          "aliases": [
+            "Donkeshwaram",
+            "Donkeswar"
+          ],
+          "note": "New mandal notified Sept 2022."
+        },
+        {
+          "name": "Aloor",
+          "te": null,
+          "aliases": [
+            "Alur",
+            "Aluru"
+          ],
+          "note": "New mandal notified Sept 2022."
+        },
+        {
+          "name": "Bodhan",
+          "te": null,
+          "aliases": [
+            "Bodan"
+          ]
+        },
+        {
+          "name": "Renjal",
+          "te": null,
+          "aliases": [
+            "Ranjal"
+          ]
+        },
+        {
+          "name": "Yedapally",
+          "te": null,
+          "aliases": [
+            "Edapalle",
+            "Edapalli",
+            "Edapally",
+            "Yedapalle",
+            "Yedapalli",
+            "Yedpalle",
+            "Yedpalli",
+            "Yedpally"
+          ]
+        },
+        {
+          "name": "Varni",
+          "te": null,
+          "aliases": [
+            "Varny"
+          ]
+        },
+        {
+          "name": "Kotagiri",
+          "te": null,
+          "aliases": [
+            "Kotgiri"
+          ]
+        },
+        {
+          "name": "Rudrur",
+          "te": null,
+          "aliases": [
+            "Rudroor"
+          ]
+        },
+        {
+          "name": "Chandur",
+          "te": null,
+          "aliases": [
+            "Chandoor"
+          ]
+        },
+        {
+          "name": "Mosra",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Saloora",
+          "te": null,
+          "aliases": [
+            "Salura",
+            "Saluru"
+          ],
+          "note": "New mandal notified Sept 2022."
+        },
+        {
+          "name": "Pothangal",
+          "te": null,
+          "aliases": [
+            "Potangal"
+          ],
+          "note": "Newer mandal (post-2016)."
+        }
+      ],
+      "source_url": "https://nizamabad.telangana.gov.in/about-district/mandal-offices/",
+      "status": "official"
+    },
+    {
+      "district": "Kamareddy",
+      "district_te": "కామారెడ్డి",
+      "district_aliases": [
+        "Kamareddi",
+        "Kamareddy"
+      ],
+      "mandals": [
+        {
+          "name": "Banswada",
+          "te": null,
+          "aliases": [
+            "Banswad",
+            "Banswadaa",
+            "Banswara"
+          ]
+        },
+        {
+          "name": "Birkoor",
+          "te": null,
+          "aliases": [
+            "Birkur",
+            "Birkuru"
+          ]
+        },
+        {
+          "name": "Bichkunda",
+          "te": null,
+          "aliases": [
+            "Bichkonda"
+          ]
+        },
+        {
+          "name": "Jukkal",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Madnoor",
+          "te": null,
+          "aliases": [
+            "Madnur",
+            "Madnuru"
+          ]
+        },
+        {
+          "name": "Nizamsagar",
+          "te": null,
+          "aliases": [
+            "Nizam Sagar"
+          ]
+        },
+        {
+          "name": "Pitlam",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Nasrullabad",
+          "te": null,
+          "aliases": [
+            "Nasrulabad",
+            "Nasurullabad"
+          ]
+        },
+        {
+          "name": "Pedda Kodapgal",
+          "te": null,
+          "aliases": [
+            "Pedda Kodapagal",
+            "Peddakodapgal"
+          ]
+        },
+        {
+          "name": "Dongli",
+          "te": null,
+          "aliases": [
+            "Dongali"
+          ],
+          "note": "New mandal notified Sept 2022 (carved from Madnoor)."
+        },
+        {
+          "name": "Mohammad Nagar",
+          "te": null,
+          "aliases": [
+            "Mahammad Nagar",
+            "Mohammadnagar",
+            "Mohammed Nagar"
+          ],
+          "note": "Listed on official page; creation date not confirmed."
+        },
+        {
+          "name": "Kamareddy",
+          "te": null,
+          "aliases": [
+            "Kamareddi"
+          ]
+        },
+        {
+          "name": "Bhiknoor",
+          "te": null,
+          "aliases": [
+            "Bhikkanoor",
+            "Bhikkanur",
+            "Bhiknur",
+            "Bikkanoor",
+            "Bikkanur"
+          ]
+        },
+        {
+          "name": "Rajampet",
+          "te": null,
+          "aliases": [
+            "Rajampeta"
+          ]
+        },
+        {
+          "name": "Domakonda",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Machareddy",
+          "te": null,
+          "aliases": [
+            "Machareddi"
+          ]
+        },
+        {
+          "name": "Ramareddy",
+          "te": null,
+          "aliases": [
+            "Ramareddi"
+          ]
+        },
+        {
+          "name": "Bibipet",
+          "te": null,
+          "aliases": [
+            "Beebipet",
+            "Beebipeta",
+            "Bibipeta"
+          ]
+        },
+        {
+          "name": "Tadwai",
+          "te": null,
+          "aliases": [
+            "Tadvai"
+          ],
+          "note": "Different from Tadvai (Mulugu dist)."
+        },
+        {
+          "name": "Sadasivanagar",
+          "te": null,
+          "aliases": [
+            "Sadashivanagar",
+            "Sadashivnagar"
+          ]
+        },
+        {
+          "name": "Palvancha",
+          "te": null,
+          "aliases": [
+            "Palwancha"
+          ],
+          "note": "Not the same as Palvancha in Bhadradri Kothagudem."
+        },
+        {
+          "name": "Yellareddy",
+          "te": null,
+          "aliases": [
+            "Ellareddy",
+            "Yellareddi"
+          ]
+        },
+        {
+          "name": "Lingampet",
+          "te": null,
+          "aliases": [
+            "Lingampeta"
+          ]
+        },
+        {
+          "name": "Nagareddipet",
+          "te": null,
+          "aliases": [
+            "Naga Reddipet",
+            "Naga Reddipeta",
+            "Nagareddipeta",
+            "Nagareddypet",
+            "Nagareddypeta",
+            "Nagireddypet",
+            "Nagireddypeta"
+          ]
+        },
+        {
+          "name": "Gandhari",
+          "te": null,
+          "aliases": []
+        }
+      ],
+      "source_url": "https://kamareddy.telangana.gov.in/administrative-setup/mandal-revenue-offices/",
+      "status": "official"
+    },
+    {
+      "district": "Nirmal",
+      "district_te": "నిర్మల్",
+      "district_aliases": [
+        "Nirmalu"
+      ],
+      "mandals": [
+        {
+          "name": "Basar",
+          "te": null,
+          "aliases": [
+            "Basara",
+            "Bhasar"
+          ]
+        },
+        {
+          "name": "Bhainsa",
+          "te": null,
+          "aliases": [
+            "Bainsa",
+            "Bhainsaa"
+          ]
+        },
+        {
+          "name": "Dasturabad",
+          "te": null,
+          "aliases": [
+            "Dastuarabad"
+          ]
+        },
+        {
+          "name": "Dilawarpur",
+          "te": null,
+          "aliases": [
+            "Dilawarpoor",
+            "Dilwarpoor",
+            "Dilwarpur"
+          ]
+        },
+        {
+          "name": "Kaddam Peddur",
+          "te": null,
+          "aliases": [
+            "Kadam",
+            "Kaddam",
+            "Kaddam (Peddur)",
+            "Kaddam Peddoor"
+          ]
+        },
+        {
+          "name": "Khanapur",
+          "te": null,
+          "aliases": [
+            "Khanapoor",
+            "Khanapuram"
+          ]
+        },
+        {
+          "name": "Kubeer",
+          "te": null,
+          "aliases": [
+            "Kuber",
+            "Kubheer"
+          ]
+        },
+        {
+          "name": "Kuntala",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Laxmanchanda",
+          "te": null,
+          "aliases": [
+            "Lakshmanchanda"
+          ]
+        },
+        {
+          "name": "Lokeswaram",
+          "te": null,
+          "aliases": [
+            "Lokeshwaram"
+          ]
+        },
+        {
+          "name": "Mamda",
+          "te": null,
+          "aliases": [
+            "Mamada"
+          ]
+        },
+        {
+          "name": "Mudhole",
+          "te": null,
+          "aliases": [
+            "Mudhol"
+          ]
+        },
+        {
+          "name": "Narsapur (G)",
+          "te": null,
+          "aliases": [
+            "Narsapoor",
+            "Narsapur",
+            "Narsapur G"
+          ]
+        },
+        {
+          "name": "Nirmal Rural",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Nirmal Urban",
+          "te": null,
+          "aliases": [
+            "Nirmal"
+          ],
+          "note": "Not in GP list (urban mandal has no GPs); from Wikipedia list."
+        },
+        {
+          "name": "Pembi",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Sarangapur",
+          "te": null,
+          "aliases": [
+            "Sarangapoor"
+          ],
+          "note": "Same name as Sarangapur in Jagtial."
+        },
+        {
+          "name": "Soan",
+          "te": null,
+          "aliases": [
+            "Son",
+            "Sone"
+          ]
+        },
+        {
+          "name": "Tanur",
+          "te": null,
+          "aliases": [
+            "Tanoor",
+            "Thanoor",
+            "Thanur"
+          ]
+        },
+        {
+          "name": "Beeravelli",
+          "te": null,
+          "aliases": [
+            "Beeravalli",
+            "Biravelli"
+          ],
+          "note": "Created Oct 2023 from Sarangapur + Kalwa (Dilawarpur) per Telangana Today."
+        },
+        {
+          "name": "Malegaon",
+          "te": null,
+          "aliases": [],
+          "note": "Created Oct 2023 from Kubeer per Telangana Today."
+        },
+        {
+          "name": "Beltaroda",
+          "te": null,
+          "aliases": [
+            "Beltharoda"
+          ],
+          "note": "Created Oct 2023 from Tanur per Telangana Today."
+        },
+        {
+          "name": "Ponkal",
+          "te": null,
+          "aliases": [],
+          "note": "UNCONFIRMED: listed in Wikipedia table; news shows only a demand for mandal status."
+        }
+      ],
+      "source_url": "https://nirmal.telangana.gov.in/mandalspanchayats/",
+      "status": "official"
+    },
+    {
+      "district": "Peddapalli",
+      "district_te": null,
+      "district_aliases": [
+        "Peddapally",
+        "Peddapalle"
+      ],
+      "mandals": [
+        {
+          "name": "Anthergaon",
+          "te": null,
+          "aliases": [
+            "Antargaon",
+            "Anthergoan"
+          ]
+        },
+        {
+          "name": "Kalvasrirampur",
+          "te": null,
+          "aliases": [
+            "Kalva Srirampoor",
+            "Kalva Srirampur",
+            "Kalvasrirampoor",
+            "Srirampoor",
+            "Srirampur"
+          ]
+        },
+        {
+          "name": "Eligaid",
+          "te": null,
+          "aliases": [
+            "Elegedu",
+            "Elgaid"
+          ]
+        },
+        {
+          "name": "Julapalli",
+          "te": null,
+          "aliases": [
+            "Julapalle",
+            "Julapally"
+          ]
+        },
+        {
+          "name": "Odela",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Palakurthi",
+          "te": null,
+          "aliases": [
+            "Palakurthy"
+          ],
+          "note": "Do not confuse with Palakurthi in Jangaon."
+        },
+        {
+          "name": "Peddapalli",
+          "te": null,
+          "aliases": [
+            "Peddapalle",
+            "Peddapally"
+          ]
+        },
+        {
+          "name": "Dharmaram",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Sultanabad",
+          "te": null,
+          "aliases": [
+            "Sulthanabad"
+          ]
+        },
+        {
+          "name": "Ramagundam",
+          "te": null,
+          "aliases": [
+            "Godavarikhani"
+          ]
+        },
+        {
+          "name": "Kamanpur",
+          "te": null,
+          "aliases": [
+            "Kamanpoor"
+          ]
+        },
+        {
+          "name": "Manthani",
+          "te": null,
+          "aliases": [
+            "Mantheni"
+          ]
+        },
+        {
+          "name": "Mutharam (Manthani)",
+          "te": null,
+          "aliases": [
+            "Mutharam",
+            "Muttaram"
+          ]
+        },
+        {
+          "name": "Ramagiri",
+          "te": null,
+          "aliases": []
+        }
+      ],
+      "source_url": "https://peddapalli.telangana.gov.in/subdivision-blocks/",
+      "status": "official"
+    },
+    {
+      "district": "Mancherial",
+      "district_te": null,
+      "district_aliases": [
+        "Mancherial",
+        "Mancheryal",
+        "Manchiryal",
+        "Manchiryala"
+      ],
+      "mandals": [
+        {
+          "name": "Mancherial",
+          "te": null,
+          "aliases": [
+            "Mancheryal",
+            "Manchiryal"
+          ]
+        },
+        {
+          "name": "Naspur",
+          "te": null,
+          "aliases": [
+            "Naspoor"
+          ]
+        },
+        {
+          "name": "Hajipur",
+          "te": null,
+          "aliases": [
+            "Hajipoor"
+          ]
+        },
+        {
+          "name": "Luxettipet",
+          "te": null,
+          "aliases": [
+            "Lakshettipet",
+            "Lakshettipeta",
+            "Laxettipet",
+            "Laxettipeta",
+            "Luxettipeta"
+          ]
+        },
+        {
+          "name": "Dandepally",
+          "te": null,
+          "aliases": [
+            "Dandepalle",
+            "Dandepalli"
+          ]
+        },
+        {
+          "name": "Jannaram",
+          "te": null,
+          "aliases": []
+        },
+        {
+          "name": "Jaipur",
+          "te": null,
+          "aliases": [
+            "Jaipoor"
+          ]
+        },
+        {
+          "name": "Bheemaram",
+          "te": null,
+          "aliases": [
+            "Bhimaram"
+          ],
+          "note": "Different from Bheemaram mandal in Jagtial."
+        },
+        {
+          "name": "Chennur",
+          "te": null,
+          "aliases": [
+            "Chennoor",
+            "Chennuru",
+            "Chinnoor",
+            "Chinnur"
+          ]
+        },
+        {
+          "name": "Kotapally",
+          "te": null,
+          "aliases": [
+            "Kotapalle",
+            "Kotapalli"
+          ]
+        },
+        {
+          "name": "Mandamarri",
+          "te": null,
+          "aliases": [
+            "Mandamari"
+          ]
+        },
+        {
+          "name": "Bellampally",
+          "te": null,
+          "aliases": [
+            "Bellampalle",
+            "Bellampalli"
+          ]
+        },
+        {
+          "name": "Bheemini",
+          "te": null,
+          "aliases": [
+            "Bhimini"
+          ]
+        },
+        {
+          "name": "Kannepally",
+          "te": null,
+          "aliases": [
+            "Kannepalle",
+            "Kannepalli"
+          ]
+        },
+        {
+          "name": "Kasipet",
+          "te": null,
+          "aliases": [
+            "Kasipeta"
+          ]
+        },
+        {
+          "name": "Nennel",
+          "te": null,
+          "aliases": [
+            "Nennal"
+          ]
+        },
+        {
+          "name": "Tandur",
+          "te": null,
+          "aliases": [
+            "Tandoor"
+          ],
+          "note": "Different from Tandur in Vikarabad."
+        },
+        {
+          "name": "Vempally",
+          "te": null,
+          "aliases": [
+            "Vemanpalle",
+            "Vemanpalli",
+            "Vemanpally",
+            "Vempalle",
+            "Vempalli"
+          ]
+        }
+      ],
+      "source_url": "https://en.wikipedia.org/wiki/List_of_mandals_in_Telangana",
+      "status": "secondary"
+    }
+  ]
+}

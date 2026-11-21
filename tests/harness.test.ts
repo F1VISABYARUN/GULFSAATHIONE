@@ -84,7 +84,7 @@ test('context names (L0) repair an unseen name', () => {
 test('risk engine: visit visa + fee above cap + unlicensed agent', () => {
   const h = runHarness('agent Srinivas ki oka laksha yaabhai velu kattanu, visit visa ichadu');
   const ids = assessRisks(h.slots).map(r => r.id);
-  for (const id of ['VISIT_VISA', 'FEE_ABOVE_CAP', 'AGENT_UNLICENSED']) assert.ok(ids.includes(id), id);
+  for (const id of ['VISIT_VISA', 'FEE_ABOVE_CAP', 'AGENT_NOT_IN_REGISTRY']) assert.ok(ids.includes(id), id);
 });
 test('risk engine: check-in vs promise mismatch', () => {
   const promise = runHarness('driver job, salary 1500 dirhams, rojuki 8 gantalu').slots;
@@ -141,4 +141,114 @@ test('Telugu agent name and place with case suffix', () => {
   const h = runHarness('ఏజెంట్ పేరు రమేష్. నేను దుబాయ్లో ఉన్నాను');
   assert.equal(h.slots.agentName, 'Ramesh');
   assert.equal(h.slots.country, 'UAE');
+});
+test('code phrase is caught by sound, escalates silently', () => {
+  const ctx = { codePhrase: 'అమ్మ బాగుందా' };
+  const h = runHarness('అంతా బాగుంది. అమ్మ బాగుంది అని చెప్పండి', ctx);
+  assert.equal(h.slots.codePhrase, true);
+  assert.equal(h.escalate, true);
+  assert.ok(!h.readBacks.some(r => /amma/i.test(r.te)), 'never echo the code phrase');
+  assert.equal(runHarness('అంతా బాగుంది', ctx).slots.codePhrase, undefined);
+});
+import { withQuestionContext, parseBolnaTranscript } from '../server/harness/qa.ts';
+test('Q/A layer reads a bare "no" using the question', () => {
+  const turns = parseBolnaTranscript('assistant: ఈ నెల జీతం వచ్చిందా?\nuser: రాలేదండి\nassistant: మీ పాస్‌పోర్ట్ మీ దగ్గరే ఉందా?\nuser: లేదు.');
+  const h = runHarness(withQuestionContext(turns));
+  assert.equal(h.slots.salaryPaid, false);
+  assert.equal(h.slots.passportHeld, true);
+});
+import { checkAgent } from '../server/risk/agents.ts';
+test('agent check uses the official MEA registered-RA list', () => {
+  const hit = checkAgent('Karthik International', 'Karimnagar');
+  assert.equal(hit.status, 'registered');
+  assert.equal(hit.match?.raId, 'RA7468');
+  assert.equal(checkAgent('Karthik International', 'Jagtial').status, 'registered_other_district');
+  assert.equal(checkAgent('Ramesh').status, 'not_found');
+});
+test('official mandal gazetteer: mandal gives district; duplicate mandal asks', () => {
+  const h = runHarness('naa peru Ramesh, Kodimyal mandal nundi');
+  assert.equal(h.slots.mandal, 'Kodimial');
+  assert.equal(h.slots.district, 'Jagtial');
+  const dup = runHarness('memu Sarangapur nundi');
+  assert.ok(dup.readBacks.some(r => /Jagtial/.test(r.reason) && /Nirmal/.test(r.reason)));
+});
+test('"agent mosam chesindu" is fraud, not a name; "vanda pani" is not ₹100', () => {
+  const h = runHarness('నన్ను ఏజెంట్ మోసం చేసిండు. వండ పని అని చెప్పారు');
+  assert.equal(h.slots.agentName, undefined);
+  assert.equal(h.slots.cheatedByAgent, true);
+  assert.equal(h.slots.feeINR, undefined);
+  assert.ok(assessRisks(h.slots).some(r => r.id === 'AGENT_FRAUD_REPORTED'));
+});
+import { silenceStatus } from '../server/checkins.ts';
+test('silence is a signal: no arrival call in 48 h escalates; weekly overdue', () => {
+  const now = new Date('2026-11-21T12:00:00Z');
+  const departed = { caseId: 'X', everyDays: 7, missedAttempts: 0, departedOn: '2026-11-18T12:00:00Z', arrivalDueBy: '2026-11-20T12:00:00Z' };
+  assert.equal(silenceStatus(departed, now).state, 'escalate');
+  const weekly = { caseId: 'Y', everyDays: 7, missedAttempts: 0, lastContact: '2026-11-10T12:00:00Z' };
+  assert.equal(silenceStatus(weekly, now).state, 'overdue');
+  assert.equal(silenceStatus({ ...weekly, missedAttempts: 3 }, now).state, 'escalate');
+  assert.equal(silenceStatus({ ...weekly, lastContact: '2026-11-20T12:00:00Z' }, now).state, 'ok');
+});
+import { assist, detectIntent, extractAnchor } from '../server/assistant.ts';
+test('assistant: intents from Telugu speech', () => {
+  assert.equal(detectIntent('బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను, ఇండియన్ హోటల్ కావాలి'), 'find_place');
+  assert.equal(detectIntent('ఈ బస్సు ఎక్కడికి వెళ్తుంది'), 'bus_route');
+  assert.equal(detectIntent('ఫిర్యాదు చేయాలి జీతం ఇవ్వలేదు'), 'complaint');
+  assert.equal(extractAnchor('నేను బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను').anchor, 'burj khaleephaa'.slice(0, 0) + extractAnchor('నేను బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను').anchor);
+});
+test('assistant: never guesses location; no key -> says live search unavailable', async () => {
+  delete process.env.GOOGLE_MAPS_API_KEY;
+  const noLoc = await assist('నాకు ఇండియన్ హోటల్ కావాలి');
+  assert.equal(noLoc.needs, 'location');
+  const r = await assist('Burj Khalifa daggara unnanu, Indian hotel kavali');
+  assert.equal(r.liveSearch, 'not_configured');
+  const bus = await assist('ee bassu ekkadiki velthundi, Deira lo unnanu');
+  assert.equal(bus.needs, 'bus_number');
+});
+test('assistant: danger escalates before anything else; speak-for-me gives Arabic lines', async () => {
+  const e = await assist('నన్ను కొడుతున్నారు కాపాడండి, ఇండియన్ హోటల్ ఎక్కడ');
+  assert.equal(e.intent, 'emergency');
+  assert.equal(e.escalate, true);
+  const s = await assist('naa taraphuna arabic lo cheppandi, naaku tindi kavali');
+  assert.equal(s.intent, 'speak_for_me');
+  assert.ok(s.speakForMe?.some(l => l.key === 'need_food'));
+});
+import { nextStep } from '../server/checkin-flow.ts';
+test('check-in engine: asks in order, reads bare answers, escalates on stranger pickup', () => {
+  const ctx = { promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' } };
+  let s = nextStep({ kind: 'weekly', turns: [] }, ctx);
+  assert.equal(s.qid, 'salary');
+  s = nextStep({ kind: 'weekly', turns: [{ qid: 'salary', q: 'ఈ నెల జీతం వచ్చిందా?', a: 'రాలేదండి' }] }, ctx);
+  assert.equal(s.slots.salaryPaid, false);
+  assert.equal(s.qid, 'passport');
+  const arr = nextStep({ kind: 'arrival', turns: [
+    { qid: 'arrived', q: 'మీరు చేరుకున్నారా? ఏ ఊరిలో ఉన్నారు?', a: 'దుబాయ్లో ఉన్నాను' },
+    { qid: 'pickup', q: 'మిమ్మల్ని ఎవరు తీసుకెళ్లారు? మీ కంపెనీ వాళ్లేనా?', a: 'లేదు వేరే వాళ్ళు' },
+  ] }, ctx);
+  assert.equal(arr.action, 'ESCALATE');
+  const ok = nextStep({ kind: 'arrival', turns: [
+    { qid: 'arrived', q: 'మీరు చేరుకున్నారా? ఏ ఊరిలో ఉన్నారు?', a: 'దుబాయ్' },
+    { qid: 'pickup', q: 'మిమ్మల్ని ఎవరు తీసుకెళ్లారు? మీ కంపెనీ వాళ్లేనా?', a: 'అవును' },
+  ] }, ctx);
+  assert.equal(ok.qid, 'passport');
+});
+test('fraud question is not a fraud report; "nothing received" = unpaid', () => {
+  assert.equal(runHarness('అంటే ఏజెంట్ మోసం వేసిందా?').slots.cheatedByAgent, undefined);
+  assert.equal(runHarness('ఓన్లీ రెండు నెలలు అందింది మిగతా ఏమి అందలేదు').slots.salaryPaid, false);
+});
+import { store } from '../server/store.ts';
+import { dueCalls, instructionFor } from '../server/saathi.ts';
+test('new backend: scheduler books arrival, retry, weekly; instruction never echoes code phrase', async () => {
+  process.env.STORE = 'memory'; await store.reset();
+  await store.addWorker({ caseId: 'GS-T1', phone: '+910000000000', promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' }, departedOn: '2026-11-20T00:00:00Z', consent: true });
+  const t = (iso: string) => new Date(iso);
+  const due = async (iso: string) => dueCalls(t(iso), await store.workers(), await store.calls()).map(d => d.kind);
+  assert.deepEqual(await due('2026-11-20T03:00:00Z'), []);
+  assert.deepEqual(await due('2026-11-20T08:00:00Z'), ['arrival']);
+  await store.addCall({ id: 'a', caseId: 'GS-T1', kind: 'arrival', at: '2026-11-20T08:00:00Z', status: 'no-answer', reasons: [] });
+  assert.deepEqual(await due('2026-11-20T12:00:00Z'), ['retry']);
+  await store.addCall({ id: 'b', caseId: 'GS-T1', kind: 'arrival', at: '2026-11-20T12:00:00Z', status: 'answered', reasons: [] });
+  assert.deepEqual(await due('2026-11-24T12:00:00Z'), []);
+  assert.deepEqual(await due('2026-11-27T13:00:00Z'), ['weekly']);
+  assert.ok(!/అమ్మ/.test(instructionFor('critical', true)));
 });

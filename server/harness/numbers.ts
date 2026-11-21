@@ -183,7 +183,8 @@ export function findMoney(tokens: Token[], consumed: Set<number>): Entity[] {
     for (let k = j; k < Math.min(j + 2, tokens.length) && !currency; k++) {
       if (CURRENCY_WORDS[tokens[k].norm]) { currency = CURRENCY_WORDS[tokens[k].norm]; end = k + 1; }
     }
-    const isMoney = ev.hasScale || currency !== undefined || (ev.hasDigit && ev.value >= 100);
+    const loneHundred = words.length === 1 && HUNDRED_WORDS.has(words[0]) && currency === undefined;
+    const isMoney = !loneHundred && (ev.hasScale || currency !== undefined || (ev.hasDigit && ev.value >= 100));
     // hours are handled elsewhere: "12 gantalu" is not money
     const nextIsHour = j < tokens.length && HOUR_WORDS.has(tokens[j].norm);
     if (isMoney && !nextIsHour) {

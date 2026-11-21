@@ -11,9 +11,10 @@ import { tokenize, joinSpelledLetters, type Token } from './tokens.ts';
 import { PLACE_ALIASES } from './lexicon.te.ts'; // also extends the lexicon with Telugu-script entries
 import { findPhones, findMoney, findHours } from './numbers.ts';
 import { findNamesAndPlaces, type Target } from './phonetic.ts';
-import { findGulfTerms, findDistress, findJobs, resolveSelfCorrections } from './terms.ts';
+import { findGulfTerms, findDistress, findJobs, resolveSelfCorrections, findCodePhrase } from './terms.ts';
 import { extractSlots } from './extract.ts';
 import { PLACES } from './lexicon.ts';
+import { GAZETTEER_TARGETS, districtOf } from './gazetteer.ts';
 import type { Entity, Revision, CallContext, CaseSlots } from './types.ts';
 
 export interface HarnessLayers {
@@ -50,6 +51,7 @@ export function runHarness(text: string, ctx: CallContext = {}, layers: HarnessL
   entities.push(...claim(findGulfTerms(tokens, consumed, layers.repair)));
 
   const targets: Target[] = [
+    ...GAZETTEER_TARGETS,
     ...PLACES.map(p => ({ text: p, type: 'place' as const, fromContext: false })),
     ...Object.entries(PLACE_ALIASES).map(([alias, canonical]) => ({ text: alias, canonical, type: 'place' as const, fromContext: false })),
     ...(layers.context ? (ctx.places ?? []).map(p => ({ text: p, type: 'place' as const, fromContext: true })) : []),
@@ -61,6 +63,7 @@ export function runHarness(text: string, ctx: CallContext = {}, layers: HarnessL
   const distress = findDistress(tokens, layers.repair);
   const revisions = layers.corrections ? resolveSelfCorrections(tokens, entities) : [];
   entities.push(...distress);
+  if (layers.context && ctx.codePhrase) entities.push(...findCodePhrase(tokens, tokenize(ctx.codePhrase).map(t => t.norm)));
   entities.sort((a, b) => a.start - b.start);
 
   const slots = extractSlots(tokens, entities);
@@ -74,6 +77,7 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
   for (const e of entities) {
     if (e.superseded) continue;
     if (e.type === 'phone' && e.risky) readBacks.push({ reason: `Phone number incomplete (${(e.value as { issue?: string }).issue})`, te: `Number malli cheppandi — ${e.text} ani vinnanu, idi complete kaadu.`, entity: e.text });
+    if (e.type === 'place') { const d = districtOf(e.text); if (d.ambiguous) readBacks.push({ reason: `"${e.text}" is a mandal in ${d.ambiguous.join(' and ')}`, te: `${e.text} — ${d.ambiguous.join(' leda ')} jilla lo? Cheppandi.`, entity: e.text }); }
     if ((e.type === 'place' || e.type === 'name') && e.risky) readBacks.push({ reason: `Low-confidence match: "${e.surface}" → ${e.text}`, te: `${e.text} ani annara?`, entity: e.text });
   }
   for (const r of revisions) {
@@ -83,8 +87,8 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
   for (const e of entities) {
     if (e.type === 'distress' && e.layer === 'L3-distress-fuzzy') readBacks.push({ reason: `Possible distress word: heard "${e.surface}" (≈ ${e.value})`, te: `"${e.surface}" ante — mimmalni ${e.value === 'violence' ? 'kodutunnaaraa' : 'emaina ibbandi pedutunnaaraa'}? Cheppandi.`, entity: e.surface });
   }
-  const exactDistress = entities.some(e => e.type === 'distress' && e.layer === 'L3-distress' && !['passport_held', 'salary_unpaid'].includes(String(e.value)));
-  const escalate = exactDistress || slots.huroob === true || slots.takenByStranger === true;
+  const exactDistress = entities.some(e => e.type === 'distress' && e.layer === 'L3-distress' && !['passport_held', 'salary_unpaid', 'cheated'].includes(String(e.value)));
+  const escalate = exactDistress || slots.huroob === true || slots.takenByStranger === true || slots.codePhrase === true;
   return { readBacks, escalate };
 }
 

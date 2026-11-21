@@ -1,5 +1,7 @@
 {
-  "_note": "SAMPLE DATA ONLY — fictional names for the demo. Replace with the real registered recruiting agent list from emigrate.gov.in and an official flagged/illegal agents list. Do not present this as real eMigrate data.",
-  "licensed": ["Demo Overseas Manpower", "Sample Licensed Recruiters"],
-  "flagged": ["Raju", "Sub Agent Raju"]
+  "_note": "DEMO ONLY \u2014 fictional flagged names for the scripted template clips. The real eMigrate list of unregistered agents (3,505 as of 31-07-2026 per Lok Sabha AU2190) is not yet machine-readable here. Registered agents come from ra_list.json (official MEA list).",
+  "flagged": [
+    "Raju",
+    "Sub Agent Raju"
+  ]
 }
