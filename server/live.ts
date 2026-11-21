@@ -128,6 +128,13 @@ export function registerLive(app: Express) {
     res.json(listWorkers().map(w => silenceStatus(w)).sort((a, b) => order[a.state] - order[b.state]));
   });
 
+  // Call-in assistant: one utterance -> intent -> Telugu answer (+ Arabic lines to speak for him)
+  app.post('/api/assistant', guard, async (req, res) => {
+    const b = req.body ?? {};
+    const { assist } = await import('./assistant.ts');
+    res.json(await assist(String(b.text ?? ''), { ...contextFromRecipient(b.recipient_data), ...(b.context ?? {}) }));
+  });
+
   app.get('/api/cases', guard, (_req, res) => {
     if (!existsSync(CASES)) return res.json([]);
     const list = readdirSync(CASES).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(join(CASES, f), 'utf8')) as CaseFile)

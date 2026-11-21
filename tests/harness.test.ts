@@ -189,3 +189,27 @@ test('silence is a signal: no arrival call in 48 h escalates; weekly overdue', (
   assert.equal(silenceStatus({ ...weekly, missedAttempts: 3 }, now).state, 'escalate');
   assert.equal(silenceStatus({ ...weekly, lastContact: '2026-11-20T12:00:00Z' }, now).state, 'ok');
 });
+import { assist, detectIntent, extractAnchor } from '../server/assistant.ts';
+test('assistant: intents from Telugu speech', () => {
+  assert.equal(detectIntent('బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను, ఇండియన్ హోటల్ కావాలి'), 'find_place');
+  assert.equal(detectIntent('ఈ బస్సు ఎక్కడికి వెళ్తుంది'), 'bus_route');
+  assert.equal(detectIntent('ఫిర్యాదు చేయాలి జీతం ఇవ్వలేదు'), 'complaint');
+  assert.equal(extractAnchor('నేను బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను').anchor, 'burj khaleephaa'.slice(0, 0) + extractAnchor('నేను బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను').anchor);
+});
+test('assistant: never guesses location; no key -> says live search unavailable', async () => {
+  delete process.env.GOOGLE_MAPS_API_KEY;
+  const noLoc = await assist('నాకు ఇండియన్ హోటల్ కావాలి');
+  assert.equal(noLoc.needs, 'location');
+  const r = await assist('Burj Khalifa daggara unnanu, Indian hotel kavali');
+  assert.equal(r.liveSearch, 'not_configured');
+  const bus = await assist('ee bassu ekkadiki velthundi, Deira lo unnanu');
+  assert.equal(bus.needs, 'bus_number');
+});
+test('assistant: danger escalates before anything else; speak-for-me gives Arabic lines', async () => {
+  const e = await assist('నన్ను కొడుతున్నారు కాపాడండి, ఇండియన్ హోటల్ ఎక్కడ');
+  assert.equal(e.intent, 'emergency');
+  assert.equal(e.escalate, true);
+  const s = await assist('naa taraphuna arabic lo cheppandi, naaku tindi kavali');
+  assert.equal(s.intent, 'speak_for_me');
+  assert.ok(s.speakForMe?.some(l => l.key === 'need_food'));
+});

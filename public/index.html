@@ -76,6 +76,7 @@ small.muted { color: var(--muted); }
 <nav>
   <button data-tab="bench" class="active">Benchmark</button>
   <button data-tab="live">Live / Try it</button>
+  <button data-tab="assistant">Call-in assistant</button>
   <button data-tab="gate">Gate (mid-call)</button>
   <button data-tab="cases">Case files</button>
   <button data-tab="agents">Agent check</button>
@@ -109,6 +110,20 @@ small.muted { color: var(--muted); }
     </div>
     <div id="liveView" style="margin-top:12px"></div>
   </section>
+  <section id="assistant" class="hidden">
+    <div class="card">
+      <p class="kv">What a worker says on any phone (no internet, no app). The assistant answers in Telugu: finds places near a landmark he names, bus and directions, speaks Arabic for him (short confirmed lines), files a complaint, gives helplines. Danger always escalates first. It never guesses where he is. Live search needs <code>GOOGLE_MAPS_API_KEY</code>.</p>
+      <label>Worker said</label>
+      <textarea id="asTx" rows="2">నేను బుర్జ్ ఖలీఫా దగ్గర ఉన్నాను, ఇండియన్ హోటల్ కావాలి</textarea>
+      <div class="row"><button class="btn" id="asBtn">Ask</button>
+        <button class="btn ghost" data-ex="ఈ బస్సు ఎక్కడికి వెళ్తుంది? Deira lo unnanu">Bus</button>
+        <button class="btn ghost" data-ex="naa taraphuna arabic lo cheppandi, naaku tindi kavali, jeetham ivvaledu">Speak Arabic for me</button>
+        <button class="btn ghost" data-ex="ఫిర్యాదు చేయాలి, ఏజెంట్ మోసం చేసిండు, పాస్పోర్ట్ తీసుకున్నారు">Complaint</button>
+        <button class="btn ghost" data-ex="నన్ను కొడుతున్నారు కాపాడండి">Danger</button></div>
+    </div>
+    <div id="asOut" style="margin-top:12px"></div>
+  </section>
+
   <section id="gate" class="hidden">
     <div class="card">
       <p class="kv">Paste a Bolna transcript (or any <b>assistant:</b>/<b>user:</b> lines). The gate decides in code what the agent must do next: <b>ESCALATE</b>, <b>CONFIRM</b>, <b>NOTE</b> or <b>CONTINUE</b>. Bolna can call <code>POST /api/gate</code> as a custom tool mid-call.</p>
@@ -301,6 +316,16 @@ async function loadAgentList() {
 }
 $('#agList').onchange = loadAgentList;
 document.querySelector('nav button[data-tab=agents]').addEventListener('click', loadAgentList);
+
+// ---------------- Assistant tab
+document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { $('#asTx').value = b.dataset.ex; $('#asBtn').click(); });
+$('#asBtn').onclick = async () => {
+  const r = await fetch('/api/assistant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: $('#asTx').value }) }).then(r => r.json());
+  const ar = (r.speakForMe || []).map(l => `<div class="risk"><div class="te">${esc(l.te)}</div><div class="en" dir="rtl" style="font-size:20px">${esc(l.ar)}</div><div class="en">${esc(l.en)}</div></div>`).join('');
+  $('#asOut').innerHTML = `<div class="card">${r.escalate ? '<div class="escalate">ESCALATE — human caseworker now</div>' : ''}<h3>Intent: ${esc(r.intent)}${r.needs ? ' · needs ' + esc(r.needs) : ''} · live search: ${esc(r.liveSearch)}</h3>
+    <p class="tx">${esc(r.sayTe)}</p>${ar ? '<h3 style="margin-top:12px">Arabic lines to play to the other person (verify with a native speaker)</h3>' + ar : ''}
+    ${r.data ? `<p class="kv" style="margin-top:10px">${esc(JSON.stringify(r.data).slice(0, 600))}</p>` : ''}</div>`;
+};
 </script>
 </body>
 </html>
