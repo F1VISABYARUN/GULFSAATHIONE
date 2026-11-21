@@ -213,3 +213,22 @@ test('assistant: danger escalates before anything else; speak-for-me gives Arabi
   assert.equal(s.intent, 'speak_for_me');
   assert.ok(s.speakForMe?.some(l => l.key === 'need_food'));
 });
+import { nextStep } from '../server/checkin-flow.ts';
+test('check-in engine: asks in order, reads bare answers, escalates on stranger pickup', () => {
+  const ctx = { promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' } };
+  let s = nextStep({ kind: 'weekly', turns: [] }, ctx);
+  assert.equal(s.qid, 'salary');
+  s = nextStep({ kind: 'weekly', turns: [{ qid: 'salary', q: 'ఈ నెల జీతం వచ్చిందా?', a: 'రాలేదండి' }] }, ctx);
+  assert.equal(s.slots.salaryPaid, false);
+  assert.equal(s.qid, 'passport');
+  const arr = nextStep({ kind: 'arrival', turns: [
+    { qid: 'arrived', q: 'మీరు చేరుకున్నారా? ఏ ఊరిలో ఉన్నారు?', a: 'దుబాయ్లో ఉన్నాను' },
+    { qid: 'pickup', q: 'మిమ్మల్ని ఎవరు తీసుకెళ్లారు? మీ కంపెనీ వాళ్లేనా?', a: 'లేదు వేరే వాళ్ళు' },
+  ] }, ctx);
+  assert.equal(arr.action, 'ESCALATE');
+  const ok = nextStep({ kind: 'arrival', turns: [
+    { qid: 'arrived', q: 'మీరు చేరుకున్నారా? ఏ ఊరిలో ఉన్నారు?', a: 'దుబాయ్' },
+    { qid: 'pickup', q: 'మిమ్మల్ని ఎవరు తీసుకెళ్లారు? మీ కంపెనీ వాళ్లేనా?', a: 'అవును' },
+  ] }, ctx);
+  assert.equal(ok.qid, 'passport');
+});

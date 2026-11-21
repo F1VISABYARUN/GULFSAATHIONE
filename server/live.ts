@@ -128,6 +128,13 @@ export function registerLive(app: Express) {
     res.json(listWorkers().map(w => silenceStatus(w)).sort((a, b) => order[a.state] - order[b.state]));
   });
 
+  // Check-in conversation engine: send the turns so far, get the next Telugu question (or ESCALATE/DONE)
+  app.post('/api/checkin/next', guard, async (req, res) => {
+    const b = req.body ?? {};
+    const { nextStep } = await import('./checkin-flow.ts');
+    res.json(nextStep({ kind: b.kind ?? 'weekly', turns: b.turns ?? [] }, { ...contextFromRecipient(b.recipient_data), ...(b.context ?? {}) }));
+  });
+
   // Call-in assistant: one utterance -> intent -> Telugu answer (+ Arabic lines to speak for him)
   app.post('/api/assistant', guard, async (req, res) => {
     const b = req.body ?? {};
