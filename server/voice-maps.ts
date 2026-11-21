@@ -76,10 +76,10 @@ export async function voiceDirections(text:string,city:string,destination:string
   if(!destination)return {status:'needs_destination',sayTe:'మీరు ఎక్కడికి వెళ్లాలి?'};
   const taxi={status:'unavailable',sayTe:'దారి సమాచారం అందుబాటులో లేదు. టాక్సీ డ్రైవర్‌కు ఈ మాట చెప్పవచ్చు.',taxi_ar:`من فضلك خذني إلى ${destination}.`};
   const key=process.env.GOOGLE_MAPS_API_KEY;if(!key)return taxi;
-  const params=new URLSearchParams({origin:[anchor,city].filter(Boolean).join(', '),destination,mode,language:'te',key});
+  const params=new URLSearchParams({origin:[anchor,city].filter(Boolean).join(', '),destination,mode,language:'en',key});
   const r=await mapsFetch('https://maps.googleapis.com/maps/api/directions/json?'+params);
   const data=r?.ok?await r.json().catch(()=>null):null;
-  if(data?.status!=='OK')return taxi;
+  if(data?.status!=='OK')return {...taxi,reason:data?.status??'no_response',...(data?.error_message?{detail:String(data.error_message).slice(0,160)}:{})};
   const all=data.routes?.[0]?.legs?.[0]?.steps;
   if(!Array.isArray(all)||!all.length)return taxi;
   const steps=all.slice(0,4).map(s=>{
@@ -87,8 +87,10 @@ export async function voiceDirections(text:string,city:string,destination:string
     if(t?.departure_stop?.name&&t.arrival_stop?.name)return `${t.departure_stop.name} వద్ద ${t.line?.short_name||t.line?.name||'సర్వీసు'} ఎక్కండి. ${t.arrival_stop.name} వద్ద దిగండి.`;
     return String(s.html_instructions??'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
   });
-  if(steps.some(s=>!s||!/[\u0C00-\u0C7F]/.test(s)))return taxi;
-  return {status:'route',steps,more_steps:all.length>4,sayTe:steps.join(' ') + (all.length>4?' ఇవి మొదటి నాలుగు దశలు.':'')};
+  if(steps.some(s=>!s))return {...taxi,reason:'empty_step'};
+  const leg=data.routes[0].legs[0];const meters=leg.distance?.value,mins=Math.round((leg.duration?.value??0)/60);
+  const head=meters?`మొత్తం సుమారు ${meters} మీటర్లు${mins?`, ${mins} నిమిషాలు`:''}. `:'';
+  return {status:'route',steps,more_steps:all.length>4,sayTe:head+steps.map((x,i)=>`${i+1}. ${x}`).join(' ')+(all.length>4?' ఇవి మొదటి నాలుగు దశలు.':'')};
 }
 
 export async function placeForSms(id:string){
