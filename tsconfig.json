@@ -9,6 +9,7 @@
     "resolveJsonModule": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "typeRoots": ["./node_modules/@types"],
     "types": ["node"]
   },
   "include": ["server", "eval", "tests"]
