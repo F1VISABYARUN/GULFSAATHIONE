@@ -7,6 +7,7 @@ export interface Token {
   i: number;        // index in token array
   raw: string;      // original text (with punctuation)
   norm: string;     // lowercase, punctuation stripped, digit commas removed
+  glue?: boolean;   // no space before this token in the original (a suffix split off a number: "1789" + "న")
 }
 
 export function tokenize(text: string): Token[] {
@@ -16,8 +17,10 @@ export function tokenize(text: string): Token[] {
     .replace(/(\d)\s*k\b/gi, '$1k')
     .replace(/[।॥]/g, ' ')
     .split(/\s+/)
-    .filter(Boolean);
-  return parts.map((raw, i) => ({ i, raw, norm: normalizeWord(toLatin(raw)) })).filter(t => t.norm.length > 0)
+    .filter(Boolean)
+    // "1789న" / "2010ల": a Telugu case suffix glued to digits becomes two tokens, remembering there was no space
+    .flatMap(p => p.split(/(?<=\d)(?=[\u0C00-\u0C7F\u0900-\u097F\u0600-\u06FF])/).map((x, k) => ({ x, glue: k > 0 })));
+  return parts.map((p, i) => ({ i, raw: p.x, norm: normalizeWord(toLatin(p.x)), glue: p.glue })).filter(t => t.norm.length > 0)
     .map((t, i) => ({ ...t, i }));
 }
 

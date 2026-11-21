@@ -49,7 +49,7 @@ export function formatPhone(p: PhoneValue): string {
 const REPAIR_DIGITS = new Map<string, number>([['joolai', 0], ['july', 0], ['jeero', 0], ['zeero', 0]]);
 
 export function findPhones(tokens: Token[], repair = false): Entity[] {
-  const digitOf = (t: string) => DIGIT_WORDS.get(t) ?? (repair ? REPAIR_DIGITS.get(t) : undefined);
+  const digitOf = (t: string) => DIGIT_WORDS.get(t) ?? DIGIT_WORDS.get(t.replace(/(ki|ku)$/, '')) ?? (repair ? REPAIR_DIGITS.get(t) : undefined);
   const out: Entity[] = [];
   let i = 0;
   while (i < tokens.length) {
@@ -66,7 +66,11 @@ export function findPhones(tokens: Token[], repair = false): Entity[] {
         if (next !== undefined) { digits += String(next).repeat(REPEAT_WORDS.get(t)!); j += 2; lastDigitEnd = j; continue; }
         break;
       }
-      if (/^\d+$/.test(t) && t.length <= MAX_DIGIT_TOKEN) { digits += t; j++; lastDigitEnd = j; continue; }
+      if (/^\d+$/.test(t) && t.length <= MAX_DIGIT_TOKEN) {
+        // "1978; 1970" are two years, not one 8-digit number: punctuation ends a run unless it is a comma between single dictated digits
+        const prev = j > i ? tokens[j - 1] : undefined;
+        if (prev && /\d$/.test(prev.norm) && (/[;:.!?।]$/.test(prev.raw) || (/,$/.test(prev.raw) && prev.norm.length > 1))) break;
+        digits += t; j++; lastDigitEnd = j; continue; }
       if (PHONE_TENS.has(t)) {
         const tens = PHONE_TENS.get(t)!;
         const next = j + 1 < tokens.length ? englishUnit(tokens[j + 1].norm) : undefined;
@@ -80,7 +84,9 @@ export function findPhones(tokens: Token[], repair = false): Entity[] {
     if (digits.length >= 7) {
       const value = classifyPhone(digits);
       const surface = tokens.slice(i, lastDigitEnd).map(t => t.raw).join(' ');
-      const cue = idCue(tokens, i);
+      // "at the rate" (the @ sign, spoken) in its many ASR spellings: "at the rate", "et di ret", "addaret", "attu rate"
+      const atRate = /^(at|et|att?u|add?a?)(the|di|da|dh|de)?(rate|rat|ret|reet|reat)/.test(tokens.slice(lastDigitEnd, lastDigitEnd + 3).map(t => t.norm).join(''));
+      const cue = idCue(tokens, i) ?? (atRate ? 'UPI handle' : undefined);
       // A named identifier, or 12 digits that are not a country-coded phone, is never stored as a phone number.
       if (cue || value.kind === 'id12') {
         const kind = cue ?? 'ID';
@@ -175,6 +181,32 @@ export function evaluateNumberRun(words: string[]): { value: number; hasScale: b
   return { value: total + cur + (cur ? mod : 0), hasScale, hasDigit };
 }
 
+/**
+ * Split a run of number words into separate numbers using place value: a unit cannot follow a filled ones place,
+ * a tens word cannot follow a filled tens place, and scales must descend (lakh before thousand). This keeps a list read
+ * aloud ("sixty four, seven seventy five, thirteen ninety two") from being merged into one giant amount.
+ */
+export function segmentNumberRun(words: string[]): [number, number][] {
+  const segs: [number, number][] = []; let start = 0, cur = 0, lastScale = Infinity, fresh = true;
+  for (let k = 0; k < words.length; k++) {
+    const n = classifyNum(words[k]); if (!n) continue;
+    let split = false;
+    if (n.k === 'unit' && n.digit) split = !fresh && !(k + 1 < words.length && ['mult', 'hundred'].includes(classifyNum(words[k + 1])?.k ?? ''));
+    else if (n.k === 'unit' && n.v < 10) split = !fresh && cur % 10 !== 0 && !(cur % 10 === 0);
+    else if (n.k === 'unit' && n.v >= 10) split = !fresh && cur % 100 !== 0;
+    else if (n.k === 'mult') split = n.v >= lastScale;
+    else if (n.k === 'hundred') split = !fresh && cur >= 100 && cur % 100 !== 0 ? true : false;
+    if (split) { segs.push([start, k]); start = k; cur = 0; lastScale = Infinity; fresh = true; }
+    switch (n.k) {
+      case 'unit': cur += n.v; fresh = false; break;
+      case 'hundred': cur = (cur % 100 === cur ? cur : cur) * 100 || 100; fresh = false; break;
+      case 'mult': lastScale = n.v; cur = 0; fresh = false; break;
+      default: fresh = false;
+    }
+  }
+  segs.push([start, words.length]); return segs.filter(([x, y]) => y > x);
+}
+
 export function findMoney(tokens: Token[], consumed: Set<number>): Entity[] {
   const out: Entity[] = [];
   let i = 0;
@@ -187,41 +219,59 @@ export function findMoney(tokens: Token[], consumed: Set<number>): Entity[] {
       if (n.k === 'and' && !(j + 1 < tokens.length && classifyNum(tokens[j + 1].norm) && tokens[j + 1].norm !== 'and')) break;
       j++;
     }
-    // trim a trailing "and"
+    while (j > i && tokens[j - 1].norm === 'and') j--;
+    const runWords = tokens.slice(i, j).map(t => t.norm);
+    const runEnd = j;
+    for (const [rs, re] of segmentNumberRun(runWords)) {
+      const si = i + rs, sj = i + re;
+      const words = tokens.slice(si, sj).map(t => t.norm);
+      const ev = evaluateNumberRun(words);
+      if (!ev) continue;
+
+      // currency: one token before, or up to two after
+      let currency: MoneyValue['currency'];
+      let start = si, end = sj;
+      if (si > 0 && CURRENCY_WORDS[tokens[si - 1].norm] && !consumed.has(si - 1)) { currency = CURRENCY_WORDS[tokens[si - 1].norm]; start = si - 1; }
+      for (let k = sj; k < Math.min(sj + 2, tokens.length) && !currency; k++) {
+        if (CURRENCY_WORDS[tokens[k].norm]) { currency = CURRENCY_WORDS[tokens[k].norm]; end = k + 1; }
+      }
+      const loneHundred = words.length === 1 && HUNDRED_WORDS.has(words[0]) && currency === undefined;
+      // Money needs something that says so: a currency, or a fee/salary/payment cue nearby. Bare digits ("2010"), spoken scale words
+      // ("vela", "lakshalu" in "thousands of people"), years and 8+ digit runs are never turned into rupees on their own.
+      const yearLike = ev.value >= 1900 && ev.value <= 2100 && Number.isInteger(ev.value) && (words.length === 1 || ev.hasScale);
+      const nearTime = (sj < tokens.length && TIME_WORDS.has(tokens[sj].norm)) || (si > 0 && TIME_WORDS.has(tokens[si - 1].norm));
+      let cue = false;
+      for (let k = Math.max(0, si - 10); k < Math.min(tokens.length, sj + 10); k++) if ((k < si || k >= sj) && (FEE_WORDS.has(tokens[k].norm) || SALARY_WORDS.has(tokens[k].norm) || MONEY_CUES.has(tokens[k].norm))) { cue = true; break; }
+      const longDigits = words.some(t => /^\d{8,}$/.test(t));
+      const cued = cue && !longDigits && !(yearLike && nearTime) && (ev.hasScale || (ev.hasDigit && ev.value >= 100));
+      const isMoney = !loneHundred && (currency !== undefined || cued);
+      const nextIsHour = sj < tokens.length && HOUR_WORDS.has(tokens[sj].norm);
+      if (isMoney && !nextIsHour) {
+        const value: MoneyValue = { amount: ev.value, currency };
+        const surface = tokens.slice(start, end).map(t => t.raw).join(' ');
+        const text = formatMoney(value);
+        out.push({ type: 'money', start, end, text, surface, value, layer: 'L2-money', changed: surface.replace(/\s/g, '') !== text.replace(/\s/g, '') });
+      }
+    }
+    i = Math.max(runEnd, i + 1);
+  }
+  return out;
+}
+
+/** Every number in the text as a value, whether spoken in words or written in digits, with no money or cue logic. For evaluation. */
+export function numberValues(tokens: Token[]): number[] {
+  const out: number[] = []; let i = 0;
+  while (i < tokens.length) {
+    if (!startsNumber(tokens[i].norm)) { i++; continue; }
+    let j = i;
+    while (j < tokens.length && classifyNum(tokens[j].norm) && !(classifyNum(tokens[j].norm)!.k === 'and' && !(j + 1 < tokens.length && classifyNum(tokens[j + 1].norm)))) j++;
     while (j > i && tokens[j - 1].norm === 'and') j--;
     const words = tokens.slice(i, j).map(t => t.norm);
-    const ev = evaluateNumberRun(words);
-    if (!ev) { i = Math.max(j, i + 1); continue; }
-
-    // currency: one token before, or up to two after
-    let currency: MoneyValue['currency'];
-    let start = i, end = j;
-    if (i > 0 && CURRENCY_WORDS[tokens[i - 1].norm] && !consumed.has(i - 1)) { currency = CURRENCY_WORDS[tokens[i - 1].norm]; start = i - 1; }
-    for (let k = j; k < Math.min(j + 2, tokens.length) && !currency; k++) {
-      if (CURRENCY_WORDS[tokens[k].norm]) { currency = CURRENCY_WORDS[tokens[k].norm]; end = k + 1; }
+    for (const [a, b] of segmentNumberRun(words)) {
+      const ev = evaluateNumberRun(words.slice(a, b)); if (!ev) continue;
+      if (ev.value >= 10) out.push(ev.value);   // 1-9 are too ambiguous in words (oka = a / one) to compare fairly
     }
-    const loneHundred = words.length === 1 && HUNDRED_WORDS.has(words[0]) && currency === undefined;
-    // A bare digit string is money only when something says so: a currency, a scale word, or a fee/salary cue nearby.
-    // Years (2010), long digit strings and unexplained numbers are left alone instead of being invented into rupees.
-    const single = j - i === 1 ? tokens[i].norm : '';
-    const yearLike = /^\d{4}$/.test(single) && ev.value >= 1900 && ev.value <= 2100;
-    const nearTime = (j < tokens.length && TIME_WORDS.has(tokens[j].norm)) || (i > 0 && TIME_WORDS.has(tokens[i - 1].norm));
-    let cue = false;
-    for (let k = Math.max(0, i - 6); k < Math.min(tokens.length, j + 6); k++) if ((k < i || k >= j) && (FEE_WORDS.has(tokens[k].norm) || SALARY_WORDS.has(tokens[k].norm) || MONEY_CUES.has(tokens[k].norm))) { cue = true; break; }
-    const longDigits = tokens.slice(i, j).some(t => /^\d{8,}$/.test(t.norm));
-    const bareDigitMoney = ev.hasDigit && ev.value >= 100 && cue && !longDigits && !(yearLike && nearTime);
-    const isMoney = !loneHundred && (ev.hasScale || currency !== undefined || bareDigitMoney);
-    // hours are handled elsewhere: "12 gantalu" is not money
-    const nextIsHour = j < tokens.length && HOUR_WORDS.has(tokens[j].norm);
-    if (isMoney && !nextIsHour) {
-      const value: MoneyValue = { amount: ev.value, currency };
-      const surface = tokens.slice(start, end).map(t => t.raw).join(' ');
-      const text = formatMoney(value);
-      out.push({ type: 'money', start, end, text, surface, value, layer: 'L2-money', changed: surface.replace(/\s/g, '') !== text.replace(/\s/g, '') });
-      i = end;
-    } else {
-      i = Math.max(j, i + 1);
-    }
+    i = Math.max(j, i + 1);
   }
   return out;
 }

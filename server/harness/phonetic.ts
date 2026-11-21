@@ -40,6 +40,15 @@ export function similarity(a: string, b: string): number {
   return 1 - levenshtein(ka, kb) / Math.max(ka.length, kb.length);
 }
 
+const PLACE_CUES_AFTER = new Set(['lo', 'loni', 'lone', 'nundi', 'nunchi', 'ki', 'ku', 'ke', 'ni', 'daggara', 'daggar', 'ooru', 'ooriki', 'jilla', 'jillalo', 'mandal', 'mandalam', 'village', 'city', 'town', 'side', 'pakkana', 'vaadu', 'vaallu', 'near', 'from']);
+const PLACE_CUES_BEFORE = new Set(['in', 'at', 'near', 'from', 'to', 'ooru', 'jilla', 'mandal', 'mandalam', 'village', 'city', 'town', 'nenu', 'unnanu', 'vachanu', 'velthunna']);
+/** A sloppy (fuzzy) place match needs a locative cue next to it: "normal" (నార్మల్) is not Nirmal, "manam" (we) is not Manama. */
+function placeCue(tokens: Token[], i: number, size: number, suffixStripped: boolean): boolean {
+  if (suffixStripped) return true;
+  const after = tokens[i + size]?.norm, before = tokens[i - 1]?.norm;
+  return (after !== undefined && PLACE_CUES_AFTER.has(after)) || (before !== undefined && PLACE_CUES_BEFORE.has(before));
+}
+
 export interface Target { text: string; type: 'place' | 'name'; fromContext: boolean; canonical?: string }
 
 /**
@@ -59,7 +68,8 @@ export function findNamesAndPlaces(tokens: Token[], consumed: Set<number>, targe
       let joined = span.map(t => t.norm).join('');
       if (joined.length < 4) continue;
       const stripped = joined.replace(/(loni|lone|lo|nundi|nunchi|ki|ku|ke|ni|se|mein|me)$/, '');
-      if (size === 1 && stripped !== joined && stripped.length >= 4 && prepared.some(t => t.text.toLowerCase().replace(/\s+/g, '') === stripped)) joined = stripped;
+      let suffixStripped = false;
+      if (size === 1 && stripped !== joined && stripped.length >= 4 && prepared.some(t => t.text.toLowerCase().replace(/\s+/g, '') === stripped)) { joined = stripped; suffixStripped = true; }
       const surface = span.map(t => t.raw).join(' ');
       let best: { t: typeof prepared[number]; score: number } | undefined;
       for (const t of prepared) {
@@ -72,7 +82,7 @@ export function findNamesAndPlaces(tokens: Token[], consumed: Set<number>, targe
         if (kj.length < 4) continue;
         const score = 1 - levenshtein(kj, t.key) / Math.max(kj.length, t.key.length);
         const threshold = t.fromContext ? 0.74 : t.key.length <= 5 ? 0.88 : 0.8;
-        if (score >= threshold && (!best || score > best.score)) best = { t, score };
+        if (score >= threshold && (t.fromContext || placeCue(tokens, i, size, suffixStripped)) && (!best || score > best.score)) best = { t, score };
       }
       if (!best) continue;
       for (const t of span) taken.add(t.i);

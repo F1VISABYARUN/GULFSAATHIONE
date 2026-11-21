@@ -2,6 +2,8 @@
 // Audio and references stay outside git (EVAL_DATA); transcripts are cached outside git too (EVAL_CACHE).
 import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { statSync } from 'node:fs';
 
 export interface Item { id: string; pack: 'fleurs60' | 'indicvoices10' | 'arabic_places3' | 'parallel9'; cond: string; file: string; ref: string; lang: string; meta?: Record<string, string> }
 
@@ -69,9 +71,16 @@ export const MODELS = ['gpt-4o-transcribe', 'gpt-4o-mini-transcribe', 'whisper-1
 export function cacheDir() { const d = process.env.EVAL_CACHE || join(import.meta.dirname ?? '.', 'cache'); mkdirSync(d, { recursive: true }); return d; }
 const key = (it: Item, model: string) => `${model}__${it.id.replace(/[^\w.-]/g, '_')}.json`;
 export function cached(it: Item, model: string): { text: string; ms: number } | undefined { const p = join(cacheDir(), key(it, model)); return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : undefined; }
+/** Vercel rejects request bodies over ~4.5 MB. Long 44 kHz clips are re-encoded to 16 kHz mono FLAC (the same for every model). */
+function uploadable(file: string): string {
+  if (statSync(file).size < 3_500_000) return file;
+  const out = join(cacheDir(), 'conv_' + file.split('/').pop()!.replace(/\.\w+$/, '.flac'));
+  if (!existsSync(out)) execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-ac', '1', '-ar', '16000', out]);
+  return out;
+}
 export async function transcribe(it: Item, model: string, base: string, secret: string): Promise<{ text: string; ms: number } | { error: string }> {
   const hit = cached(it, model); if (hit) return hit;
-  const form = new FormData(); form.append('model', model); form.append('language', it.lang); form.append('audio', new Blob([readFileSync(it.file)]), it.file.split('/').pop()!);
+  const form = new FormData(); const up = uploadable(it.file); form.append('model', model); if (model !== 'whisper-1') form.append('language', it.lang); /* whisper-1 rejects 'te': auto-detect */ form.append('audio', new Blob([readFileSync(up)]), up.split('/').pop()!);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const r = await fetch(base + '/api/saathi/stt', { method: 'POST', headers: { 'x-saathi-secret': secret }, body: form, signal: AbortSignal.timeout(70000) });
