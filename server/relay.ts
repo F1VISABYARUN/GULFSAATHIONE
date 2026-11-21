@@ -20,6 +20,18 @@ async function model(text:string,from:string,to:string,locks:string[]) {
 }
 
 const plain=(t:string)=>t.normalize('NFC').replace(/[\u200c\u200d]/g,'');
+// Write a foreign sentence phonetically in Telugu letters so the worker can read it out. Returns '' if unusable.
+async function phonetic(text:string):Promise<string> {
+  try {
+    const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(10000),
+      headers:{authorization:'Bearer '+process.env.OPENAI_API_KEY,'content-type':'application/json'},
+      body:JSON.stringify({model:process.env.OPENAI_TEXT_MODEL||'gpt-4o-mini',store:false,response_format:{type:'json_object'},
+        messages:[{role:'system',content:'Write how the given sentence sounds, using Telugu letters only (a transliteration, not a translation). Return JSON {te}.'},{role:'user',content:text}]})});
+    if(!r.ok) return '';
+    const t=String(JSON.parse((await r.json()).choices[0].message.content).te??'').trim();
+    return /[\u0C00-\u0C7F]/.test(t)&&!/[\u0600-\u06FF]/.test(t)?t:'';
+  } catch { return ''; }
+}
 function hasLocks(text:string,locks:string[]) {
   const padded=' '+plain(text)+' ';
   return locks.every(value=>{
@@ -55,6 +67,9 @@ export async function relay(text:string,from:string,to:string,ctx:CallContext={}
     const back=to==='te'?forward:await model(forward.text,to,'te',locks);
     if(back.safety==='human')return blocked(true);
     if(back.safety!=='ordinary'||back.confidence!=='high'||typeof back.text!=='string'||!back.text.trim()||!intact(back.text))return blocked();
-    return {status:'translated',say_to_other:to==='te'?'':forward.text,pronounce_te:to==='te'||typeof forward.pronounce_te!=='string'?'':forward.pronounce_te.trim(),say_to_worker:back.text,back_translation:back.text,confidence:'high',locked_ok:true,label:'unchecked by native speaker'};
+    const say=to==='te'?'':forward.text;
+    const own=typeof forward.pronounce_te==='string'?forward.pronounce_te.trim():'';
+    const pronounce_te=to==='te'?'':(/[\u0C00-\u0C7F]/.test(own)&&!/[\u0600-\u06FF]/.test(own)?own:await phonetic(forward.text));
+    return {status:'translated',say_to_other:say,pronounce_te,say_to_worker:back.text,back_translation:back.text,confidence:'high',locked_ok:true,label:'unchecked by native speaker'};
   } catch {return fallback();}
 }
