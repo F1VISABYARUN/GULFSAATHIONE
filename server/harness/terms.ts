@@ -2,8 +2,11 @@
 
 import type { Token } from './tokens.ts';
 import type { Entity, Revision } from './types.ts';
-import { GULF_TERMS, DISTRESS_PHRASES, CORRECTION_MARKERS, JOB_WORDS } from './lexicon.ts';
+import { GULF_TERMS, DISTRESS_PHRASES, CORRECTION_MARKERS, JOB_WORDS, COMMON_WORDS } from './lexicon.ts';
 import { phoneticKey, levenshtein } from './phonetic.ts';
+
+/** Consonant skeleton of a phonetic key: drops vowels so only the consonant frame is compared. */
+const skeleton = (k: string) => k.replace(/[aeiou]/g, '');
 
 function matchSeq(tokens: Token[], i: number, words: string[], consumed: Set<number>): boolean {
   if (i + words.length > tokens.length) return false;
@@ -29,13 +32,15 @@ export function findGulfTerms(tokens: Token[], consumed: Set<number>, fuzzy: boo
       if (matchSeq(tokens, i, c.words, new Set([...consumed, ...used]))) { hit = { term: c.term, len: c.words.length, asr: c.asr, score: 1 }; break; }
     }
     // single-token phonetic fallback for longer terms: "huroobu", "kafeelu"
-    if (!hit && fuzzy && !consumed.has(i) && tokens[i].norm.length >= 5) {
+    if (!hit && fuzzy && !consumed.has(i) && tokens[i].norm.length >= 5 && !COMMON_WORDS.has(tokens[i].norm)) {
       const k = phoneticKey(tokens[i].norm);
       for (const term of GULF_TERMS) {
         if (term.canonical.includes(' ') || term.canonical.length < 5) continue;
         const tk = phoneticKey(term.canonical);
         const score = 1 - levenshtein(k, tk) / Math.max(k.length, tk.length);
-        if (score >= 0.8) { hit = { term, len: 1, asr: true, score }; break; }
+        // Real ASR variants ("huroobu", "kafeelu") keep the consonants and only change vowels or add a suffix vowel.
+        // "ikkada" (here) scores 0.8 against "iqama" but its consonants differ (k-d vs k-m), so it is not a repair.
+        if (score >= 0.8 && skeleton(k) === skeleton(tk)) { hit = { term, len: 1, asr: true, score }; break; }
       }
     }
     if (!hit) continue;

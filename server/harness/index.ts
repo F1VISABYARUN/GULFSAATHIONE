@@ -77,6 +77,12 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
   for (const e of entities) {
     if (e.superseded) continue;
     if (e.type === 'phone' && e.risky) readBacks.push({ reason: `Phone number incomplete (${(e.value as { issue?: string }).issue})`, te: `Number malli cheppandi — ${e.text} ani vinnanu, idi complete kaadu.`, entity: e.text });
+    if (e.type === 'idnumber') {
+      const v = e.value as { kind: string; digits: string; named: boolean };
+      readBacks.push(v.named
+        ? { reason: `${v.kind} number heard (${v.digits.length} digits) — stored as an ID, not a phone number`, te: `${v.kind} number ${e.text} ani vinnanu — sariggaa?`, entity: e.text }
+        : { reason: `${v.digits.length} digits that are not a phone number — which number is this?`, te: `${e.text} — idi phone number kaadu. Aadhaar-aa, UAN-aa, vere number-aa? Cheppandi.`, entity: e.text });
+    }
     if (e.type === 'place') { const d = districtOf(e.text); if (d.ambiguous) readBacks.push({ reason: `"${e.text}" is a mandal in ${d.ambiguous.join(' and ')}`, te: `${e.text} — ${d.ambiguous.join(' leda ')} jilla lo? Cheppandi.`, entity: e.text }); }
     if ((e.type === 'place' || e.type === 'name') && e.risky) readBacks.push({ reason: `Low-confidence match: "${e.surface}" → ${e.text}`, te: `${e.text} ani annara?`, entity: e.text });
   }

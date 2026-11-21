@@ -2,6 +2,7 @@
 // Every tool takes the caller's own words (caller_said) and runs them through the harness, so the
 // LLM's guesses never decide risk on their own.
 
+import multer from 'multer';
 import type { Express, Request, Response } from 'express';
 import { runHarness, ALL_ON } from './harness/index.ts';
 import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
@@ -69,6 +70,8 @@ export function isOverdue(w: WorkerRec, now = Date.now()) {
   return now - since >= 24 * 3600_000;
 }
 
+export const STT_MODELS = ['gpt-4o-transcribe', 'gpt-4o-mini-transcribe', 'whisper-1'];
+
 export function registerSaathi(app: Express, guard: (req: Request, res: Response, next: () => void) => void) {
   app.use('/api/saathi/cases', (_req,res,next)=>{
     res.set('Cache-Control','no-store');
@@ -76,6 +79,32 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     next();
   });
   translationRoutes(app,guard);
+  // Benchmark helper: raw speech-to-text in the native script (no romanising), model chosen from an allowlist.
+  // POST multipart: audio=<file>, model=<id>, language=<iso code, optional>, prompt=<optional>
+  const sttUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+  app.post('/api/saathi/stt', guard, sttUpload.single('audio'), async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!process.env.SAATHI_SECRET) return res.status(503).json({ error: 'Set SAATHI_SECRET' });
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not set' });
+    const model = String(req.body?.model ?? 'gpt-4o-transcribe');
+    if (!STT_MODELS.includes(model)) return res.status(400).json({ error: 'model must be one of ' + STT_MODELS.join(', ') });
+    if (!req.file) return res.status(400).json({ error: 'audio file required' });
+    const language = String(req.body?.language ?? '').trim();
+    if (language && !/^[a-z]{2}$/.test(language)) return res.status(400).json({ error: 'language must be a 2-letter code' });
+    try {
+      const form = new FormData();
+      form.append('file', new Blob([new Uint8Array(req.file.buffer)]), req.file.originalname || 'audio.wav');
+      form.append('model', model);
+      form.append('response_format', 'json');
+      if (language) form.append('language', language);
+      if (req.body?.prompt) form.append('prompt', String(req.body.prompt).slice(0, 800));
+      const t0 = Date.now();
+      const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body: form, signal: AbortSignal.timeout(55000) });
+      const j: any = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(502).json({ error: 'OpenAI returned ' + r.status, detail: String(j?.error?.message ?? '').slice(0, 200) });
+      res.json({ text: String(j.text ?? ''), model, language: language || null, ms: Date.now() - t0 });
+    } catch { res.status(502).json({ error: 'OpenAI unreachable or timed out' }); }
+  });
   // Which OpenAI models can this server's key use? Returns model ids only, never the key.
   app.get('/api/saathi/models', guard, async (_req, res) => {
     res.set('Cache-Control', 'no-store');

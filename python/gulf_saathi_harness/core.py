@@ -116,7 +116,9 @@ def _classify_phone(d: str) -> dict:
         return {'digits': d, 'e164': f'+91 {d[:5]} {d[5:]}', 'valid': True}
     if (len(d) == 10 and d.startswith('05')) or (len(d) == 9 and d.startswith('5')):
         return {'digits': d, 'valid': True, 'issue': 'Gulf mobile, country not stated'}
-    return {'digits': d, 'valid': False, 'issue': f'{len(d)} digits heard, an Indian mobile needs 10'}
+    if len(d) == 12:
+        return {'digits': d, 'valid': False, 'kind': 'id12', 'issue': '12 digits, not a phone number'}
+    return {'digits': d, 'valid': False, 'kind': 'long', 'issue': f'{len(d)} digits heard, an Indian mobile needs 10'}
 
 
 _REPAIR_DIGITS = {'joolai': 0, 'july': 0, 'jeero': 0, 'zeero': 0}
@@ -128,7 +130,7 @@ def find_phones(tokens: list[str], repair: bool = True) -> list[tuple[int, int, 
     out, i = [], 0
     while i < len(tokens):
         t = tokens[i]
-        if not (t in D or t in T or (t.isdigit() and len(t) <= 10) or (t in R and i + 1 < len(tokens))):
+        if not (t in D or t in T or (t.isdigit() and len(t) <= 18) or (t in R and i + 1 < len(tokens))):
             i += 1; continue
         j, digits, last = i, '', i
         while j < len(tokens):
@@ -141,7 +143,7 @@ def find_phones(tokens: list[str], repair: bool = True) -> list[tuple[int, int, 
                 if v is None:
                     break
                 digits += str(v) * R[t]; j += 2; last = j; continue
-            if t.isdigit() and len(t) <= 10:
+            if t.isdigit() and len(t) <= 18:
                 digits += t; j += 1; last = j; continue
             if t in T:
                 u = one.get(tokens[j + 1]) if j + 1 < len(tokens) else None
@@ -151,7 +153,11 @@ def find_phones(tokens: list[str], repair: bool = True) -> list[tuple[int, int, 
                 digits += str(v); j += 1; last = j; continue
             break
         if len(digits) >= 7:
-            out.append((i, last, _classify_phone(digits))); i = last
+            info = _classify_phone(digits)
+            cue = next((LEX['id_cues'][tokens[k]] for k in range(i - 1, max(-1, i - 5), -1) if tokens[k] in LEX['id_cues']), None)
+            if cue or info.get('kind') == 'id12':
+                info = {'digits': digits, 'valid': True, 'kind': 'id', 'id_kind': cue or 'ID'}   # an identifier, never a phone number
+            out.append((i, last, info)); i = last
         else:
             i += 1
     return out
@@ -221,7 +227,15 @@ def find_money(tokens: list[str], consumed: set[int] | None = None) -> list[dict
                 if tokens[k] in C:
                     cur = C[tokens[k]]; break
         lone_hundred = j - i == 1 and tokens[i] in LEX['hundred'] and not cur
-        if ev and not lone_hundred and (ev[1] or cur or (ev[2] and ev[0] >= 100)):
+        single = tokens[i] if j - i == 1 else ''
+        year_like = bool(re.fullmatch(r'\d{4}', single)) and ev is not None and 1900 <= ev[0] <= 2100
+        tw = set(LEX['time_words'])
+        near_time = (j < len(tokens) and tokens[j] in tw) or (i > 0 and tokens[i - 1] in tw)
+        cues = set(LEX['fee_words']) | set(LEX['salary_words']) | set(LEX['money_cues'])
+        cue = any(tokens[k] in cues for k in range(max(0, i - 6), min(len(tokens), j + 6)) if not (i <= k < j))
+        long_digits = any(re.fullmatch(r'\d{8,}', t) for t in tokens[i:j])
+        bare_digit_money = bool(ev and ev[2] and ev[0] >= 100 and cue and not long_digits and not (year_like and near_time))
+        if ev and not lone_hundred and (ev[1] or cur or bare_digit_money):
             out.append({'start': i, 'end': j, 'amount': ev[0], 'currency': cur or 'INR'})
         i = max(j, i + 1)
     return out
@@ -288,10 +302,14 @@ def normalize(text: str = '', turns: list[dict] | None = None, code_phrase: str 
     consumed = {k for s, e, _ in phones for k in range(s, e)}
     money = find_money(toks, consumed)
     facts: dict = {}
-    if phones:
-        facts['phones'] = [p.get('e164') or p['digits'] for _, _, p in phones]
-        if any(not p['valid'] for _, _, p in phones):
+    real = [p for _, _, p in phones if p.get('kind') != 'id']
+    ids = [{'kind': p['id_kind'], 'digits': p['digits']} for _, _, p in phones if p.get('kind') == 'id']
+    if real:
+        facts['phones'] = [p.get('e164') or p['digits'] for p in real]
+        if any(not p['valid'] for p in real):
             facts['phone_incomplete'] = True
+    if ids:
+        facts['id_numbers'] = ids
     sal, fee = set(LEX['salary_words']), set(LEX['fee_words'])
     for m in money:
         best = None  # nearest cue word decides fee vs salary (same as the TS harness)

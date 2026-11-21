@@ -1,5 +1,5 @@
 export type EntityType =
-  | 'money' | 'phone' | 'hours' | 'place' | 'name' | 'gulf' | 'passportType' | 'day' | 'distress' | 'job';
+  | 'money' | 'phone' | 'hours' | 'idnumber' | 'place' | 'name' | 'gulf' | 'passportType' | 'day' | 'distress' | 'job';
 
 export interface Entity {
   type: EntityType;
@@ -40,6 +40,7 @@ export interface CaseSlots {
   huroob?: boolean;
   distress?: string[];
   phones?: string[];
+  idNumbers?: { kind: string; digits: string }[];  // long digit strings that are NOT phone numbers (UAN, Aadhaar, account)
   places?: string[];
   country?: string;        // Gulf country (from city/country mentions)
   district?: string;       // Telangana district

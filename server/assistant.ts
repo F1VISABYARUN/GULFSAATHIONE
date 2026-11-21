@@ -18,8 +18,23 @@ export type Intent = 'emergency' | 'find_place' | 'directions' | 'bus_route' | '
 
 const has = (norms: string[], words: string[]) => words.some(w => norms.some(n => n === w || n.startsWith(w)));
 
+// Arabic place requests: the tokenizer does not transliterate Arabic script, so match the raw text.
+const ARABIC_PLACES: [RegExp, string, string][] = [
+  [/مستشفى|مشفى|عيادة|طبيب/, 'hospital', 'hospital'],
+  [/صيدلية|صيدليه/, 'pharmacy', 'pharmacy'],
+  [/شرطة/, 'police station', 'police station'],
+  [/سفارة|قنصلية/, 'Embassy of India', 'Indian embassy / consulate'],
+  [/محطة (?:ال)?(?:باص|حافلات|حافلة|اتوبيس|أتوبيس)|موقف (?:ال)?(?:باص|حافلات)/, 'bus station', 'bus station'],
+  [/مسجد|جامع/, 'mosque', 'mosque'],
+  [/معبد/, 'Hindu temple', 'temple'],
+  [/مطعم/, 'Indian restaurant', 'Indian hotel / bhojanam'],
+  [/صراف|بنك|مصرف/, 'ATM', 'ATM'],
+];
+const arabicPlace = (text: string) => ARABIC_PLACES.find(([re]) => re.test(text));
+
 /** Rule-based intent on transliterated tokens (works on Telugu script too). */
 export function detectIntent(text: string): Intent {
+  if (/[\u0600-\u06FF]/.test(text) && arabicPlace(text)) return 'find_place';
   const n = tokenize(text).map(t => t.norm);
   const j = n.join(' ');
   if (has(n, ['complaint', 'phiryaadu', 'firyadu', 'case', 'report'])) return 'complaint';
@@ -166,7 +181,7 @@ export async function assist(text: string, ctx: CallContext = {}): Promise<Assis
 
   if (intent === 'find_place') {
     const j = tokenize(text).map(t => t.norm).join(' ');
-    const kind = PLACE_QUERIES.find(([re]) => re.test(j)) ?? PLACE_QUERIES[0];
+    const kind = arabicPlace(text) ?? PLACE_QUERIES.find(([re]) => re.test(j)) ?? PLACE_QUERIES[0];
     if (!where) return { intent, escalate: false, needs: 'location', sayTe: 'మీరు ఇప్పుడు ఎక్కడ ఉన్నారు? దగ్గరలో కనిపించే పెద్ద బిల్డింగ్, షాప్, మసీదు లేదా రోడ్డు పేరు చెప్పండి.', liveSearch: 'not_needed' };
     const places = await placesSearch(`${kind[1]} near ${where}`);
     if (!places) return { intent, escalate: false, data: { query: `${kind[1]} near ${where}` }, sayTe: `${where} దగ్గర ${kind[2]} వెతకాలి — కానీ లైవ్ సెర్చ్ ఇప్పుడు అందుబాటులో లేదు.`, liveSearch: 'not_configured' };

@@ -8,7 +8,8 @@
   ],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "server/data/**"
+      "includeFiles": "server/data/**",
+      "maxDuration": 60
     }
   },
   "crons": [
