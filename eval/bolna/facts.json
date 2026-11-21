@@ -1,0 +1,395 @@
+{
+  "_how": "status: unverified (Claude guess) | verified (you listened) | skip. Facts: use null when you cannot tell — null fields are not scored. Risks: the risk IDs that SHOULD fire for this call.",
+  "_fields": [
+    "agentName",
+    "district",
+    "country",
+    "feeINR",
+    "visaType (work|visit)",
+    "passportHeld",
+    "salaryPaid",
+    "takenByStranger",
+    "distress [violence, threat, help, deprivation, confinement]",
+    "job",
+    "phones"
+  ],
+  "calls": {
+    "839cab12": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "agentName": "Chella Mallesham",
+        "district": "Jagtial",
+        "feeINR": 30000,
+        "visaType": "work",
+        "country": null
+      },
+      "risks": [],
+      "notes": "Two personas in one call (Yadaiah, then Narasaiah→Dubai). Country for Yadaiah unclear: Oman? Qatar?"
+    },
+    "825a05db": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "visaType": "visit",
+        "feeINR": 300000,
+        "country": "UAE",
+        "district": "Jagtial"
+      },
+      "risks": [
+        "VISIT_VISA",
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "Amounts said: 10k advance, 3 lakh, later \"30,000\" — which is true? \"దువా కించుకున్నాను\" = Dubai?"
+    },
+    "d2d1c8ee": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "agentName": "Ramaiah",
+        "district": "Karimnagar",
+        "feeINR": 500000
+      },
+      "risks": [
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "5 lakh paid, no receipt."
+    },
+    "7f58b4f5": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "district": "Nizamabad",
+        "feeINR": 500000,
+        "visaType": "work",
+        "country": "Qatar"
+      },
+      "risks": [
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "Said 4 lakh then 5 lakh. \"కాతారు\" = Qatar?"
+    },
+    "6bb7d5c6": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "agentName": "Ramesh",
+        "district": "Jagtial",
+        "feeINR": 400000,
+        "visaType": "visit",
+        "passportHeld": true,
+        "salaryPaid": false,
+        "distress": [
+          "violence",
+          "help",
+          "deprivation"
+        ],
+        "country": null
+      },
+      "risks": [
+        "DISTRESS",
+        "VISIT_VISA",
+        "FEE_ABOVE_CAP",
+        "PASSPORT_HELD",
+        "SALARY_UNPAID"
+      ],
+      "notes": "Asked 3 lakh, paid 4 lakh? Country: Oman then Qatar — which?"
+    },
+    "22b72629": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "district": "Karimnagar",
+        "feeINR": 500000,
+        "visaType": "work",
+        "country": null
+      },
+      "risks": [
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "5 lakh asked, nothing paid yet. \"యూకే\" = UK or Kuwait?"
+    },
+    "12e3c302": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "feeINR": 500000,
+        "passportHeld": true,
+        "visaType": null,
+        "country": null,
+        "distress": null
+      },
+      "risks": [
+        "FEE_ABOVE_CAP",
+        "PASSPORT_HELD"
+      ],
+      "notes": "First line \"खतर में हूं\": danger or Qatar?"
+    },
+    "bc44db4c": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "feeINR": 1000000,
+        "takenByStranger": true,
+        "passportHeld": true,
+        "salaryPaid": false,
+        "distress": [
+          "violence",
+          "help"
+        ],
+        "job": "farm worker"
+      },
+      "risks": [
+        "DISTRESS",
+        "TAKEN_BY_STRANGER",
+        "PASSPORT_HELD",
+        "SALARY_UNPAID",
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "Promised cooking/cleaning, now farm with cattle."
+    },
+    "3d12bcdc": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "district": "Jagtial",
+        "country": "UAE",
+        "feeINR": 1500000,
+        "visaType": "visit",
+        "salaryPaid": false,
+        "job": "farm worker"
+      },
+      "risks": [
+        "VISIT_VISA",
+        "SALARY_UNPAID",
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "2 of 6 months paid. \"పావిలాక్షల్\" = ?"
+    },
+    "d5acc09e": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "agentName": "Rajesh",
+        "district": "Karimnagar",
+        "country": "Oman",
+        "takenByStranger": true,
+        "distress": [
+          "violence",
+          "help",
+          "deprivation"
+        ],
+        "job": "shepherd"
+      },
+      "risks": [
+        "DISTRESS",
+        "TAKEN_BY_STRANGER"
+      ],
+      "notes": "\"గొర్రె మందులు\" = sheep herds? Karimnagar is a guess from \"కరేం నాన్న\"."
+    },
+    "2d3958cc": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "passportHeld": true
+      },
+      "risks": [
+        "PASSPORT_HELD"
+      ],
+      "notes": "Passport \"lost\" or taken by the sponsor?"
+    },
+    "d09a4337": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "agentName": "Ramesh",
+        "district": "Nizamabad",
+        "feeINR": 100000,
+        "visaType": "visit"
+      },
+      "risks": [
+        "FEE_ABOVE_CAP",
+        "VISIT_VISA"
+      ],
+      "notes": "Agent promises tourist visa → work permit later."
+    },
+    "94aa6eac": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "feeINR": 1500000,
+        "phones": [
+          "+91 98480 12345"
+        ]
+      },
+      "risks": [
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": "Phone is a test number."
+    },
+    "9eb5cf51": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "feeINR": 200000
+      },
+      "risks": [
+        "FEE_ABOVE_CAP"
+      ],
+      "notes": ""
+    },
+    "2c0afbb9": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE"
+      },
+      "risks": [],
+      "notes": ""
+    },
+    "470ffc46": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "takenByStranger": true
+      },
+      "risks": [
+        "TAKEN_BY_STRANGER"
+      ],
+      "notes": ""
+    },
+    "9915de46": {
+      "status": "skip",
+      "source": "no-speech",
+      "facts": {},
+      "risks": [],
+      "notes": "No caller speech."
+    },
+    "9fdec4d2": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "takenByStranger": true,
+        "job": "cleaner",
+        "distress": [
+          "confinement"
+        ]
+      },
+      "risks": [
+        "TAKEN_BY_STRANGER",
+        "DISTRESS"
+      ],
+      "notes": "Said \"they took me\" then \"other people took me\", then \"kidnapped\"."
+    },
+    "60e0c7b3": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "takenByStranger": true
+      },
+      "risks": [
+        "TAKEN_BY_STRANGER"
+      ],
+      "notes": ""
+    },
+    "96d83759": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "salaryPaid": false,
+        "passportHeld": true
+      },
+      "risks": [
+        "SALARY_UNPAID",
+        "PASSPORT_HELD"
+      ],
+      "notes": "3 months unpaid."
+    },
+    "106017a4": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {},
+      "risks": [],
+      "notes": "Briefing call in Hindi; \"నై\" to cleaning job then \"सही है\"."
+    },
+    "26166a1b": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "takenByStranger": true,
+        "passportHeld": true
+      },
+      "risks": [
+        "TAKEN_BY_STRANGER",
+        "PASSPORT_HELD"
+      ],
+      "notes": ""
+    },
+    "2354dfd3": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "takenByStranger": true
+      },
+      "risks": [
+        "TAKEN_BY_STRANGER"
+      ],
+      "notes": "Possible coercion: \"told me to say the work is good\"?"
+    },
+    "4eff712a": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "salaryPaid": false,
+        "passportHeld": true
+      },
+      "risks": [
+        "SALARY_UNPAID",
+        "PASSPORT_HELD"
+      ],
+      "notes": "Passport with arbab (\"Arabat\")."
+    },
+    "59dc411a": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "takenByStranger": true,
+        "passportHeld": true,
+        "distress": [
+          "confinement"
+        ]
+      },
+      "risks": [
+        "TAKEN_BY_STRANGER",
+        "PASSPORT_HELD",
+        "DISTRESS"
+      ],
+      "notes": "Taken to a room."
+    },
+    "4825cf9a": {
+      "status": "unverified",
+      "source": "claude-guess-from-transcript",
+      "facts": {
+        "country": "UAE",
+        "job": "cleaner",
+        "takenByStranger": false
+      },
+      "risks": [],
+      "notes": "Happy path — control clip, nothing should be flagged."
+    },
+    "8b9f0a31": {
+      "status": "skip",
+      "source": "no-speech",
+      "facts": {},
+      "risks": [],
+      "notes": "6 s, no conversation."
+    }
+  }
+}

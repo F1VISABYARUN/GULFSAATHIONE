@@ -136,11 +136,14 @@ function classifyNum(t: string): NumTok | undefined {
 /** Evaluate a run of number tokens with Indian place values (lakh/crore). */
 export function evaluateNumberRun(words: string[]): { value: number; hasScale: boolean; hasDigit: boolean } | undefined {
   let total = 0, cur = 0, mod = 0, hasScale = false, hasDigit = false, any = false;
+  let prevSingle = false;
   for (const w of words) {
     const n = classifyNum(w);
     if (!n) return undefined;
+    const single = n.k === 'unit' && n.v < 10;
     switch (n.k) {
-      case 'unit': cur += n.v; any = true; if (n.digit) hasDigit = true; break;
+      // "oka rendu lakshalu" = about 2 lakh; "rendu moodu lakshalu" = 2–3 lakh (take the later, higher one)
+      case 'unit': cur = single && prevSingle ? n.v : cur + n.v; any = true; if (n.digit) hasDigit = true; break;
       case 'frac': cur += n.v; any = true; break;
       case 'mod': mod = n.v; break;
       case 'half': cur += 0.5; break;
@@ -149,6 +152,7 @@ export function evaluateNumberRun(words: string[]): { value: number; hasScale: b
       case 'kilo': total += n.v; hasScale = true; hasDigit = true; any = true; break;
       case 'and': break;
     }
+    prevSingle = single && !(n.k === 'unit' && n.digit);
   }
   if (!any) return undefined;
   return { value: total + cur + (cur ? mod : 0), hasScale, hasDigit };

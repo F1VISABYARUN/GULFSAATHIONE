@@ -56,8 +56,10 @@ export function findNamesAndPlaces(tokens: Token[], consumed: Set<number>, targe
     for (let i = 0; i + size <= tokens.length; i++) {
       const span = tokens.slice(i, i + size);
       if (span.some(t => consumed.has(t.i) || taken.has(t.i) || STOPWORDS.has(t.norm) || /\d/.test(t.norm))) continue;
-      const joined = span.map(t => t.norm).join('');
+      let joined = span.map(t => t.norm).join('');
       if (joined.length < 4) continue;
+      const stripped = joined.replace(/(loni|lone|lo|nundi|nunchi|ki|ku|ke|ni|se|mein|me)$/, '');
+      if (size === 1 && stripped !== joined && stripped.length >= 4 && prepared.some(t => t.text.toLowerCase().replace(/\s+/g, '') === stripped)) joined = stripped;
       const surface = span.map(t => t.raw).join(' ');
       let best: { t: typeof prepared[number]; score: number } | undefined;
       for (const t of prepared) {

@@ -76,7 +76,7 @@ export function findDistress(tokens: Token[], fuzzy: boolean): Entity[] {
           const a = phoneticKey(cand), b = phoneticKey(phrase);
           if (a.length >= 6) {
             score = 1 - levenshtein(a, b) / Math.max(a.length, b.length);
-            ok = score >= 0.84;
+            ok = score >= (a.length >= 14 ? 0.8 : 0.84); // longer phrases tolerate a suffix change (ledu → ledani)
           }
         }
         if (!ok) continue;

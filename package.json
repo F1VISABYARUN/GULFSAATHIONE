@@ -9,7 +9,9 @@
     "start": "tsx server/index.ts",
     "test": "tsx --test tests/*.test.ts",
     "eval": "tsx eval/run.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval:bolna": "tsx eval/bolna/run.ts",
+    "audio:bolna": "node eval/bolna/download-audio.mjs"
   },
   "dependencies": {
     "dotenv": "^18.0.10",

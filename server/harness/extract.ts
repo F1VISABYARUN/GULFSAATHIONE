@@ -53,7 +53,7 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   const nameAt = (i: number) => live.find(e => e.type === 'name' && e.start === i);
   const personAfter = (i: number): string | undefined => {
     let k = i;
-    while (k < tokens.length && ['peru', 'name', 'is', 'naam', 'sub', 'ane', 'garu'].includes(tokens[k].norm)) k++;
+    while (k < tokens.length && ['peru', 'name', 'is', 'naam', 'sub', 'ane', 'garu', 'perentandi', 'perenti'].includes(tokens[k].norm)) k++;
     if (k >= tokens.length) return undefined;
     const ent = nameAt(k);
     if (ent) return ent.text;
@@ -61,14 +61,14 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
     if (live.some(e => e.type !== 'name' && e.start <= k && k < e.end) || entities.some(e => e.type === 'gulf' && e.start <= k && k < e.end)) return undefined;
     const t = tokens[k];
     if (STOPWORDS.has(t.norm) || /\d/.test(t.norm) || t.norm.length < 3 || VERB_LIKE.test(t.norm)) return undefined;
-    let name = cap(t.raw);
-    if (k + 1 < tokens.length && SURNAMES.has(tokens[k + 1].norm)) name += ' ' + cap(tokens[k + 1].raw);
+    let name = cap(t.norm);
+    if (k + 1 < tokens.length && SURNAMES.has(tokens[k + 1].norm)) name += ' ' + cap(tokens[k + 1].norm);
     return name;
   };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i].norm;
-    if (t === 'agent' && !slots.agentName) slots.agentName = personAfter(i + 1);
-    if ((t === 'kafeel' || t === 'arbab' || t === 'employer' || t === 'company') && !slots.employerName) {
+    if (AGENT_WORDS.has(t) && !slots.agentName) slots.agentName = personAfter(i + 1);
+    if (EMPLOYER_WORDS.has(t) && !slots.employerName) {
       const who = personAfter(i + 1);
       if (who && !['peru', 'daggara'].includes(who.toLowerCase())) slots.employerName = who;
     }
@@ -96,6 +96,8 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   return slots;
 }
 
+const AGENT_WORDS = new Set(['agent', 'ejent', 'ejant', 'edyun']);
+const EMPLOYER_WORDS = new Set(['kafeel', 'arbab', 'employer', 'company', 'kampenee', 'spaansar', 'sponsor', 'yajamaani', 'onar', 'owner']);
 const VERB_LIKE = /(ledu|ledhu|adu|aru|indi|anu|amu|undi|unnadu|aledu|tunnadu|tunnaru|chesadu|cheppadu)$/;
 const NEG = new Set(['ledu', 'ledhu', 'kadu', 'kaadu', 'nahi', 'not', 'no', 'ivvaledu', 'raledu']);
 function negatedAfter(tokens: Token[], end: number): boolean {

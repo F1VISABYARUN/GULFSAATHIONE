@@ -72,6 +72,46 @@ Without a key the app runs in text mode: paste what the base model heard and see
 
 `npm run eval -- --reference` scores the human reference text. That is only a sanity check of the extractor, **not** a base-vs-harness result.
 
+## Real calls (Bolna logs) and the fact sheet
+
+`eval/bolna/` holds 27 real Saathi test calls pulled from Bolna:
+- caller turns as Bolna's STT (Sarvam `saaras:v3`, `language: hi`) heard them
+- per-call notes on what broke, in `FINDINGS.md`
+
+The harness reads **Telugu and Devanagari script**. Rule-based transliteration (`server/harness/translit.ts`) plus a Telugu-script lexicon (`server/harness/lexicon.te.ts`), no LLM.
+
+To fill in the fact sheet on your laptop:
+
+```bash
+npm install
+npm run audio:bolna     # downloads the recordings into eval/audio/bolna/ (not in git)
+npm start               # then open http://localhost:3000/facts.html
+```
+
+**How to fill each call:**
+1. Listen to the call.
+2. Fix the pre-filled guesses.
+3. Set fields you can't hear to "can't tell"; those aren't scored.
+4. Press **Save — verified**.
+
+**About the guesses.** `facts.json` starts with Claude's guesses, all marked `unverified`. They were read from the same base transcripts, so scoring against them is partly circular, and the scorer ignores them unless asked.
+
+```bash
+npm run eval:bolna                      # score only the calls you verified
+npm run eval:bolna -- --include-guesses # preliminary: include unverified guesses
+npm run eval:bolna -- --stt             # also re-transcribe the caller channel with Telugu hints (needs OPENAI_API_KEY + ffmpeg)
+```
+
+**Variants scored:**
+
+| Variant | What it is |
+|---|---|
+| `bolna base` | Bolna's transcript + Saathi engine, no repair |
+| `base + harness` | Same transcript + repair layers + a Q/A layer that reads short answers using the bot's question |
+| `re-STT + harness` | Caller-only audio re-transcribed with context hints + harness |
+
+Agent-licence risks aren't scored on real calls, because the agent list is sample data.
+
 ## Data notes (verify before the demo)
 
 - `server/data/agents.sample.json` is **fictional sample data**. Replace it with the registered recruiting-agent list from emigrate.gov.in and an official flagged list.

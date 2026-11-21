@@ -133,3 +133,12 @@ test('near-miss distress word (కోరుతున్నాడు ≈ కొ�
   const h = runHarness('నన్ను ఓనర్ కోరుతున్నాడు');
   assert.ok(h.readBacks.some(r => /distress/i.test(r.reason)));
 });
+test('"ఒక రెండు లక్షలు" = about two lakh, not three', () => {
+  assert.equal(runHarness('నేను ఒక రెండు లక్షల రూపాయలు ఇచ్చాను').slots.feeINR, 200000);
+  assert.equal(runHarness('rendu moodu lakshalu adigadu agent').slots.feeINR, 300000);
+});
+test('Telugu agent name and place with case suffix', () => {
+  const h = runHarness('ఏజెంట్ పేరు రమేష్. నేను దుబాయ్లో ఉన్నాను');
+  assert.equal(h.slots.agentName, 'Ramesh');
+  assert.equal(h.slots.country, 'UAE');
+});

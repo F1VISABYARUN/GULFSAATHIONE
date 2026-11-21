@@ -10,12 +10,14 @@ import { hasKey, transcribe, contextPrompt, llmExtract, safeTranslate } from './
 import { gulfTermById } from './harness/terms.ts';
 import { loadDataset, EVAL_DIR } from '../eval/evaluate.ts';
 import type { CallContext } from './harness/types.ts';
+import { loadCalls, loadFacts, saveFacts, scoreCall } from '../eval/bolna/score.ts';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(join(root, 'public')));
+app.use('/audio/bolna', express.static(join(root, 'eval', 'audio', 'bolna')));
 
 const view = (h: HarnessResult, promise?: CallContext['promise']) => ({
   transcript: h.input,
@@ -92,6 +94,35 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
     console.error(err);
     res.status(500).json({ error: (err as Error).message });
   }
+});
+
+// ---- Real Bolna calls + fact sheet
+app.get('/api/bolna/calls', async (_req, res) => {
+  const facts = loadFacts();
+  const out = [];
+  for (const c of loadCalls()) {
+    const fact = facts.calls[c.id8] ?? { status: 'unverified', source: 'none', facts: {}, risks: [] };
+    const scored = c.turns.length ? await scoreCall(c, fact) : undefined;
+    out.push({ ...c, fact, audioAvailable: existsSync(join(root, 'eval', c.audio)), scored });
+  }
+  res.json({ fields: facts._fields, calls: out });
+});
+
+app.post('/api/bolna/facts/:id8', (req, res) => {
+  const facts = loadFacts();
+  const id8 = String(req.params.id8);
+  if (!/^[0-9a-f]{8}$/.test(id8)) return res.status(400).json({ error: 'bad id' });
+  const { status, facts: f, risks, notes } = req.body ?? {};
+  if (!['verified', 'unverified', 'skip'].includes(status)) return res.status(400).json({ error: 'bad status' });
+  facts.calls[id8] = { status, source: status === 'verified' ? 'you' : (facts.calls[id8]?.source ?? 'you'), facts: f ?? {}, risks: Array.isArray(risks) ? risks : [], notes: String(notes ?? '') };
+  saveFacts(facts);
+  res.json({ ok: true });
+});
+
+app.get('/api/results/bolna', (_req, res) => {
+  const p = join(EVAL_DIR, 'results.bolna.json');
+  if (!existsSync(p)) return res.status(404).json({ error: 'Run: npm run eval:bolna' });
+  res.json(JSON.parse(readFileSync(p, 'utf8')));
 });
 
 const port = Number(process.env.PORT || 3000);
