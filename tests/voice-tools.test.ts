@@ -100,3 +100,21 @@ test('models endpoint lists ids only and never echoes the key',async t=>{
   const body=await (await local(url,{headers:{'x-saathi-secret':'fixture'}})).text();
   assert.deepEqual(JSON.parse(body).models,['a-model','b-model']);assert.ok(!body.includes('sk-secret'));
 });
+
+test('stt benchmark endpoint: needs the secret, rejects unknown models, never echoes the key',async t=>{
+  process.env.STORE='memory';process.env.SAATHI_SECRET='fixture';process.env.OPENAI_API_KEY='sk-secret-fixture';
+  t.after(()=>{delete process.env.OPENAI_API_KEY;});
+  const {registerSaathi}=await import('../server/saathi.ts');
+  const app=express();app.use(express.json());
+  registerSaathi(app,(req,res,next)=>req.get('x-saathi-secret')==='fixture'?next():void res.sendStatus(401));
+  const server=app.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>{server.close();});
+  const local=globalThis.fetch;const port=(server.address() as AddressInfo).port;
+  const url=`http://127.0.0.1:${port}/api/saathi/stt`;
+  assert.equal((await local(url,{method:'POST'})).status,401);
+  const mk=(model:string)=>{const f=new FormData();f.append('model',model);f.append('audio',new Blob([new Uint8Array(8)]),'a.wav');return f;};
+  const bad=await local(url,{method:'POST',headers:{'x-saathi-secret':'fixture'},body:mk('gpt-evil')});
+  assert.equal(bad.status,400);
+  t.mock.method(globalThis,'fetch',async(u:any,init:any)=>String(u).includes('api.openai.com')?Response.json({text:'నమస్తే'}):local(u,init));
+  const ok=await local(url,{method:'POST',headers:{'x-saathi-secret':'fixture'},body:mk('gpt-4o-transcribe')});
+  const body=await ok.text();assert.equal(ok.status,200);assert.equal(JSON.parse(body).text,'నమస్తే');assert.ok(!body.includes('sk-secret'));
+});
