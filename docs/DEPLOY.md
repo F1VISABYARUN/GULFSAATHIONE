@@ -40,3 +40,6 @@ Put HTTPS in front (Caddy or a load balancer), because browsers only allow the m
 ## Before making it public
 - `/facts.html` and `/api/bolna/*` expose your test-call transcripts. They contain no phone numbers, but either remove them or put basic auth in front.
 - `/webhooks/bolna` and `/api/gate` have no authentication yet. Add a shared secret header before real callers use it.
+
+## Vercel and the Dockerfile
+The root `Dockerfile` is for AWS or any container host. Vercel auto-detected it, built a container image for every deployment, and failed with "repository has reached the maximum allowed number of images". `.vercelignore` now excludes `Dockerfile`, so Vercel deploys the Node functions in `api/` as before. If a deployment still fails with that error, delete old images in the Vercel project (Sandboxes, then Container Registry) and redeploy.
