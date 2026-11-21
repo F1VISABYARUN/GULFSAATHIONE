@@ -39,3 +39,15 @@ test('Arabic place requests are recognised', () => {
   for (const t of ['أين المستشفى؟', 'أريد صيدلية', 'أين مركز الشرطة؟', 'أين السفارة الهندية؟']) assert.equal(detectIntent(t), 'find_place', t);
   assert.equal(detectIntent('مرحبا'), 'unknown');
 });
+
+import { tokenize } from '../server/harness/tokens.ts';
+import { numberValues, segmentNumberRun } from '../server/harness/numbers.ts';
+test('a list of numbers read aloud is split by place value, not merged', () => {
+  assert.deepEqual(numberValues(tokenize('అరవై నాలుగు ఏడు వందల డెబ్బై ఐదు పదమూడు వందల తొంబై రెండు')), [64, 775, 1392]);
+  assert.deepEqual(segmentNumberRun(['one', 'lakh', 'fifty', 'thousand']).length, 1);
+});
+test('digits with a glued Telugu suffix are numbers, and the corrected text keeps the original spacing', () => {
+  const t = '6 అక్టోబర్ 1789న మార్కెట్‌లోని మహిళలు';
+  assert.ok(numberValues(tokenize(t)).includes(1789));
+  assert.equal(runHarness(t, {}, ALL_ON).corrected, t);
+});

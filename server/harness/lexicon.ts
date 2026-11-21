@@ -20,7 +20,7 @@ export const UNIT_WORDS = map([
   // Telugu
   [['sunna'], 0], [['okati', 'oka', 'okka', 'okate'], 1], [['rendu', 'rondu'], 2], [['moodu', 'mudu'], 3],
   [['nalugu', 'naalugu'], 4], [['aidu', 'ayidu', 'ayudu'], 5], [['aaru'], 6], [['edu', 'yedu'], 7],
-  [['enimidi', 'enmidi', 'yenimidi'], 8], [['tommidi', 'thommidi'], 9], [['padi', 'padhi'], 10],
+  [['enimidi', 'enmidi', 'yenimidi', 'emmidi', 'ennimidi'], 8], [['tommidi', 'thommidi'], 9], [['padi', 'padhi'], 10],
   [['padakondu'], 11], [['pannendu'], 12], [['padamoodu'], 13], [['padnalugu'], 14], [['padihenu'], 15],
   [['padaharu'], 16], [['padihedu'], 17], [['paddenimidi'], 18], [['pantommidi'], 19],
   [['iravai', 'iruvai', 'iravy'], 20], [['muppai', 'muppy', 'muppay'], 30],
@@ -67,7 +67,7 @@ export const DIGIT_WORDS = map([
   [['one', 'okati', 'ek'], 1], [['two', 'rendu', 'do'], 2], [['three', 'moodu', 'mudu', 'teen'], 3],
   [['four', 'nalugu', 'naalugu', 'char', 'chaar'], 4], [['five', 'aidu', 'ayidu', 'paanch', 'panch'], 5],
   [['six', 'aaru', 'chhe'], 6], [['seven', 'edu', 'yedu', 'saat'], 7],
-  [['eight', 'enimidi', 'enmidi', 'aath'], 8], [['nine', 'tommidi', 'thommidi', 'nau'], 9],
+  [['eight', 'enimidi', 'enmidi', 'emmidi', 'ennimidi', 'aath'], 8], [['nine', 'tommidi', 'thommidi', 'nau'], 9],
 ]);
 export const PHONE_TENS = map([
   [['twenty'], 2], [['thirty'], 3], [['forty', 'fourty'], 4], [['fifty'], 5],

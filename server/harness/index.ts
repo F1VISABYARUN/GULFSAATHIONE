@@ -101,20 +101,23 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
 /** Rebuild the transcript with locked/repaired entities in canonical form. */
 function rebuild(tokens: Token[], entities: Entity[], layers: HarnessLayers): string {
   const out: string[] = [];
+  const glued: boolean[] = [];
   let i = 0;
   const byStart = new Map(entities.filter(e => e.type !== 'distress').map(e => [e.start, e]));
   while (i < tokens.length) {
     const e = byStart.get(i);
     if (e && e.end > i) {
       const show = e.changed && (layers.repair || e.layer === 'L2-money' || e.layer === 'L2-phone' || e.layer === 'L2-gulf');
-      out.push(show ? e.text : tokens.slice(i, e.end).map(t => t.raw).join(' '));
+      out.push(show ? e.text : tokens.slice(i, e.end).map((t, k) => (k > 0 && t.glue ? '' : k > 0 ? ' ' : '') + t.raw).join(''));
+      glued.push(!!tokens[i].glue);
       i = e.end;
     } else {
       out.push(tokens[i].raw);
+      glued.push(!!tokens[i].glue);
       i++;
     }
   }
-  return out.join(' ');
+  return out.reduce((acc, piece, k) => acc + (k > 0 && !glued[k] ? ' ' : '') + piece, '');
 }
 
 export type { Entity, Revision, CallContext, CaseSlots } from './types.ts';

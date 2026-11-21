@@ -227,15 +227,15 @@ def find_money(tokens: list[str], consumed: set[int] | None = None) -> list[dict
                 if tokens[k] in C:
                     cur = C[tokens[k]]; break
         lone_hundred = j - i == 1 and tokens[i] in LEX['hundred'] and not cur
-        single = tokens[i] if j - i == 1 else ''
-        year_like = bool(re.fullmatch(r'\d{4}', single)) and ev is not None and 1900 <= ev[0] <= 2100
+        # money needs a currency or a fee/salary/payment cue nearby; bare years, thousands-of-people and 8+ digit runs are not rupees
+        year_like = ev is not None and 1900 <= ev[0] <= 2100 and float(ev[0]).is_integer() and (j - i == 1 or ev[1])
         tw = set(LEX['time_words'])
         near_time = (j < len(tokens) and tokens[j] in tw) or (i > 0 and tokens[i - 1] in tw)
         cues = set(LEX['fee_words']) | set(LEX['salary_words']) | set(LEX['money_cues'])
-        cue = any(tokens[k] in cues for k in range(max(0, i - 6), min(len(tokens), j + 6)) if not (i <= k < j))
+        cue = any(tokens[k] in cues for k in range(max(0, i - 10), min(len(tokens), j + 10)) if not (i <= k < j))
         long_digits = any(re.fullmatch(r'\d{8,}', t) for t in tokens[i:j])
-        bare_digit_money = bool(ev and ev[2] and ev[0] >= 100 and cue and not long_digits and not (year_like and near_time))
-        if ev and not lone_hundred and (ev[1] or cur or bare_digit_money):
+        cued = bool(ev and cue and not long_digits and not (year_like and near_time) and (ev[1] or (ev[2] and ev[0] >= 100)))
+        if ev and not lone_hundred and (cur or cued):
             out.append({'start': i, 'end': j, 'amount': ev[0], 'currency': cur or 'INR'})
         i = max(j, i + 1)
     return out
