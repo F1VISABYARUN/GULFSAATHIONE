@@ -294,8 +294,15 @@ def normalize(text: str = '', turns: list[dict] | None = None, code_phrase: str 
             facts['phone_incomplete'] = True
     sal, fee = set(LEX['salary_words']), set(LEX['fee_words'])
     for m in money:
-        near = toks[max(0, m['start'] - 6):m['end'] + 6]
-        kind = 'salary' if any(w in sal for w in near) else 'fee' if any(w in fee for w in near) else ('salary' if m['currency'] != 'INR' else None)
+        best = None  # nearest cue word decides fee vs salary (same as the TS harness)
+        for k in range(max(0, m['start'] - 6), min(len(toks), m['end'] + 6)):
+            if m['start'] <= k < m['end']:
+                continue
+            d = m['start'] - k if k < m['start'] else k - m['end'] + 1
+            cue = 'salary' if toks[k] in sal else 'fee' if toks[k] in fee else None
+            if cue and (best is None or d < best[1]):
+                best = (cue, d)
+        kind = best[0] if best else ('salary' if m['currency'] != 'INR' else None)
         if kind == 'salary':
             facts['salary'] = {'amount': m['amount'], 'currency': m['currency']}
         elif kind == 'fee' and m['currency'] == 'INR':
@@ -366,4 +373,10 @@ def safety_net(transcript: str, code_phrase: str | None = None) -> dict:
     if f.get('huroob'):
         reasons.append('papers_problem')
     high = [r for r, k in (('passport_taken', 'passport_held'), ('unpaid', 'salary_paid')) if (f.get(k) is True if k == 'passport_held' else f.get(k) is False)]
+    if f.get('visa_type') == 'visit':
+        high.append('visit_visa')
+    if f.get('fee_inr', 0) > 35400:  # Rs 30,000 + 18% GST
+        high.append('fee_above_cap')
+    if f.get('cheated_by_agent'):
+        high.append('agent_fraud_reported')
     return {'escalate': bool(reasons), 'critical_reasons': reasons, 'high_reasons': high, 'facts': f}
