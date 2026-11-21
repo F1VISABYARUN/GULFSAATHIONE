@@ -1,5 +1,6 @@
 // Live integration: the gate Bolna (or any voice agent) can call mid-call, and the post-call webhook.
 
+import { registerVoiceTools } from './voice-tools.ts';
 import type { Express } from 'express';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -68,6 +69,7 @@ const guard = (req: import('express').Request, res: import('express').Response, 
 };
 
 export function registerLive(app: Express) {
+  registerVoiceTools(app,guard);
   import('./saathi.ts').then(m => m.registerSaathi(app, guard));
   // Mid-call gate. Body: { transcript?: "assistant: ..\nuser: ..", turns?: Turn[], text?: string, context?: CallContext, recipient_data?: {...} }
   app.post('/api/gate', guard, (req, res) => {

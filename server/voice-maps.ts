@@ -37,7 +37,7 @@ async function search(query:string,near?:Point):Promise<Place[]|undefined>{
 }
 export async function findPlace(text:string,city:string,what:string){
   const location=extractAnchor(text);const anchor=location.anchor;city=city||location.city||'';
-  if(!anchor)return need;
+  if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(what==='embassy'){
     const mission=missions.find(m=>m.city.toLowerCase()===city.trim().toLowerCase());
     if(mission)return {status:'official',places:[{...mission,place_id:'mission:'+mission.city,name_te:pronounce(mission.name),distance_m:null}],sayTe:`${pronounce(mission.name)}. సంప్రదింపు: ${mission.phone}. దూరం నిర్ధారించలేదు.`};
@@ -45,14 +45,16 @@ export async function findPlace(text:string,city:string,what:string){
   }
   const origins=await search([anchor,city].filter(Boolean).join(', '));
   if(!origins)return unavailable;
-  if(origins.length!==1)return {...need,sayTe:'ఆ గుర్తు ఖచ్చితంగా దొరకలేదు. ప్రాంతం లేదా మరో గుర్తు చెప్పండి.'};
-  const results=await search(`${what} near ${anchor}, ${city}`,origins[0].location);
+  const exact=origins.filter(p=>p.displayName.text.toLowerCase()===anchor.toLowerCase());
+  const origin=origins.length===1?origins[0]:exact.length===1?exact[0]:undefined;
+  if(!origin)return {...need,sayTe:'ఆ గుర్తు ఖచ్చితంగా దొరకలేదు. ప్రాంతం లేదా మరో గుర్తు చెప్పండి.'};
+  const results=await search(`${what} near ${anchor}, ${city}`,origin.location);
   if(!results)return unavailable;
-  const places=results.slice(0,3).map(p=>({place_id:p.id,name:p.displayName.text,name_te:pronounce(p.displayName.text),distance_m:distance(origins[0].location,p.location)})).sort((a,b)=>a.distance_m-b.distance_m);
+  const places=results.slice(0,3).map(p=>({place_id:p.id,name:p.displayName.text,name_te:pronounce(p.displayName.text),distance_m:distance(origin.location,p.location)})).sort((a,b)=>a.distance_m-b.distance_m);
   return {status:'found',places,sayTe:places.length?places.map(p=>`${p.name_te}, గుర్తు నుంచి నేరుగా సుమారు ${p.distance_m} మీటర్లు.`).join(' '):'దగ్గరలో ఫలితాలు దొరకలేదు.'};
 }
 export async function voiceDirections(text:string,city:string,destination:string,mode:'walking'|'transit'){
-  const anchor=extractAnchor(text).anchor;if(!anchor)return need;
+  const anchor=extractAnchor(text).anchor;if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(!destination)return {status:'needs_destination',sayTe:'మీరు ఎక్కడికి వెళ్లాలి?'};
   const taxi={status:'unavailable',sayTe:'దారి సమాచారం అందుబాటులో లేదు. టాక్సీ డ్రైవర్‌కు ఈ మాట చెప్పవచ్చు.',taxi_ar:`من فضلك خذني إلى ${destination}.`};
   const key=process.env.GOOGLE_MAPS_API_KEY;if(!key)return taxi;
