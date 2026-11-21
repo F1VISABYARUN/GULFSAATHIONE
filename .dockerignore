@@ -1,0 +1,8 @@
+node_modules
+.env
+eval/audio
+eval/cache
+server/data/cases
+research_notes
+reports
+.git
