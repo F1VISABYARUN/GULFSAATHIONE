@@ -13,14 +13,19 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
     const b=req.body??{};
     const clean=(key:string)=>typeof b[key]==='string'?b[key].trim():'';
     const api=req.path==='/api/translate';
-    const text=clean(api?'text':'caller_said'),other=clean('other_said');
+    const text=clean(api?'text':'caller_said'),other=req.path==='/tools/translate'?clean('other_said'):'';
     if((!text && !(req.path==='/tools/translate'&&other)) || text.length>4000 || other.length>4000)return res.status(400).json({error:'Supply exact utterance, maximum 4000 characters'});
     const worker=clean('case_id')?await store.worker(clean('case_id')):undefined;
     const ctx=contextFromRecipient(b.recipient_data);
-    if(worker?.codePhrase)ctx.codePhrase=worker.codePhrase;
+    if(worker){
+      ctx.codePhrase=worker.codePhrase||ctx.codePhrase;
+      ctx.promise=worker.promise;
+      ctx.names=[...(ctx.names??[]),worker.name,worker.promise.agentName,worker.promise.employerName].filter((name):name is string=>Boolean(name));
+      ctx.places=[...(ctx.places??[]),...(worker.promise.places??[])];
+    }
     for(const utterance of [text,other].filter(Boolean)){
       const gate=gateDecision([{text:utterance}],ctx);
-      if(gate.action==='ESCALATE'){
+      if(gate.action==='ESCALATE'||/يضربني|يضربونني|خطفوني|احتجزوني|मार रहे हैं|मुझे अगवा|مجھے اغوا|എന്നെ തല്ലുന്നു/u.test(utterance)){
         const sayTe=gate.slots.codePhrase?gate.sayTe:'ఇప్పుడు మాట్లాడటం సురక్షితమేనా? మనిషి సహాయం తీసుకుందాం.';
         return res.json({status:'emergency',escalate:true,sayTe,say_to_worker:sayTe,say_to_other:'',locked_ok:false});
       }
@@ -29,6 +34,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
       const from=api?clean('from'):other?clean('target_lang'):'te';
       const to=api?clean('to'):other?'te':clean('target_lang');
       if(!languages.includes(from)||!languages.includes(to)||from===to||(api && b.mode!==undefined&&!['relay','translate'].includes(b.mode)))return res.status(400).json({error:'Invalid language pair or mode'});
+      if(other && text)return res.status(400).json({error:'Supply one speaker turn at a time'});
       const result=await relay(other||text,from,to,ctx);
       return res.json({...result,sayTe:result.say_to_worker});
     }
@@ -40,7 +46,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
       if(!['walking','transit'].includes(b.mode))return res.status(400).json({error:'Use walking or transit'});
       return res.json(await voiceDirections(text,clean('city'),clean('destination'),b.mode));
     }
-    if(!worker||!worker.consent||b.confirmed!==true||!['worker','family'].includes(b.recipient))return res.status(400).json({error:'Confirmed recipient and registered case required'});
+    if(!worker||!worker.consent||!(b.confirmed===true || b.confirmed==='true')||!['worker','family'].includes(b.recipient))return res.status(400).json({error:'Confirmed recipient and registered case required'});
     const phone=b.recipient==='family'?worker.familyPhone:worker.phone;
     if(!phone || !clean('place_id'))return res.status(400).json({error:'Missing destination or selected place'});
     if(!process.env.MSG91_AUTH_KEY||!process.env.MSG91_PLACE_TEMPLATE_ID)return res.json({status:'dry-run',sayTe:'పరీక్ష మాత్రమే. సందేశం పంపలేదు.'});

@@ -6,7 +6,7 @@ import { ARABIC_SCRIPTS } from './assistant.ts';
 export const languages = ['te','en','ar','hi','ur','ml'];
 const human = 'ఇది ముఖ్యం, మనిషి సహాయం తీసుకుంటాను';
 const confirm = 'సరిగ్గా అర్థం కాలేదు. దయచేసి మళ్ళీ చెప్పండి.';
-const sensitive = /confess|admi(?:ssion|t guilt)|plead guilty|sign(?:ature|ing|ed)?\b|consent|police statement|statement to (?:the )?police|సంతకం|ఒప్పుకోలు|నేరం ఒప్పు|వాంగ్మూలం|santakam|vangmulam|توقيع|وقّع|أوقع|اعتراف|أعترف|إفادة|محضر|موافقة|हस्ताक्षर|बयान|कबूल|सहमति|دستخط|اقرار|بیان|رضامندی|నేరం చేశాను|నేరాన్ని ఒప్పు|పోలీసులకి నా స్టేట్మెంట్|నేరాంగీకారం|సమ్మతి|అంగీకరిస్తున్నాను|أقر بأن|أعترف|إقرار|पुलिस को मेरा कथन|دستاویز پر|ഒപ്പിട|സമ്മതം|കുറ്റസമ്മതം|മൊഴി/iu;
+const sensitive = /confess|admi(?:ssion|t guilt)|plead guilty|\bsign(?:ature|ing|ed)?\b|consent|police statement|statement to (?:the )?police|సంతకం|ఒప్పుకోలు|నేరం ఒప్పు|వాంగ్మూలం|santakam|vangmulam|توقيع|وقّع|أوقع|اعتراف|أعترف|إفادة|محضر|موافقة|हस्ताक्षर|बयान|कबूल|सहमति|دستخط|اقرار|بیان|رضامندی|నేరం చేశాను|నేరాన్ని ఒప్పు|పోలీసులకి నా స్టేట్మెంట్|నేరాంగీకారం|సమ్మతి|అంగీకరిస్తున్నాను|أقر بأن|أعترف|إقرار|पुलिस को मेरा कथन|دستاویز پر|ഒപ്പിട|സമ്മതം|കുറ്റസമ്മതം|മൊഴി/iu;
 
 async function model(text:string,from:string,to:string,locks:string[]) {
   const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(15000),
@@ -36,7 +36,7 @@ export async function relay(text:string,from:string,to:string,ctx:CallContext={}
   const fallback=()=>{
     const phrase=Object.values(ARABIC_SCRIPTS).find(p=>(from==='te'&&to==='ar'&&p.te===text)||(from==='ar'&&to==='te'&&p.ar===text));
     // Offer the matching stored phrase for confirmation, never relay a different message automatically.
-    return {...blocked(),...(phrase?{fixed_phrase:phrase}: {})};
+    return {...blocked(),...(phrase?{fixed_phrase:phrase,say_to_worker:'ఈ వాక్యం వినిపించాలా? '+phrase.te}: {})};
   };
   if(!process.env.OPENAI_API_KEY) return fallback();
   try {

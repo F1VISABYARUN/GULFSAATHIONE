@@ -48,13 +48,14 @@ export async function findPlace(text:string,city:string,what:string){
   const exact=origins.filter(p=>p.displayName.text.toLowerCase()===anchor.toLowerCase());
   const origin=origins.length===1?origins[0]:exact.length===1?exact[0]:undefined;
   if(!origin)return {...need,sayTe:'ఆ గుర్తు ఖచ్చితంగా దొరకలేదు. ప్రాంతం లేదా మరో గుర్తు చెప్పండి.'};
-  const results=await search(`${what} near ${anchor}, ${city}`,origin.location);
+  const queryKind=what==='embassy'?'Embassy or Consulate of India':what;
+  const results=await search(`${queryKind} near ${anchor}, ${city}`,origin.location);
   if(!results)return unavailable;
   const places=results.slice(0,3).map(p=>({place_id:p.id,name:p.displayName.text,name_te:pronounce(p.displayName.text),distance_m:distance(origin.location,p.location)})).sort((a,b)=>a.distance_m-b.distance_m);
   return {status:'found',places,sayTe:places.length?places.map(p=>`${p.name_te}, గుర్తు నుంచి నేరుగా సుమారు ${p.distance_m} మీటర్లు.`).join(' '):'దగ్గరలో ఫలితాలు దొరకలేదు.'};
 }
 export async function voiceDirections(text:string,city:string,destination:string,mode:'walking'|'transit'){
-  const anchor=extractAnchor(text).anchor;if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
+  const location=extractAnchor(text);const anchor=location.anchor;city=city||location.city||'';if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(!destination)return {status:'needs_destination',sayTe:'మీరు ఎక్కడికి వెళ్లాలి?'};
   const taxi={status:'unavailable',sayTe:'దారి సమాచారం అందుబాటులో లేదు. టాక్సీ డ్రైవర్‌కు ఈ మాట చెప్పవచ్చు.',taxi_ar:`من فضلك خذني إلى ${destination}.`};
   const key=process.env.GOOGLE_MAPS_API_KEY;if(!key)return taxi;
