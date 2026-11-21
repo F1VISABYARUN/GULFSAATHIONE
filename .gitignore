@@ -1,0 +1,8 @@
+node_modules
+.env
+eval/audio/*
+!eval/audio/.gitkeep
+eval/cache/*
+!eval/cache/.gitkeep
+eval/results.json
+server/data/records.json
