@@ -1,4 +1,19 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
-  "functions": { "api/index.ts": { "includeFiles": "server/data/**" } }
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "server/data/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/saathi/cron",
+      "schedule": "0 * * * *"
+    }
+  ]
 }

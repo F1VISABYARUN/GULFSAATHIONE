@@ -238,16 +238,17 @@ test('fraud question is not a fraud report; "nothing received" = unpaid', () => 
 });
 import { store } from '../server/store.ts';
 import { dueCalls, instructionFor } from '../server/saathi.ts';
-test('new backend: scheduler books arrival, retry, weekly; instruction never echoes code phrase', () => {
-  process.env.STORE = 'memory'; store.reset();
-  store.addWorker({ caseId: 'GS-T1', phone: '+910000000000', promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' }, departedOn: '2026-11-20T00:00:00Z', consent: true });
+test('new backend: scheduler books arrival, retry, weekly; instruction never echoes code phrase', async () => {
+  process.env.STORE = 'memory'; await store.reset();
+  await store.addWorker({ caseId: 'GS-T1', phone: '+910000000000', promise: { employerName: 'AI NOOR CLEANING', job: 'cleaner' }, departedOn: '2026-11-20T00:00:00Z', consent: true });
   const t = (iso: string) => new Date(iso);
-  assert.deepEqual(dueCalls(t('2026-11-20T03:00:00Z')).map(d => d.kind), []);            // still flying
-  assert.deepEqual(dueCalls(t('2026-11-20T08:00:00Z')).map(d => d.kind), ['arrival']);
-  store.addCall({ id: 'a', caseId: 'GS-T1', kind: 'arrival', at: '2026-11-20T08:00:00Z', status: 'no-answer', reasons: [] });
-  assert.deepEqual(dueCalls(t('2026-11-20T12:00:00Z')).map(d => d.kind), ['retry']);
-  store.addCall({ id: 'b', caseId: 'GS-T1', kind: 'arrival', at: '2026-11-20T12:00:00Z', status: 'answered', reasons: [] });
-  assert.deepEqual(dueCalls(t('2026-11-24T12:00:00Z')).map(d => d.kind), []);
-  assert.deepEqual(dueCalls(t('2026-11-27T13:00:00Z')).map(d => d.kind), ['weekly']);
+  const due = async (iso: string) => dueCalls(t(iso), await store.workers(), await store.calls()).map(d => d.kind);
+  assert.deepEqual(await due('2026-11-20T03:00:00Z'), []);
+  assert.deepEqual(await due('2026-11-20T08:00:00Z'), ['arrival']);
+  await store.addCall({ id: 'a', caseId: 'GS-T1', kind: 'arrival', at: '2026-11-20T08:00:00Z', status: 'no-answer', reasons: [] });
+  assert.deepEqual(await due('2026-11-20T12:00:00Z'), ['retry']);
+  await store.addCall({ id: 'b', caseId: 'GS-T1', kind: 'arrival', at: '2026-11-20T12:00:00Z', status: 'answered', reasons: [] });
+  assert.deepEqual(await due('2026-11-24T12:00:00Z'), []);
+  assert.deepEqual(await due('2026-11-27T13:00:00Z'), ['weekly']);
   assert.ok(!/అమ్మ/.test(instructionFor('critical', true)));
 });

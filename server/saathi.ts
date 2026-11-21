@@ -28,14 +28,14 @@ export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolea
   }[level];
 }
 
-function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string) {
-  const w = store.worker(caseId);
+async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string) {
+  const w = await store.worker(caseId);
   const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
   const level = levelOf(risks);
-  store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id) });
+  await store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id) });
   if (w) {
     const worse = LEVEL[level] > LEVEL[w.riskLevel];
-    store.updateWorker(caseId, {
+    await store.updateWorker(caseId, {
       riskLevel: worse ? level : w.riskLevel,
       reasons: [...new Set([...w.reasons, ...risks.map(r => r.id)])],
       status: level === 'critical' || level === 'high' ? 'alert' : w.status === 'registered' ? 'abroad' : w.status,
@@ -48,11 +48,11 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
 export function registerSaathi(app: Express, guard: (req: Request, res: Response, next: () => void) => void) {
   // ---- worker registration (before departure) -----------------------------------------
-  app.post('/api/saathi/workers', guard, (req, res) => {
+  app.post('/api/saathi/workers', guard, async (req, res) => {
     const b = req.body ?? {};
     if (!b.phone || !b.consent) return res.status(400).json({ error: 'phone and consent are required' });
     const promise = runHarness(str(b.promise_said), {}, ALL_ON).slots;   // promise in the worker's own words
-    const rec = store.addWorker({
+    const rec = await store.addWorker({
       caseId: b.caseId || newCaseId(), name: b.name, phone: b.phone, familyPhone: b.familyPhone, district: b.district ?? promise.district,
       promise: { ...promise, employerName: b.employerName ?? promise.employerName, job: b.job ?? promise.job },
       destCity: b.destCity, destCountry: b.destCountry, codePhrase: b.codePhrase, departedOn: b.departedOn, consent: true,
@@ -60,10 +60,10 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const preDeparture = assessRisks(rec.promise).filter(r => ['VISIT_VISA', 'FEE_ABOVE_CAP'].includes(r.id));
     res.json({ worker: rec, preDepartureWarnings: preDeparture });
   });
-  app.get('/api/saathi/workers/:caseId', guard, (req, res) => {
-    const w = store.worker(String(req.params.caseId));
+  app.get('/api/saathi/workers/:caseId', guard, async (req, res) => {
+    const w = await store.worker(String(req.params.caseId));
     if (!w) return res.status(404).json({ error: 'not found' });
-    res.json({ worker: w, calls: store.calls(w.caseId) });
+    res.json({ worker: w, calls: await store.calls(w.caseId) });
   });
 
   // ---- Bolna tools ------------------------------------------------------------------------
@@ -99,14 +99,14 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
   });
 
   // report_problem / record_checkin: { case_id, caller_said, call_kind, ...LLM fields }
-  const record = (req: Request, res: Response) => {
+  const record = async (req: Request, res: Response) => {
     const b = req.body ?? {};
     let caseId = str(b.case_id);
-    if (!caseId || !store.worker(caseId)) {
+    if (!caseId || !(await store.worker(caseId))) {
       caseId = newCaseId();
-      store.addWorker({ caseId, phone: str(b.caller_phone) || 'unknown', name: str(b.caller_name) || undefined, promise: {}, consent: true });
+      await store.addWorker({ caseId, phone: str(b.caller_phone) || 'unknown', name: str(b.caller_name) || undefined, promise: {}, consent: true });
     }
-    const w = store.worker(caseId)!;
+    const w = (await store.worker(caseId))!;
     const slots = runHarness(str(b.caller_said) || str(b.notes), { codePhrase: w.codePhrase, names: [w.name, w.promise.employerName].filter(Boolean) as string[] }, ALL_ON).slots;
     // the LLM's yes/no fields can add danger, never remove it
     if (b.threatened === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'violence'])];
@@ -115,42 +115,50 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (b.salary_received === 'no') slots.salaryPaid = false;
     if (b.code_phrase_used === 'yes') slots.codePhrase = true;
     if (b.movement_restricted === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'confinement'])];
-    const { risks, level } = applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
+    const { risks, level } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
     res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) });
   };
   app.post('/tools/report-problem', guard, record);
   app.post('/tools/record-checkin', guard, record);
 
   // ---- post-call webhook for the new backend: safety net + missed calls ------------------
-  app.post('/webhooks/saathi', guard, (req, res) => {
+  app.post('/webhooks/saathi', guard, async (req, res) => {
     const e = req.body ?? {};
     const rd = e.context_details?.recipient_data ?? {};
     const caseId = str(rd.case_id);
-    const w = caseId ? store.worker(caseId) : undefined;
+    const w = caseId ? await store.worker(caseId) : undefined;
     if (!w) return res.json({ ok: true, ignored: 'unknown case' });
     const answered = e.status === 'completed' && typeof e.transcript === 'string' && /(^|\n)user:/.test(e.transcript);
     if (!answered) {
-      store.addCall({ id: String(e.id ?? Date.now()), caseId, kind: str(rd.call_kind) || 'call', at: new Date().toISOString(), status: String(e.status ?? 'missed'), reasons: ['missed'] });
+      await store.addCall({ id: String(e.id ?? Date.now()), caseId, kind: str(rd.call_kind) || 'call', at: new Date().toISOString(), status: String(e.status ?? 'missed'), reasons: ['missed'] });
       return res.json({ ok: true, missed: true });
     }
     const slots = runHarness(withQuestionContext(parseBolnaTranscript(e.transcript)), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
-    const { risks, level } = applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript);
+    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript);
     res.json({ ok: true, level, reasons: risks.map(r => r.id) });
   });
 
   // ---- scheduler: which calls are due now; places them through Bolna when configured -------
-  app.post('/api/saathi/scheduler/tick', guard, async (req, res) => {
-    const due = dueCalls(new Date(String(req.body?.now ?? new Date().toISOString())));
+  const tick = async (now: Date) => {
+    const due = dueCalls(now, await store.workers(), await store.calls());
     const placed = [];
     for (const d of due) placed.push(await placeCall(d));
-    res.json({ due: due.length, placed });
+    return { due: due.length, placed };
+  };
+  app.post('/api/saathi/scheduler/tick', guard, async (req, res) => {
+    res.json(await tick(new Date(String(req.body?.now ?? new Date().toISOString()))));
+  });
+  // Vercel Cron calls GET with "Authorization: Bearer $CRON_SECRET"
+  app.get('/api/saathi/cron', async (req, res) => {
+    if (process.env.CRON_SECRET && req.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: 'unauthorized' });
+    res.json(await tick(new Date()));
   });
 }
 
 // ---------------------------------------------------------------- scheduling (pure, testable)
 export interface DueCall { caseId: string; kind: 'arrival' | 'weekly' | 'retry'; phone: string }
 
-export function dueCalls(now: Date, workers = store.workers(), calls = store.calls()): DueCall[] {
+export function dueCalls(now: Date, workers: WorkerRec[], calls: import('./store.ts').CallRec[]): DueCall[] {
   const out: DueCall[] = [];
   for (const w of workers) {
     if (w.status === 'closed' || !w.consent || !w.departedOn) continue;
@@ -172,7 +180,7 @@ export function dueCalls(now: Date, workers = store.workers(), calls = store.cal
 
 async function placeCall(d: DueCall) {
   const key = process.env.BOLNA_API_KEY, agent = process.env.BOLNA_CHECKIN_AGENT_ID;
-  const w = store.worker(d.caseId)!;
+  const w = (await store.worker(d.caseId))!;
   const user_data = {
     case_id: w.caseId, call_kind: d.kind === 'retry' ? 'weekly' : d.kind, worker_name: w.name ?? '', employer_name: w.promise.employerName ?? '',
     promised_job: w.promise.job ?? '', dest_city: w.destCity ?? '', dest_country: w.destCountry ?? '', code_phrase: w.codePhrase ?? '',

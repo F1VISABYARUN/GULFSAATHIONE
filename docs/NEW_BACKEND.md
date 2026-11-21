@@ -39,3 +39,10 @@ The old "Gulf Saathi" and "Saathi Check-in agent" were not changed.
 3. Test one call. **Things to check:**
    - The Telugu voice: Ashutosh with language `te` is untested; switch to a Telugu voice in the dashboard if it sounds wrong.
    - Whether the welcome message's `{worker_name}` gets filled in.
+
+## Storage and cron (added)
+- **Storage picks itself:**
+  - Upstash Redis if `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (Vercel KV's `KV_REST_API_URL` and `KV_REST_API_TOKEN` also work).
+  - Otherwise memory on Vercel, or a JSON file locally.
+  - Add Upstash from Vercel → Storage → Marketplace; it fills the variables.
+- **Cron:** `vercel.json` runs `GET /api/saathi/cron` every hour. Set `CRON_SECRET` in Vercel. Note: Vercel's Hobby plan may limit how often crons can run; check your plan.
