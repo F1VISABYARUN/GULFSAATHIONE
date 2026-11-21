@@ -88,7 +88,7 @@ const distressTe: Partial<Record<DistressKind, string[]>> = {
   passport_held: ['పాస్పోర్ట్ తీసుకున్నారు', 'పాస్పోర్ట్ తీసుకున్నాడు', 'పాస్‌పోర్ట్ తీసుకున్నారు', 'పాస్పోర్ట్ ఇవ్వలేదు', 'పాస్పోర్ట్ ఇవ్వరు',
     'పాస్పోర్ట్ లేదు', 'passport ledu', 'పాస్పోర్ట్ పోయింది'],
   salary_unpaid: ['జీతం రాలేదు', 'జీతం ఇవ్వలేదు', 'జీతం ఇవ్వడం లేదు', 'పైసలు ఇవ్వడం లేదు', 'పైసలు ఇవ్వలేదు', 'పైసలు ఇయ్యటం లేదు',
-    'jeetam raaledandi', 'jeetam raaledu', 'salary raaledu'],
+    'jeetam raaledandi', 'jeetam raaledu', 'salary raaledu', 'జీతం అందలేదు', 'పైసలు అందలేదు', 'ఏమి అందలేదు', 'మిగతా ఏమి అందలేదు'],
 };
 for (const g of DISTRESS_PHRASES) g.phrases.push(...(distressTe[g.kind] ?? []).map(L));
 // New signal: taken from the airport by someone other than the employer (Goat Life pattern)
@@ -102,7 +102,7 @@ DISTRESS_PHRASES.push({
 
 DISTRESS_PHRASES.push({
   kind: 'cheated', te: 'agent mosam chesadu',
-  phrases: ['మోసం చేసిండు', 'మోసం చేశాడు', 'మోసం చేసాడు', 'మోసం చేసిండ్రు', 'మోసం చేశారు', 'మోసం చేసి', 'మోసం వేసిందా',
+  phrases: ['మోసం చేసిండు', 'మోసం చేశాడు', 'మోసం చేసాడు', 'మోసం చేసిండ్రు', 'మోసం చేశారు', 'మోసం చేసి',
     'mosam chesadu', 'mosam chesindu', 'cheated me', 'dhokha diya', 'धोखा दिया'].map(L),
 });
 

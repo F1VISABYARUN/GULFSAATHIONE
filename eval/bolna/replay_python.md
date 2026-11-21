@@ -12,11 +12,11 @@ Escalated: **9** calls. Expected risks come from the fact sheet; "unverified" me
 | 22b72629 | saathi | — | fee_above_cap | FEE_ABOVE_CAP (unverified) |
 | 12e3c302 | saathi | — | passport_taken, fee_above_cap, agent_fraud_reported | FEE_ABOVE_CAP, PASSPORT_HELD (unverified) |
 | bc44db4c | saathi | **ESCALATE** | threatened_or_distress, wrong_pickup, passport_taken, unpaid, fee_above_cap, agent_fraud_reported | DISTRESS, TAKEN_BY_STRANGER, PASSPORT_HELD, SALARY_UNPAID, FEE_ABOVE_CAP (unverified) |
-| 3d12bcdc | saathi | — | visit_visa, fee_above_cap, agent_fraud_reported | VISIT_VISA, SALARY_UNPAID, FEE_ABOVE_CAP (unverified) |
+| 3d12bcdc | saathi | — | unpaid, visit_visa, fee_above_cap, agent_fraud_reported | VISIT_VISA, SALARY_UNPAID, FEE_ABOVE_CAP (unverified) |
 | d5acc09e | saathi | **ESCALATE** | threatened_or_distress, wrong_pickup | DISTRESS, TAKEN_BY_STRANGER (unverified) |
 | 2d3958cc | saathi | — | passport_taken | PASSPORT_HELD (unverified) |
 | d09a4337 | saathi | — | visit_visa, fee_above_cap | FEE_ABOVE_CAP, VISIT_VISA (unverified) |
-| 94aa6eac | saathi | — | fee_above_cap, agent_fraud_reported | FEE_ABOVE_CAP (unverified) |
+| 94aa6eac | saathi | — | fee_above_cap | FEE_ABOVE_CAP (unverified) |
 | 9eb5cf51 | saathi | — | fee_above_cap, agent_fraud_reported | FEE_ABOVE_CAP (unverified) |
 | 2c0afbb9 | saathi | — | agent_fraud_reported | — (unverified) |
 | 470ffc46 | saathi | **ESCALATE** | threatened_or_distress, wrong_pickup | TAKEN_BY_STRANGER (unverified) |

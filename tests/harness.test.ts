@@ -232,3 +232,7 @@ test('check-in engine: asks in order, reads bare answers, escalates on stranger 
   ] }, ctx);
   assert.equal(ok.qid, 'passport');
 });
+test('fraud question is not a fraud report; "nothing received" = unpaid', () => {
+  assert.equal(runHarness('అంటే ఏజెంట్ మోసం వేసిందా?').slots.cheatedByAgent, undefined);
+  assert.equal(runHarness('ఓన్లీ రెండు నెలలు అందింది మిగతా ఏమి అందలేదు').slots.salaryPaid, false);
+});
