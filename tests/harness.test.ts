@@ -92,3 +92,7 @@ test('risk engine: check-in vs promise mismatch', () => {
   const ids = assessRisks(now, promise).map(r => r.id);
   for (const id of ['SALARY_MISMATCH', 'JOB_MISMATCH', 'HOURS_MISMATCH']) assert.ok(ids.includes(id), id);
 });
+test('a word locked by another layer is never taken as a name ("kafeel who rub")', () => {
+  assert.equal(runHarness('kafeel who rub pettadu').slots.employerName, undefined);
+  assert.equal(runHarness('kafeel who rub pettadu', {}, ALL_OFF).slots.employerName, undefined);
+});

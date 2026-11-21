@@ -49,16 +49,17 @@ export async function getTranscripts(clip: Clip, mode: 'audio' | 'reference'): P
   return { base: base.text, hinted: hinted.text, source: fromCache ? 'cache' : 'stt' };
 }
 
-export interface Variant { name: string; transcript: string; output: string; slots: CaseSlots; risks: string[]; termAcc: number; termMiss: string[]; slotErrors: ReturnType<typeof slotErrors>; caught: string[]; missed: string[]; falseAlarms: string[]; wer: number }
+export interface Variant { name: string; transcript: string; output: string; slots: CaseSlots; risks: string[]; riskDetails: ReturnType<typeof assessRisks>; termAcc: number; termMiss: string[]; slotErrors: ReturnType<typeof slotErrors>; caught: string[]; missed: string[]; falseAlarms: string[]; wer: number }
 
 export async function evaluateClip(clip: Clip, tx: Transcripts, promise?: CaseSlots, withLlm = hasKey()) {
   const ctx = clip.context ?? {};
   const score = (name: string, transcript: string, output: string, slots: CaseSlots): Variant => {
-    const risks = assessRisks(slots, promise).map(r => r.id);
+    const riskDetails = assessRisks(slots, promise);
+    const risks = riskDetails.map(r => r.id);
     const terms = criticalTermHits(clip.expected.criticalTerms, output);
     const rs = riskScore(clip.expected.risks, risks);
     return {
-      name, transcript, output, slots, risks,
+      name, transcript, output, slots, risks, riskDetails,
       termAcc: clip.expected.criticalTerms.length ? terms.hit.length / clip.expected.criticalTerms.length : 1,
       termMiss: terms.miss, slotErrors: slotErrors(clip.expected.slots, slots),
       caught: rs.caught, missed: rs.missed, falseAlarms: rs.falseAlarms,

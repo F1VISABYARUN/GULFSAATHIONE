@@ -171,5 +171,5 @@ export const STOPWORDS = new Set([
   'salary', 'job', 'agent', 'visa', 'passport', 'company', 'peru', 'name', 'sir', 'madam', 'okay', 'ok', 'haan', 'avunu',
   'cheppadu', 'chepparu', 'vachadu', 'vellanu', 'vellali', 'month', 'nelaki', 'emi', 'em', 'enti', 'ippudu', 'appudu',
   'hello', 'please', 'thank', 'thanks', 'call', 'phone', 'number', 'money', 'dabbulu', 'paisa', 'work', 'pani',
-  'adi', 'idi', 'emo', 'kuda', 'ayithe', 'kooda', 'vere', 'okaru', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
+  'who', 'what', 'where', 'when', 'his', 'her', 'him', 'they', 'it', 'adi', 'idi', 'emo', 'kuda', 'ayithe', 'kooda', 'vere', 'okaru', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
 ]);

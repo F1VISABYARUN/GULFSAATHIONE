@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gulf Saathi Harness</title>
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e3e1da;
+  --red: #c43d2f; --red-bg: #fbe7e4; --green: #1f7a4d; --green-bg: #e2f3e9; --amber: #a86a00; --amber-bg: #fdf1d8;
+  --accent: #0f5c63; --critical: #8f1d14;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --panel: #1d1d1b; --ink: #ecebe6; --muted: #9c9a92; --line: #33322e;
+    --red: #ff8a7a; --red-bg: #3b1e1a; --green: #6fd39f; --green-bg: #17301f; --amber: #f2be5c; --amber-bg: #33280f;
+    --accent: #6cc4cc; --critical: #ff8a7a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { padding: 16px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+header p { margin: 0; color: var(--muted); font-size: 13px; flex: 1 1 260px; }
+.pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.pill.on { color: var(--green); border-color: var(--green); } .pill.off { color: var(--amber); border-color: var(--amber); }
+nav { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+nav button { background: none; border: 0; padding: 10px 12px; font: inherit; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+nav button.active { color: var(--ink); border-color: var(--accent); }
+main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+.banner { padding: 10px 12px; border-radius: 8px; background: var(--amber-bg); color: var(--amber); margin-bottom: 12px; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+tr.hl td { font-weight: 600; }
+.scroll { overflow-x: auto; }
+.clips { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.clips button { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.clips button.active { border-color: var(--accent); color: var(--accent); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.card h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.tx { font-size: 16px; line-height: 1.7; }
+.bad { background: var(--red-bg); color: var(--red); border-radius: 4px; padding: 0 3px; }
+.good { background: var(--green-bg); color: var(--green); border-radius: 4px; padding: 0 3px; }
+.risk { border-left: 3px solid var(--amber); padding: 6px 10px; margin: 6px 0; background: var(--amber-bg); border-radius: 0 6px 6px 0; }
+.risk.critical { border-color: var(--critical); background: var(--red-bg); }
+.risk .te { font-weight: 600; } .risk .en { font-size: 13px; color: var(--muted); }
+.none { color: var(--muted); font-style: italic; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.chip.changed { border-color: var(--green); color: var(--green); }
+.chip.sup { text-decoration: line-through; color: var(--muted); }
+.escalate { background: var(--critical); color: #fff; padding: 8px 12px; border-radius: 8px; font-weight: 600; margin-bottom: 8px; }
+.kv { font-size: 13px; color: var(--muted); }
+.kv b { color: var(--ink); font-weight: 600; }
+textarea, input { width: 100%; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+label { font-size: 13px; color: var(--muted); display: block; margin: 10px 0 4px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.btn { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); cursor: pointer; }
+.btn.ghost { background: none; color: var(--accent); }
+.btn.rec { background: var(--red); border-color: var(--red); }
+.hidden { display: none; }
+small.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gulf Saathi · Harness</h1>
+  <p>Same call, two readings: the base model alone vs Saathi's harness. Red = what the base got wrong, green = what the harness fixed.</p>
+  <span id="keyPill" class="pill">checking…</span>
+</header>
+<nav>
+  <button data-tab="bench" class="active">Benchmark</button>
+  <button data-tab="live">Live / Try it</button>
+</nav>
+<main>
+  <section id="bench">
+    <div id="benchBanner" class="banner hidden"></div>
+    <div class="scroll"><table id="score"></table></div>
+    <div class="clips" id="clipList"></div>
+    <div id="clipView"></div>
+  </section>
+
+  <section id="live" class="hidden">
+    <div class="card">
+      <label>People expected on this call (comma separated) — the L0 context</label>
+      <input id="ctxNames" value="Ramesh, Raju, Saleem Al Harbi">
+      <label>Places expected</label>
+      <input id="ctxPlaces" value="Kodimial, Dubai, Riyadh">
+      <div class="row">
+        <button class="btn rec" id="recBtn">● Record</button>
+        <label style="margin:0"><input type="checkbox" id="optLlm" style="width:auto"> base + LLM extraction</label>
+        <label style="margin:0"><input type="checkbox" id="optTr" style="width:auto"> English translation (locked terms)</label>
+        <small class="muted" id="recStatus"></small>
+      </div>
+      <label>Or test with text — what the base model heard (optional)</label>
+      <textarea id="baseText" rows="2" placeholder="e.g. kafeel who rub pettadu, cody meal nundi"></textarea>
+      <label>Transcript for the harness</label>
+      <textarea id="text" rows="3">Anna naa peru Ramesh, Cody meal nundi. Agent Raju ki oka laksha kadu kadu oka laksha yaabhai velu ichanu, visit visa ichadu. Passport teeskunnaru, rendu nelalu jeetham ivvaledu.</textarea>
+      <div class="row"><button class="btn ghost" id="textBtn">Run on text</button></div>
+    </div>
+    <div id="liveView" style="margin-top:12px"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const norm = w => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('main > section').forEach(s => s.classList.toggle('hidden', s.id !== b.dataset.tab));
+});
+
+fetch('/api/health').then(r => r.json()).then(h => {
+  const p = $('#keyPill');
+  p.textContent = h.hasKey ? `OpenAI: on (${h.sttModel})` : 'OpenAI key not set — text mode only';
+  p.className = 'pill ' + (h.hasKey ? 'on' : 'off');
+});
+
+/** Word-level diff: words only in base -> red, words only in harness -> green. */
+function diff(a, b) {
+  const A = a.split(/\s+/).filter(Boolean), B = b.split(/\s+/).filter(Boolean);
+  const n = A.length, m = B.length, dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = norm(A[i]) === norm(B[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const keepA = new Set(), keepB = new Set();
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (norm(A[i]) === norm(B[j])) { keepA.add(i); keepB.add(j); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++;
+  }
+  return {
+    a: A.map((w, i) => keepA.has(i) ? esc(w) : `<span class="bad">${esc(w)}</span>`).join(' '),
+    b: B.map((w, j) => keepB.has(j) ? esc(w) : `<span class="good">${esc(w)}</span>`).join(' '),
+  };
+}
+
+function risksHtml(risks) {
+  if (!risks?.length) return '<p class="none">No risks flagged</p>';
+  return risks.map(r => `<div class="risk ${r.severity}"><div class="te">${esc(r.te)}</div><div class="en">${esc(r.en)}</div></div>`).join('');
+}
+function slotsHtml(s) {
+  const rows = Object.entries(s || {}).map(([k, v]) => `<div class="kv">${esc(k)}: <b>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</b></div>`);
+  return rows.length ? rows.join('') : '<p class="none">No facts extracted</p>';
+}
+
+function sideBySide({ baseTx, harnessTx, base, harness, extra = '' }) {
+  const d = diff(baseTx, harnessTx);
+  const chips = (harness.entities || []).filter(e => e.type !== 'distress').map(e =>
+    `<span class="chip ${e.superseded ? 'sup' : e.changed ? 'changed' : ''}" title="${esc(e.layer)}${e.surface ? ' · heard: ' + esc(e.surface) : ''}">${esc(e.type)}: ${esc(e.text)}</span>`).join('');
+  const revs = (harness.revisions || []).map(r => `<div class="kv">corrected ${esc(r.type)}: <s>${esc(r.from)}</s> → <b>${esc(r.to)}</b> <small class="muted">(“${esc(r.marker)}”)</small></div>`).join('');
+  const rb = (harness.readBacks || []).map(r => `<div class="kv">↺ read-back: <b>${esc(r.te)}</b> <small class="muted">${esc(r.reason)}</small></div>`).join('');
+  return `<div class="grid">
+    <div class="card"><h3>Base model</h3><div class="tx">${d.a}</div>
+      <h3 style="margin-top:14px">Facts</h3>${slotsHtml(base.slots)}
+      <h3 style="margin-top:14px">Risks</h3>${risksHtml(base.risks)}</div>
+    <div class="card"><h3>Saathi harness</h3>${harness.escalate ? '<div class="escalate">⚠ Escalate to a human now</div>' : ''}
+      <div class="tx">${d.b}</div><div class="chips">${chips}</div>${revs}${rb}
+      <h3 style="margin-top:14px">Facts</h3>${slotsHtml(harness.slots)}
+      <h3 style="margin-top:14px">Risks</h3>${risksHtml(harness.risks)}</div>
+  </div>${extra}`;
+}
+
+// ---------------- Benchmark tab
+const pct = x => (x * 100).toFixed(0) + '%';
+fetch('/api/results').then(r => r.ok ? r.json() : Promise.reject(r)).then(res => {
+  if (res.mode === 'reference') {
+    const b = $('#benchBanner'); b.classList.remove('hidden');
+    b.textContent = 'Clean-text sanity check (human reference transcripts, no audio). This is NOT the base-vs-harness benchmark — record clips and run "npm run eval".';
+  }
+  $('#score').innerHTML = `<tr><th>Variant</th><th>Clips</th><th>Risks caught</th><th>Meaning errors</th><th>Critical terms</th><th>False alarms</th><th>WER</th></tr>` +
+    res.summary.map(s => `<tr class="${s.variant === 'harness' ? 'hl' : ''}"><td>${esc(s.variant)}</td><td>${s.clips}</td><td>${esc(s.risksCaught)} (${pct(s.riskRecall)})</td><td>${s.meaningErrors}</td><td>${pct(s.criticalTermAcc)}</td><td>${s.falseAlarms}</td><td>${pct(s.wer)}</td></tr>`).join('');
+  $('#clipList').innerHTML = res.results.map((c, i) => `<button data-i="${i}">${esc(c.title)}${c.split === 'test' ? ' · test' : ''}</button>`).join('');
+  document.querySelectorAll('#clipList button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#clipList button').forEach(x => x.classList.toggle('active', x === b));
+    const c = res.results[+b.dataset.i];
+    const base = c.variants.find(v => v.name === 'base'), h = c.variants.find(v => v.name === 'harness');
+    const fmtRisks = v => ({ slots: v.slots, risks: v.riskDetails || v.risks.map(id => ({ id, severity: 'high', te: id, en: '' })) });
+    $('#clipView').innerHTML = `<p class="kv">Reference: <b>${esc(c.reference)}</b></p>` + sideBySide({
+      baseTx: base.transcript, harnessTx: h.output, base: fmtRisks(base), harness: { ...c.harness, ...fmtRisks(h) },
+      extra: `<p class="kv" style="margin-top:10px">Missed by base: <b>${esc(base.missed.join(', ') || '—')}</b> · Missed by harness: <b>${esc(h.missed.join(', ') || '—')}</b></p>`,
+    });
+  });
+}).catch(() => { $('#score').innerHTML = '<tr><td class="none">No results yet. Run <code>npm run eval</code>.</td></tr>'; });
+
+// ---------------- Live tab
+const ctx = () => ({
+  names: $('#ctxNames').value.split(',').map(s => s.trim()).filter(Boolean),
+  places: $('#ctxPlaces').value.split(',').map(s => s.trim()).filter(Boolean),
+});
+function showLive(r) {
+  const extra = [
+    r.baseLlm ? `<div class="card" style="margin-top:12px"><h3>Base + LLM extraction</h3>${slotsHtml(r.baseLlm.slots)}${risksHtml(r.baseLlm.risks)}</div>` : '',
+    r.translation ? `<div class="card" style="margin-top:12px"><h3>English (locked terms)</h3><div class="tx">${esc(r.translation)}</div></div>` : '',
+    r.ms ? `<p class="kv">Round trip ${r.ms} ms · ${esc(r.sttModel)}</p>` : '',
+  ].join('');
+  $('#liveView').innerHTML = sideBySide({ baseTx: r.base.transcript, harnessTx: r.harness.corrected, base: r.base, harness: r.harness, extra });
+}
+$('#textBtn').onclick = async () => {
+  const r = await fetch('/api/analyze-text', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: $('#text').value, baseText: $('#baseText').value, context: ctx() }) }).then(r => r.json());
+  showLive(r);
+};
+let rec, chunks = [];
+$('#recBtn').onclick = async () => {
+  if (rec && rec.state === 'recording') { rec.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    rec = new MediaRecorder(stream); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      $('#recBtn').textContent = '● Record'; $('#recStatus').textContent = 'Transcribing…';
+      const fd = new FormData();
+      fd.append('audio', new Blob(chunks, { type: rec.mimeType }), 'live.webm');
+      fd.append('context', JSON.stringify(ctx()));
+      fd.append('llmBaseline', $('#optLlm').checked); fd.append('translate', $('#optTr').checked);
+      const r = await fetch('/api/analyze', { method: 'POST', body: fd }).then(r => r.json());
+      if (r.error) { $('#recStatus').textContent = r.error; return; }
+      $('#recStatus').textContent = ''; showLive(r);
+    };
+    rec.start(); $('#recBtn').textContent = '■ Stop'; $('#recStatus').textContent = 'Recording…';
+  } catch (e) { $('#recStatus').textContent = 'Mic not available: ' + e.message; }
+};
+</script>
+</body>
+</html>

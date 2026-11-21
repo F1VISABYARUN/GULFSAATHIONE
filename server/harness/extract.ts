@@ -55,6 +55,8 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
     if (k >= tokens.length) return undefined;
     const ent = nameAt(k);
     if (ent) return ent.text;
+    // never take a word that another layer already locked (e.g. "who rub" = huroob, an amount, a place)
+    if (live.some(e => e.type !== 'name' && e.start <= k && k < e.end) || entities.some(e => e.type === 'gulf' && e.start <= k && k < e.end)) return undefined;
     const t = tokens[k];
     if (STOPWORDS.has(t.norm) || /\d/.test(t.norm) || t.norm.length < 3 || VERB_LIKE.test(t.norm)) return undefined;
     let name = cap(t.raw);
