@@ -1,4 +1,2 @@
-# Vercel must deploy the Node functions in api/, not build this repo as a container image.
-# (A root Dockerfile made Vercel push an image per deployment until the registry hit its image limit.)
-Dockerfile
-.dockerignore
+# Vercel must deploy the Node functions in api/.
+deploy/
