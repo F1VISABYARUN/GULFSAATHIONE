@@ -44,6 +44,27 @@ const PLACE_QUERIES: [RegExp, string, string][] = [
   [/(atm|bank)/, 'ATM', 'ATM'],
 ];
 
+// Telugu-script landmark names come out of transliteration as e.g. "dubaay maal", "burj khaaleephaa".
+// Fold long vowels and ph→f so they match one canonical English name that Google Places understands.
+export function foldLatin(s: string): string {
+  return s.toLowerCase().replace(/ph/g, 'f').replace(/aa/g, 'a').replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+const LANDMARKS: [RegExp, string][] = [
+  [/\b(burj|bruj) ?k?hal(i|e)?(fa|pha)?\b/, 'Burj Khalifa'],
+  [/\bduba(i|y|yi)? ?mal+\b/, 'Dubai Mall'],
+  [/\bmal+ (of|af|aaf) (the|di|da) emir(a|e)t(e)?s\b/, 'Mall of the Emirates'],
+  [/\bgold s(o|u)u?k\b/, 'Gold Souk'],
+  [/\bclo?ck tow?(e|a)r\b|\bklak tavar\b/, 'Clock Tower'],
+  [/\bdeira city cent(e|a)r\b|\bdera siti sentar\b/, 'Deira City Centre'],
+  [/\bbat+ha\b/, 'Batha'],
+  [/\bkaaba\b|\bkaba\b/, 'Kaaba'],
+  [/\bcorniche\b|\bkarnish\b/, 'Corniche'],
+];
+export function knownLandmark(normJoined: string): string | undefined {
+  const f = foldLatin(normJoined);
+  return LANDMARKS.find(([re]) => re.test(f))?.[1];
+}
+
 /** Where is he? Only from what he said: a known place name or a phrase after "near / daggara / దగ్గర". */
 export function extractAnchor(text: string): { anchor?: string; city?: string } {
   const h = runHarness(text, {}, ALL_ON);
@@ -57,8 +78,8 @@ export function extractAnchor(text: string): { anchor?: string; city?: string } 
     const before = norms.slice(Math.max(0, iNear - 3), iNear).filter(t => !/^(nenu|naa|ikkada|unnanu|main|i|am)$/.test(t.norm));
     if (before.length) anchor = before.map(t => t.norm.replace(/(loni|lo|ki)$/, '')).join(' ');
   }
-  const landmark = /(burj\s*khal(?:ifa)?|bruj\s*khal(?:ifa)?|dubai mall|gold souk|clock tower|batha|baths|kaaba|corniche|mall of the emirates)/.exec(norms.map(t => t.norm).join(' '));
-  if (landmark) anchor = landmark[0].replace(/bruj/, 'burj');
+  const known = knownLandmark(norms.map(t => t.norm).join(' '));
+  if (known) anchor = known;
   return { anchor, city };
 }
 

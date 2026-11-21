@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from 'express';
 import { gateDecision,contextFromRecipient } from './live.ts';
 import { languages,relay } from './relay.ts';
-import { findPlace,kinds,placeForSms,voiceDirections } from './voice-maps.ts';
+import { findPlace,normalizeKind,placeForSms,voiceDirections } from './voice-maps.ts';
 import { placeSms } from './family-sms.ts';
 import { store } from './store.ts';
 
@@ -39,8 +39,9 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
       return res.json({...result,sayTe:result.say_to_worker});
     }
     if(req.path==='/tools/find-place'){
-      if(!kinds.includes(clean('what')))return res.status(400).json({error:'Unsupported place kind'});
-      return res.json(await findPlace(text,clean('city'),clean('what')));
+      const kind=normalizeKind(clean('what')||text);
+      if(!kind)return res.json({status:'needs_kind',sayTe:'మీకు ఏం కావాలి? మందుల షాపు, ఆసుపత్రి, పోలీస్ లేదా ఎంబసీ?'});
+      return res.json(await findPlace(text,clean('city'),kind));
     }
     if(req.path==='/tools/directions'){
       if(!['walking','transit'].includes(b.mode))return res.status(400).json({error:'Use walking or transit'});

@@ -1,5 +1,6 @@
 import missions from './data/missions.json' with {type:'json'};
-import {extractAnchor,mapsFetch} from './assistant.ts';
+import {extractAnchor,mapsFetch,foldLatin} from './assistant.ts';
+import {tokenize} from './harness/tokens.ts';
 
 export const kinds=['hospital','police','embassy','Indian restaurant','bus stop','pharmacy','ATM','temple','mosque'];
 const need={status:'needs_landmark',sayTe:'దగ్గరలో కనిపించే భవనం లేదా రోడ్డు పేరు చెప్పండి.'};
@@ -35,8 +36,24 @@ async function search(query:string,near?:Point):Promise<Place[]|undefined>{
   const data=await r.json().catch(()=>null);if(!data)return;
   return (data.places??[]).filter((p:Place)=>p.id&&p.displayName?.text&&Number.isFinite(p.location?.latitude)&&Number.isFinite(p.location?.longitude));
 }
+const KIND_WORDS:[RegExp,string][]=[[/(ph|f)arm|medic|mandu|chemist/,'pharmacy'],[/hospit|aaspat|aspat|clinic|doctor/,'hospital'],[/polic|polis/,'police'],[/embas|consul|rayabar/,'embassy'],[/restaur|hotel|food|tindi|bhojan/,'Indian restaurant'],[/bus/,'bus stop'],[/\batm\b|bank/,'ATM'],[/templ|gudi|mandir/,'temple'],[/mosq|masjid/,'mosque']];
+/** Accept what the LLM actually sends ("Pharmacy", "medical shop", "మందుల షాపు") and map it to a supported kind. */
+export function normalizeKind(what:string):string|undefined{
+  if(kinds.includes(what))return what;
+  const f=foldLatin(tokenize(what).map(t=>t.norm).join(' ')+' '+what);
+  return KIND_WORDS.find(([re])=>re.test(f))?.[1];
+}
+const FILLERS=/^(avunandi|avunu|haa|ha|andi|sare|ok|okay|yes|nenu|ikkada|unnanu|daggara|near|lo|undi|unnadi|ante|aa|ee|oka)$/;
+/** The tool is only called after the bot asked "which building or shop is near you?", so a bare answer IS the landmark. */
+export function bareLandmark(text:string,city:string):string|undefined{
+  const words=tokenize(text).map(t=>t.norm).filter(w=>w&&!FILLERS.test(w));
+  const s=words.join(' ').trim();
+  if(!s||s.length>60||foldLatin(s)===foldLatin(city)||normalizeKind(s))return;
+  return s;
+}
 export async function findPlace(text:string,city:string,what:string){
-  const location=extractAnchor(text);const anchor=location.anchor;city=city||location.city||'';
+  const location=extractAnchor(text);city=city||location.city||'';
+  const anchor=location.anchor||bareLandmark(text,city);
   if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(what==='embassy'){
     const mission=missions.find(m=>m.city.toLowerCase()===city.trim().toLowerCase());
