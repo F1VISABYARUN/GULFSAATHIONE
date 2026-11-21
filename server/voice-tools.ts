@@ -35,7 +35,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
       const to=api?clean('to'):other?'te':clean('target_lang');
       if(!languages.includes(from)||!languages.includes(to)||from===to||(api && b.mode!==undefined&&!['relay','translate'].includes(b.mode)))return res.status(400).json({error:'Invalid language pair or mode'});
       if(other && text)return res.status(400).json({error:'Supply one speaker turn at a time'});
-      const result=await relay(other||text,from,to,ctx);
+      const result=await relay(other||text,from,to,ctx,{model:clean('model')||undefined});
       return res.json({...result,sayTe:result.say_to_worker});
     }
     if(req.path==='/tools/find-place'){
