@@ -8,6 +8,7 @@ import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
 import { assessRisks, type Risk } from './risk/engine.ts';
 import { checkAgent } from './risk/agents.ts';
 import { store, newCaseId, type WorkerRec } from './store.ts';
+import { translationRoutes } from './translations.ts';
 import { buildCaseFile } from './casefile.ts';
 import { familyProvider, type SmsStatus } from './family-sms.ts';
 import type { CaseSlots } from './harness/types.ts';
@@ -69,6 +70,12 @@ export function isOverdue(w: WorkerRec, now = Date.now()) {
 }
 
 export function registerSaathi(app: Express, guard: (req: Request, res: Response, next: () => void) => void) {
+  app.use('/api/saathi/cases', (_req,res,next)=>{
+    res.set('Cache-Control','no-store');
+    if (!process.env.SAATHI_SECRET) return res.status(503).json({error:'Set SAATHI_SECRET for caseworker access'});
+    next();
+  });
+  translationRoutes(app,guard);
   // ---- worker registration (before departure) -----------------------------------------
   app.post('/api/saathi/workers', guard, async (req, res) => {
     const b = req.body ?? {};
@@ -80,12 +87,14 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       destCity: b.destCity, destCountry: b.destCountry, codePhrase: b.codePhrase, departedOn: b.departedOn, consent: true,
     });
     const preDeparture = assessRisks(rec.promise).filter(r => ['VISIT_VISA', 'FEE_ABOVE_CAP'].includes(r.id));
-    res.json({ worker: rec, preDepartureWarnings: preDeparture });
+    const { translations: _reviewQueue, ...worker } = rec;
+    res.json({ worker, preDepartureWarnings: preDeparture });
   });
   app.get('/api/saathi/workers/:caseId', guard, async (req, res) => {
     const w = await store.worker(String(req.params.caseId));
     if (!w) return res.status(404).json({ error: 'not found' });
-    res.json({ worker: w, calls: await store.calls(w.caseId) });
+    const { translations: _reviewQueue, ...worker } = w;
+    res.json({ worker, calls: await store.calls(w.caseId) });
   });
 
   app.get('/api/saathi/cases', guard, async (req, res) => {

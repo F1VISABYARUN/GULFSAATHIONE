@@ -34,6 +34,7 @@ import type { TestContext } from 'node:test';
 import { once } from 'node:events';
 import { registerSaathi } from '../server/saathi.ts';
 async function api(t: TestContext) {
+  process.env.SAATHI_SECRET='fixture';
   const app=express(); app.use(express.json());
   registerSaathi(app,(req,res,next)=>req.get('x-saathi-secret')==='fixture'?next():void res.sendStatus(401));
   const server=app.listen(0,'127.0.0.1'); await once(server,'listening');
@@ -98,4 +99,20 @@ test('Bolna queues a documented make-call payload and validates its receipt',asy
   mock.mock.mockImplementation(async()=>Response.json({error:'invalid'},{status:400}));
   assert.equal((await placeCall(d)).placed,false);
   assert.equal((await placeCall({...d,phone:'000'})).placed,false);
+});
+test('translation in either direction is withheld until a human approves the edited wording',async t=>{
+  const request=await api(t),id='GS-LANG';
+  await store.addWorker({caseId:id,phone:'unknown',consent:true,promise:{}});
+  const old=process.env.OPENAI_API_KEY; delete process.env.OPENAI_API_KEY;
+  t.after(()=>{if(old)process.env.OPENAI_API_KEY=old;});
+  for(const from of ['ar','te']){
+    const base='/'+id+'/translations';
+    const entry=await (await request(base,{from,text:'source message'})).json();
+    assert.equal(entry.status,'pending_review');assert.equal(entry.draft,undefined);
+    const item=base+'/'+entry.id;
+    assert.equal((await request(item+'/reply')).status,202);
+    assert.equal((await request(item+'/approve',{text:'checked',reviewer:'Reviewer'},false)).status,401);
+    assert.equal((await request(item+'/approve',{text:'checked',reviewer:'Reviewer'})).status,200);
+    assert.deepEqual(await (await request(item+'/reply')).json(),{status:'approved',language:from==='te'?'ar':'te',text:'checked'});
+  }
 });

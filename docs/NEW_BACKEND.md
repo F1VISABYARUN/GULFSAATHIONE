@@ -71,3 +71,12 @@ Created on 2026-11-21 with the real URL, `https://gulfsaathione.vercel.app`, alr
 | Saathi Check-in LIVE (hackathon) | `e9d8ed81-0eb9-4246-976e-fb38c440ae1b` (set as `BOLNA_CHECKIN_AGENT_ID`) |
 
 The earlier "Saathi Harness … (hackathon)" pair has placeholder tool URLs. Delete it in the Bolna dashboard.
+
+### Caseworker desk and interpreters
+Open /caseworker.html on the HTTPS deployment and enter SAATHI_SECRET. The desk lists overdue cases, case files, notes, outcomes, and translation requests. The key stays in page memory. Access is shared among trusted staff; the reviewer name is self-reported.
+
+POST /api/saathi/cases/:id/translations with {from:"te"|"ar",text:"..."} for consented worker speech. OPENAI_API_KEY enables a machine draft; without it or on provider failure the caseworker can enter a manual translation. A bilingual reviewer edits the result and approves it in the desk. Voice clients poll GET /api/saathi/cases/:id/translations/:translationId/reply; speak only the approved response (202 means pending). The review list is for trusted staff. This service translates text; Bolna must supply the transcript and choose the matching playback voice.
+
+### Places and recruiting-agent sources
+GOOGLE_MAPS_API_KEY enables Google Places Text Search and transit Directions for a named landmark. Enable the applicable APIs and billing in Google Cloud. Network failures, permission errors and timeouts return the unavailable path.
+The active RA register is bundled. The notified-unregistered register must be supplied separately. Point EMIGRATE_NOTIFIED_FILE at a private reviewed JSON transcription with {source,asOf,agents:[{name,district}]}, using the official HTTPS eMigrate export URL and its YYYY-MM-DD publication date. Restart after updating the snapshot. Only an exact name and district match produces a notified-list flag; fictional sample entries are excluded. Without that file Saathi can check active registration only.

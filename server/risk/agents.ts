@@ -6,6 +6,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadNotified } from './notified.ts';
 import { similarity } from '../harness/phonetic.ts';
 
 const DATA = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
@@ -13,15 +14,13 @@ const DATA = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 export interface RA { raId: string; name: string; state: string; district: string; rc: string | null; status: string; website: string | null }
 export interface AgentCheck { status: 'registered' | 'registered_other_district' | 'not_found' | 'flagged'; match?: RA; flaggedName?: string; source: string }
 
-let cache: { ras: RA[]; flagged: string[] } | undefined;
+let cache: { ras: RA[]; notified: ReturnType<typeof loadNotified> } | undefined;
 function load() {
   if (cache) return cache;
   const raPath = join(DATA, 'ra_list.json');
   const ras: RA[] = existsSync(raPath) ? [...JSON.parse(readFileSync(raPath, 'utf8')).agents, ...JSON.parse(readFileSync(raPath, 'utf8')).state_agents] : [];
-  // demo-only flagged names (fictional) — the real eMigrate unregistered-agent list is not machine-readable yet
-  const demoPath = join(DATA, 'agents.sample.json');
-  const flagged: string[] = existsSync(demoPath) ? JSON.parse(readFileSync(demoPath, 'utf8')).flagged ?? [] : [];
-  return (cache = { ras, flagged });
+  const notified = loadNotified(process.env.EMIGRATE_NOTIFIED_FILE);
+  return (cache = {ras, notified});
 }
 
 const STOP = /\b(m\/s|ms|pvt|private|ltd|limited|the|and|&|co|company|consultancy|consultants|consultant|manpower|man power|services|international|overseas|recruiting|recruitment|travels|tours|enterprises|agency|hr|human resources)\b/gi;
@@ -30,10 +29,11 @@ const core = (s: string) => s.toLowerCase().replace(STOP, ' ').replace(/[^a-z0-9
 export function raCount() { return load().ras.length; }
 
 export function checkAgent(name: string, district?: string, raId?: string): AgentCheck {
-  const { ras, flagged } = load();
+  const { ras, notified } = load();
   const source = 'MEA list of active RAs, as on 08-04-2026';
-  const flag = flagged.find(f => similarity(f, name) >= 0.85);
-  if (flag) return { status: 'flagged', flaggedName: flag, source: 'demo flagged list (fictional)' };
+  const norm = (v: string) => v.normalize('NFC').trim().replace(/\s+/g,' ').toLowerCase();
+  const flag = district && notified?.agents.find(a => norm(a.name) === norm(name) && norm(a.district) === norm(district));
+  if (flag && notified) return { status:'flagged', flaggedName:flag.name, source:notified.source + ' as of ' + notified.asOf };
   if (raId) {
     const m = ras.find(r => r.raId.toLowerCase() === raId.toLowerCase());
     if (m) return { status: m.status === 'Active' ? 'registered' : 'not_found', match: m, source };

@@ -86,16 +86,20 @@ function pickScript(text: string): string[] {
 }
 
 // ---- live search (Google Maps Platform). Without a key we say so instead of inventing places.
+async function mapsFetch(url: string, init?: RequestInit) {
+  try { return await fetch(url, {...init,signal:AbortSignal.timeout(6000)}); } catch { return undefined; }
+}
 async function placesSearch(query: string): Promise<{ name: string; address?: string; open?: boolean }[] | undefined> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return undefined;
-  const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+  const r = await mapsFetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.currentOpeningHours.openNow' },
     body: JSON.stringify({ textQuery: query, maxResultCount: 3 }),
   });
-  if (!r.ok) return undefined;
-  const d: any = await r.json();
+  if (!r?.ok) return undefined;
+  const d = await r.json().catch(() => null);
+  if (!d) return undefined;
   return (d.places ?? []).map((p: any) => ({ name: p.displayName?.text, address: p.formattedAddress, open: p.currentOpeningHours?.openNow }));
 }
 
@@ -103,9 +107,11 @@ async function transitDirections(origin: string, destination: string): Promise<s
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return undefined;
   const u = `https://maps.googleapis.com/maps/api/directions/json?mode=transit&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&key=${key}`;
-  const r = await fetch(u);
-  if (!r.ok) return undefined;
-  const d: any = await r.json();
+  const r = await mapsFetch(u);
+  if (!r?.ok) return undefined;
+  const d = await r.json().catch(() => null);
+  if (!d) return undefined;
+  if (!['OK','ZERO_RESULTS'].includes(d.status)) return undefined;
   const steps = d.routes?.[0]?.legs?.[0]?.steps ?? [];
   return steps.slice(0, 6).map((s: any) => s.transit_details
     ? `Bus/metro ${s.transit_details.line?.short_name ?? s.transit_details.line?.name ?? ''} from ${s.transit_details.departure_stop?.name} to ${s.transit_details.arrival_stop?.name} (${s.transit_details.num_stops} stops)`
@@ -140,7 +146,7 @@ export async function assist(text: string, ctx: CallContext = {}): Promise<Assis
     const kind = PLACE_QUERIES.find(([re]) => re.test(j)) ?? PLACE_QUERIES[0];
     if (!where) return { intent, escalate: false, needs: 'location', sayTe: 'మీరు ఇప్పుడు ఎక్కడ ఉన్నారు? దగ్గరలో కనిపించే పెద్ద బిల్డింగ్, షాప్, మసీదు లేదా రోడ్డు పేరు చెప్పండి.', liveSearch: 'not_needed' };
     const places = await placesSearch(`${kind[1]} near ${where}`);
-    if (!places) return { intent, escalate: false, data: { query: `${kind[1]} near ${where}` }, sayTe: `${where} దగ్గర ${kind[2]} వెతకాలి — కానీ లైవ్ సెర్చ్ ఇప్పుడు అందుబాటులో లేదు. మా మనిషి మీకు తిరిగి కాల్ చేస్తారు.`, liveSearch: 'not_configured' };
+    if (!places) return { intent, escalate: false, data: { query: `${kind[1]} near ${where}` }, sayTe: `${where} దగ్గర ${kind[2]} వెతకాలి — కానీ లైవ్ సెర్చ్ ఇప్పుడు అందుబాటులో లేదు.`, liveSearch: 'not_configured' };
     if (!places.length) return { intent, escalate: false, sayTe: `${where} దగ్గర ${kind[2]} దొరకలేదు. ఇంకో దగ్గర గుర్తు చెప్పండి.`, liveSearch: 'used' };
     const top = places.slice(0, 2).map(p => `${p.name}${p.address ? ', ' + p.address : ''}`).join('; ');
     return { intent, escalate: false, data: places, sayTe: `${where} దగ్గర: ${top}. ఎవరినైనా ఈ పేరు చూపించి అడగండి, లేదా దారి కావాలంటే చెప్పండి.`, liveSearch: 'used' };
@@ -158,7 +164,7 @@ export async function assist(text: string, ctx: CallContext = {}): Promise<Assis
     }
     if (!dest) return { intent, escalate: false, needs: 'destination', sayTe: 'మీరు ఎక్కడికి వెళ్ళాలి?', liveSearch: 'not_needed' };
     const steps = await transitDirections(where, dest);
-    if (!steps) return { intent, escalate: false, data: { origin: where, destination: dest }, sayTe: `${where} నుండి ${dest} కి దారి చూడాలి — లైవ్ సెర్చ్ అందుబాటులో లేదు. మా మనిషి మీకు కాల్ చేస్తారు.`, liveSearch: 'not_configured' };
+    if (!steps) return { intent, escalate: false, data: { origin: where, destination: dest }, sayTe: `${where} నుండి ${dest} కి దారి చూడాలి — లైవ్ సెర్చ్ అందుబాటులో లేదు.`, liveSearch: 'not_configured' };
     return { intent, escalate: false, data: steps, sayTe: steps.length ? `దారి: ${steps.join('. ')}.` : 'దారి దొరకలేదు. ఇంకో గుర్తు చెప్పండి.', liveSearch: 'used' };
   }
 
