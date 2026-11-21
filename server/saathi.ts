@@ -76,6 +76,18 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     next();
   });
   translationRoutes(app,guard);
+  // Which OpenAI models can this server's key use? Returns model ids only, never the key.
+  app.get('/api/saathi/models', guard, async (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!process.env.SAATHI_SECRET) return res.status(503).json({ error: 'Set SAATHI_SECRET' });
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not set' });
+    try {
+      const r = await fetch('https://api.openai.com/v1/models', { headers: { authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, signal: AbortSignal.timeout(15000) });
+      if (!r.ok) return res.status(502).json({ error: 'OpenAI returned ' + r.status });
+      const ids: string[] = ((await r.json()).data ?? []).map((m: { id: string }) => String(m.id)).sort();
+      res.json({ current_text_model: process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini', count: ids.length, models: ids });
+    } catch { res.status(502).json({ error: 'OpenAI unreachable' }); }
+  });
   // ---- worker registration (before departure) -----------------------------------------
   app.post('/api/saathi/workers', guard, async (req, res) => {
     const b = req.body ?? {};

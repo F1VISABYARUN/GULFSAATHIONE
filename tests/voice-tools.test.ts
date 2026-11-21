@@ -84,3 +84,18 @@ test('Telugu-script landmarks and loose place kinds from real Bolna calls are un
   assert.equal(bareLandmark('pharmacy','Dubai'),undefined);
   assert.ok(bareLandmark('అల్ ఖుసైస్ మెట్రో','Dubai'));
 });
+
+test('models endpoint lists ids only and never echoes the key',async t=>{
+  process.env.STORE='memory';process.env.SAATHI_SECRET='fixture';process.env.OPENAI_API_KEY='sk-secret-fixture';
+  t.after(()=>{delete process.env.OPENAI_API_KEY;});
+  const {registerSaathi}=await import('../server/saathi.ts');
+  const app=express();app.use(express.json());
+  registerSaathi(app,(req,res,next)=>req.get('x-saathi-secret')==='fixture'?next():void res.sendStatus(401));
+  const server=app.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>{server.close();});
+  const local=globalThis.fetch;const port=(server.address() as AddressInfo).port;
+  t.mock.method(globalThis,'fetch',async(url:any,init:any)=>String(url).includes('api.openai.com')?Response.json({data:[{id:'b-model'},{id:'a-model'}]}):local(url,init));
+  const url=`http://127.0.0.1:${port}/api/saathi/models`;
+  assert.equal((await local(url)).status,401);
+  const body=await (await local(url,{headers:{'x-saathi-secret':'fixture'}})).text();
+  assert.deepEqual(JSON.parse(body).models,['a-model','b-model']);assert.ok(!body.includes('sk-secret'));
+});
