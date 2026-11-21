@@ -29,12 +29,12 @@ test('walking and transit directions: short Telugu instructions or a destination
   process.env.GOOGLE_MAPS_API_KEY='fixture';
   t.after(()=>{delete process.env.GOOGLE_MAPS_API_KEY;});
   const mock=t.mock.method(globalThis,'fetch',async(url:string)=>{
-    assert.match(url,/mode=walking/);assert.match(url,/language=te/);
-    return Response.json({status:'OK',routes:[{legs:[{steps:Array(5).fill({html_instructions:'<b>ఎడమవైపు తిరగండి</b>'})}]}]});
+    assert.match(url,/mode=walking/);assert.match(url,/language=en/);
+    return Response.json({status:'OK',routes:[{legs:[{steps:Array(5).fill({html_instructions:'<b>Turn left</b>'})}]}]});
   });
-  const r=await voiceDirections('Clock Tower daggara','Dubai','Station','walking');assert.ok('steps' in r);assert.equal(r.steps.length,4);assert.ok(r.more_steps);
+  const r=await voiceDirections('Clock Tower daggara','Dubai','Station','walking');assert.ok('steps' in r);assert.equal(r.steps?.length,4);assert.ok(r.more_steps);assert.match(String(r.sayTe),/Turn left/);
   mock.mock.mockImplementation(async()=>Response.json({status:'ZERO_RESULTS'}));
-  const fallback=await voiceDirections('Clock Tower daggara','Dubai','Station','transit');assert.ok('taxi_ar' in fallback);assert.match(String(fallback.taxi_ar),/Station/);
+  const fallback=await voiceDirections('Clock Tower daggara','Dubai','Station','transit');assert.ok('taxi_ar' in fallback);assert.equal((fallback as any).reason,'ZERO_RESULTS');assert.match(String(fallback.taxi_ar),/Station/);
 });
 test('guarded phone routes prioritize danger, support both relay legs and send only to the confirmed case contact',async t=>{
   process.env.STORE='memory';process.env.SAATHI_SECRET='fixture';delete process.env.OPENAI_API_KEY;
