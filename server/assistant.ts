@@ -51,11 +51,13 @@ export function extractAnchor(text: string): { anchor?: string; city?: string } 
   const norms = tokenize(text);
   const iNear = norms.findIndex(t => ['daggara', 'daggar', 'near', 'paas', 'pakkana', 'mundu', 'opposite', 'lo'].includes(t.norm));
   let anchor: string | undefined;
-  if (iNear > 0) {
+  if (iNear >= 0 && norms[iNear].norm === 'near') {
+    anchor = /\bnear\s+([^,;?!]+)/i.exec(text)?.[1]?.trim();
+  } else if (iNear > 0) {
     const before = norms.slice(Math.max(0, iNear - 3), iNear).filter(t => !/^(nenu|naa|ikkada|unnanu|main|i|am)$/.test(t.norm));
     if (before.length) anchor = before.map(t => t.norm.replace(/(loni|lo|ki)$/, '')).join(' ');
   }
-  const landmark = /(burj\s*khal|bruj\s*khal|dubai mall|gold souk|clock tower|batha|baths|kaaba|corniche|mall of the emirates)/.exec(norms.map(t => t.norm).join(' '));
+  const landmark = /(burj\s*khal(?:ifa)?|bruj\s*khal(?:ifa)?|dubai mall|gold souk|clock tower|batha|baths|kaaba|corniche|mall of the emirates)/.exec(norms.map(t => t.norm).join(' '));
   if (landmark) anchor = landmark[0].replace(/bruj/, 'burj');
   return { anchor, city };
 }
@@ -86,7 +88,7 @@ function pickScript(text: string): string[] {
 }
 
 // ---- live search (Google Maps Platform). Without a key we say so instead of inventing places.
-async function mapsFetch(url: string, init?: RequestInit) {
+export async function mapsFetch(url: string, init?: RequestInit) {
   try { return await fetch(url, {...init,signal:AbortSignal.timeout(6000)}); } catch { return undefined; }
 }
 async function placesSearch(query: string): Promise<{ name: string; address?: string; open?: boolean }[] | undefined> {

@@ -1,0 +1,82 @@
+[
+  {
+    "country": "UAE",
+    "city": "Abu Dhabi",
+    "name": "Embassy of India, Abu Dhabi",
+    "address": "",
+    "phone": "+971508995583 (24x7 emergency, Emirate of Abu Dhabi only)",
+    "phone_kind": "24x7 helpline",
+    "source_url": "https://www.indembassyuae.gov.in/page/hotlines-24x7/",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "UAE",
+    "city": "Dubai",
+    "name": "Consulate General of India, Dubai",
+    "address": "",
+    "phone": "+971507347676 (death; northern emirates)",
+    "phone_kind": "24x7 helpline",
+    "source_url": "https://www.cgidubai.gov.in/",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "Saudi Arabia",
+    "city": "Riyadh",
+    "name": "Embassy of India, Riyadh",
+    "address": "",
+    "phone": "800 247 1234 (24x7, distress only)",
+    "phone_kind": "toll-free",
+    "source_url": "https://www.eoiriyadh.gov.in/content/Indian-Embassy-Contact-Numbers-Emails.pdf",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "Saudi Arabia",
+    "city": "Jeddah",
+    "name": "Consulate General of India, Jeddah",
+    "address": "",
+    "phone": "800 244 0003 (24x7)",
+    "phone_kind": "toll-free",
+    "source_url": "https://www.eoiriyadh.gov.in/page/important-government-of-india-contacts-embassy-consulate-iwrc-etc/",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "Oman",
+    "city": "Muscat",
+    "name": "Embassy of India, Muscat",
+    "address": "",
+    "phone": "80071234 (24-hour community welfare)",
+    "phone_kind": "toll-free",
+    "source_url": "https://www.indemb-oman.gov.in/",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "Qatar",
+    "city": "Doha",
+    "name": "Embassy of India, Doha",
+    "address": "",
+    "phone": "+97455097295 (labour & community welfare; call & WhatsApp)",
+    "phone_kind": "24x7 helpline",
+    "source_url": "https://www.indianembassyqatar.gov.in/emergencyhelp",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "Kuwait",
+    "city": "Kuwait City",
+    "name": "Embassy of India, Kuwait",
+    "address": "",
+    "phone": "+96597295728 / +96597291468 (emergency)",
+    "phone_kind": "24x7 helpline",
+    "source_url": "https://mea.gov.in/emergency-no-missionspost.htm",
+    "TODO": "Verify street address on the mission website."
+  },
+  {
+    "country": "Bahrain",
+    "city": "Manama",
+    "name": "Embassy of India, Manama",
+    "address": "",
+    "phone": "+97339418071 (emergency; embassy never calls out from it)",
+    "phone_kind": "24x7 helpline",
+    "source_url": "https://www.mea.gov.in/indian-mission.htm?24/Bahrain",
+    "TODO": "Verify street address on the mission website."
+  }
+]
