@@ -16,6 +16,7 @@ export interface WorkerRec {
   notes?: { at: string; text: string }[];
   outcome?: 'solved' | 'partly' | 'not' | 'withdrawn';
   closedAt?: string;
+  alertSince?: string;
   familyPhone?: string;
   familySms?: import('./family-sms.ts').SmsRecord;
   district?: string;

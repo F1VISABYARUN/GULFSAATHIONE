@@ -40,7 +40,10 @@ export async function applyToWorker(caseId: string, slots: CaseSlots, kind: stri
     if (LEVEL[level] > LEVEL[worker.riskLevel]) worker.riskLevel = level;
     worker.reasons = [...new Set([...worker.reasons, ...risks.map(r => r.id)])];
     if (worker.status === 'closed') return;
-    if (alert) worker.status = 'alert';
+    if (alert) {
+      if (crossing) worker.alertSince = new Date().toISOString();
+      worker.status = 'alert';
+    }
     else if (worker.status === 'registered') worker.status = 'abroad';
     if (crossing && worker.familyPhone && !worker.familySms) {
       worker.familySms = { sentAt: new Date().toISOString(), status: 'pending' };
@@ -57,6 +60,12 @@ export async function applyToWorker(caseId: string, slots: CaseSlots, kind: stri
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+export function isOverdue(w: WorkerRec, now = Date.now()) {
+  if (w.status === 'closed' || LEVEL[w.riskLevel] < LEVEL.high) return false;
+  const since = Math.max(Date.parse(w.alertSince ?? w.createdAt), Date.parse(w.notes?.at(-1)?.at ?? w.alertSince ?? w.createdAt));
+  return now - since >= 24 * 3600_000;
+}
 
 export function registerSaathi(app: Express, guard: (req: Request, res: Response, next: () => void) => void) {
   // ---- worker registration (before departure) -----------------------------------------
@@ -86,7 +95,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     }
     const workers = (await store.workers()).filter(w => (!level || w.riskLevel === level) && (!status || w.status === status));
     res.json(workers.map(w => ({ caseId: w.caseId, name: w.name, riskLevel: w.riskLevel, status: w.status,
-      notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+      overdue: isOverdue(w), notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
   });
   app.post('/api/saathi/cases/:id/note', guard, async (req, res) => {
     const text = str(req.body?.note).trim();

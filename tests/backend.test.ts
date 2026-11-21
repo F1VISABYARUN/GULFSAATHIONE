@@ -57,3 +57,13 @@ test('caseworker filters, notes and idempotent closure',async t=>{
   assert.equal((await request('/'+id+'/close',{outcome:'not'})).status,409);
   assert.equal((await request('/missing/note',{note:'ok'})).status,404);
 });
+import { isOverdue } from '../server/saathi.ts';
+test('overdue starts at escalation, restarts on a note and stops on closure',async()=>{
+  const w=await store.addWorker({caseId:'GS-CLOCK',phone:'unknown',promise:{},consent:true});
+  const start=Date.UTC(2026,1,1), day=86400000;
+  const alert={...w,riskLevel:'high' as const,alertSince:new Date(start).toISOString()};
+  assert.equal(isOverdue(alert,start+day-1),false);
+  assert.equal(isOverdue(alert,start+day),true);
+  assert.equal(isOverdue({...alert,notes:[{at:new Date(start+day).toISOString(),text:'contacted'}]},start+day),false);
+  assert.equal(isOverdue({...alert,status:'closed'},start+day),false);
+});

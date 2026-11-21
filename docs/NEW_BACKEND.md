@@ -52,3 +52,6 @@ On first entry into high/critical risk, reserve one notification for the family 
 
 ### Caseworker JSON API
 Use the existing SAATHI_SECRET header (x-saathi-secret). GET /api/saathi/cases supports optional level and status filters. POST /api/saathi/cases/:id/note takes {"note":"..."}. POST /api/saathi/cases/:id/close takes {"outcome":"solved"}; partly, not and withdrawn are also valid. Closing again with the same outcome returns the original closure.
+
+### Escalation clock
+The case list computes overdue for open high/critical cases at 24 hours since escalation or the latest caseworker note, whichever is later. For historical workers without an escalation timestamp, creation time is the fallback.
