@@ -46,4 +46,5 @@ export interface CaseSlots {
   mandal?: string;         // Telangana mandal (from the official gazetteer)
   takenByStranger?: boolean; // picked up by someone other than the employer
   codePhrase?: boolean;    // worker said the agreed safety phrase
+  cheatedByAgent?: boolean; // worker says the agent cheated him
 }

@@ -172,3 +172,10 @@ test('official mandal gazetteer: mandal gives district; duplicate mandal asks', 
   const dup = runHarness('memu Sarangapur nundi');
   assert.ok(dup.readBacks.some(r => /Jagtial/.test(r.reason) && /Nirmal/.test(r.reason)));
 });
+test('"agent mosam chesindu" is fraud, not a name; "vanda pani" is not ₹100', () => {
+  const h = runHarness('నన్ను ఏజెంట్ మోసం చేసిండు. వండ పని అని చెప్పారు');
+  assert.equal(h.slots.agentName, undefined);
+  assert.equal(h.slots.cheatedByAgent, true);
+  assert.equal(h.slots.feeINR, undefined);
+  assert.ok(assessRisks(h.slots).some(r => r.id === 'AGENT_FRAUD_REPORTED'));
+});

@@ -30,6 +30,7 @@ export function assessRisks(slots: CaseSlots, promise?: CaseSlots): Risk[] {
   if (slots.feeINR !== undefined && slots.feeINR > feeCap) {
     add({ id: 'FEE_ABOVE_CAP', severity: 'high', en: `Fee ₹${slots.feeINR.toLocaleString('en-IN')} is above the legal cap (₹${config.feeCapINR.toLocaleString('en-IN')} + GST)`, te: `Fee ₹${slots.feeINR.toLocaleString('en-IN')} — legal limit kante ekkuva`, evidence: String(slots.feeINR) });
   }
+  if (slots.cheatedByAgent) add({ id: 'AGENT_FRAUD_REPORTED', severity: 'high', en: 'Worker says the agent cheated him — collect payment proof and agent details for a complaint', te: 'Agent mosam chesadu ani cheppadu — complaint ki receipts, agent vivaraalu teeskondi' });
   if (slots.passportHeld) add({ id: 'PASSPORT_HELD', severity: 'high', en: 'Passport taken by employer/agent — illegal in Saudi and UAE', te: 'Passport teeskunnaru — idi chattaviruddham' });
   if (slots.salaryPaid === false) add({ id: 'SALARY_UNPAID', severity: 'high', en: 'Salary not being paid', te: 'Jeetham ivvatledu' });
   if (slots.phones?.some(p => !/^\+|^05|^5/.test(p) && p.replace(/\D/g, '').length < 10)) add({ id: 'PHONE_INCOMPLETE', severity: 'medium', en: 'A phone number is incomplete — confirm before saving', te: 'Phone number complete ga ledu — malli confirm cheyyandi' });

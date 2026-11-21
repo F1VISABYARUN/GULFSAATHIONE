@@ -51,3 +51,7 @@ export function checkAgent(name: string, district?: string, raId?: string): Agen
   const sameDistrict = !district || !best.r.district || best.r.district.toLowerCase().includes(district.toLowerCase());
   return { status: sameDistrict ? 'registered' : 'registered_other_district', match: best.r, source };
 }
+
+export function listAgents(district?: string, state = 'Telangana'): RA[] {
+  return load().ras.filter(r => r.state.toLowerCase() === state.toLowerCase() && (!district || r.district.toLowerCase().includes(district.toLowerCase())));
+}

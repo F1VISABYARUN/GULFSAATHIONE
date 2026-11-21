@@ -100,6 +100,12 @@ DISTRESS_PHRASES.push({
     'vere vallu teesukellaru', 'vere vaallu teesukellaaru', 'other people took me', 'someone else picked me up'].map(L),
 });
 
+DISTRESS_PHRASES.push({
+  kind: 'cheated', te: 'agent mosam chesadu',
+  phrases: ['మోసం చేసిండు', 'మోసం చేశాడు', 'మోసం చేసాడు', 'మోసం చేసిండ్రు', 'మోసం చేశారు', 'మోసం చేసి', 'మోసం వేసిందా',
+    'mosam chesadu', 'mosam chesindu', 'cheated me', 'dhokha diya', 'धोखा दिया'].map(L),
+});
+
 // ---- places in Telugu script -> canonical name (used by the phonetic matcher as aliases)
 export const PLACE_ALIASES: Record<string, string> = Object.fromEntries(([
   ['జగిత్యాల', 'Jagtial'], ['జగిత్యాల్', 'Jagtial'], ['జగిత్యాలయ', 'Jagtial'], ['Jagityala', 'Jagtial'], ['Jagityal', 'Jagtial'],

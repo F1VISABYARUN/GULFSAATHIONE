@@ -140,7 +140,7 @@ export const CORRECTION_MARKERS: string[][] = [
   ['correction'], ['wait'], ['ledu'], ['nahi'],
 ];
 
-export type DistressKind = 'violence' | 'threat' | 'help' | 'deprivation' | 'confinement' | 'passport_held' | 'salary_unpaid' | 'taken_by_stranger';
+export type DistressKind = 'violence' | 'threat' | 'help' | 'deprivation' | 'confinement' | 'passport_held' | 'salary_unpaid' | 'taken_by_stranger' | 'cheated';
 
 export const DISTRESS_PHRASES: { kind: DistressKind; phrases: string[]; te: string }[] = [
   { kind: 'violence', te: 'kodutunnaru (himsa)', phrases: ['kodutunnaru', 'kodthunnaru', 'kottaru', 'kottinaru', 'kodtunnadu', 'kottadu', 'beating me', 'beat me', 'hitting me', 'maar rahe', 'maarte hain', 'maara'] },
@@ -171,5 +171,5 @@ export const STOPWORDS = new Set([
   'salary', 'job', 'agent', 'visa', 'passport', 'company', 'peru', 'name', 'sir', 'madam', 'okay', 'ok', 'haan', 'avunu',
   'cheppadu', 'chepparu', 'vachadu', 'vellanu', 'vellali', 'month', 'nelaki', 'emi', 'em', 'enti', 'ippudu', 'appudu',
   'hello', 'please', 'thank', 'thanks', 'call', 'phone', 'number', 'money', 'dabbulu', 'paisa', 'work', 'pani',
-  'who', 'what', 'where', 'when', 'his', 'her', 'him', 'they', 'it', 'adi', 'idi', 'emo', 'kuda', 'ayithe', 'kooda', 'vere', 'okaru', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
+  'who', 'what', 'where', 'when', 'his', 'her', 'him', 'they', 'it', 'mosam', 'mosamu', 'cheated', 'fraud', 'adi', 'idi', 'emo', 'kuda', 'ayithe', 'kooda', 'vere', 'okaru', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
 ]);

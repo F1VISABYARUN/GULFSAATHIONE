@@ -40,7 +40,8 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   if (distress.some(d => d.value === 'salary_unpaid')) slots.salaryPaid = false;
   if (distress.some(d => d.value === 'taken_by_stranger')) slots.takenByStranger = true;
   if (distress.some(d => d.value === 'code_phrase')) slots.codePhrase = true;
-  const kinds = [...new Set(distress.map(d => String(d.value)).filter(k => k !== 'passport_held' && k !== 'salary_unpaid' && k !== 'taken_by_stranger' && k !== 'code_phrase'))];
+  if (distress.some(d => d.value === 'cheated')) slots.cheatedByAgent = true;
+  const kinds = [...new Set(distress.map(d => String(d.value)).filter(k => k !== 'passport_held' && k !== 'salary_unpaid' && k !== 'taken_by_stranger' && k !== 'code_phrase' && k !== 'cheated'))];
   if (kinds.length) slots.distress = kinds;
   if (slots.salaryPaid === undefined) {
     for (let i = 0; i < tokens.length; i++) {

@@ -87,7 +87,7 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
   for (const e of entities) {
     if (e.type === 'distress' && e.layer === 'L3-distress-fuzzy') readBacks.push({ reason: `Possible distress word: heard "${e.surface}" (≈ ${e.value})`, te: `"${e.surface}" ante — mimmalni ${e.value === 'violence' ? 'kodutunnaaraa' : 'emaina ibbandi pedutunnaaraa'}? Cheppandi.`, entity: e.surface });
   }
-  const exactDistress = entities.some(e => e.type === 'distress' && e.layer === 'L3-distress' && !['passport_held', 'salary_unpaid'].includes(String(e.value)));
+  const exactDistress = entities.some(e => e.type === 'distress' && e.layer === 'L3-distress' && !['passport_held', 'salary_unpaid', 'cheated'].includes(String(e.value)));
   const escalate = exactDistress || slots.huroob === true || slots.takenByStranger === true || slots.codePhrase === true;
   return { readBacks, escalate };
 }

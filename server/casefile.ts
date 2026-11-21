@@ -55,6 +55,7 @@ function evidenceFor(riskId: string, h: HarnessResult): string | undefined {
     FEE_ABOVE_CAP: () => pick(e => e.type === 'money'),
     JOB_MISMATCH: () => pick(e => e.type === 'job'),
     HOURS_MISMATCH: () => pick(e => e.type === 'hours'),
+    AGENT_FRAUD_REPORTED: () => pick(e => e.value === 'cheated'),
     SALARY_MISMATCH: () => pick(e => e.type === 'money'),
   };
   const got = map[riskId]?.() ?? [];
@@ -76,7 +77,8 @@ function mergeSlots(all: CaseSlots[]): CaseSlots {
 function actionsFor(risks: Risk[], facts: CaseSlots, helplines: Helpline[]): CaseFile['actions'] {
   const ids = new Set(risks.map(r => r.id));
   const abroad = facts.country && facts.country !== 'India';
-  const missionContacts = helplines.filter(h => abroad && h.country && h.country.toLowerCase().includes(String(facts.country).toLowerCase().split(' ')[0]));
+  const rank = (h: Helpline) => (h.status === 'official' ? 0 : 10) + (/toll/i.test(h.kind ?? '') ? 0 : /24/.test(h.kind ?? '') ? 1 : /whatsapp/i.test(h.kind ?? '') ? 2 : /email/i.test(h.kind ?? '') ? 3 : 5) + (/death|jail|housemaid|women/i.test(h.value) ? 6 : 0);
+  const missionContacts = helplines.filter(h => abroad && h.country && h.country.toLowerCase().includes(String(facts.country).toLowerCase().split(' ')[0])).sort((a, b) => rank(a) - rank(b)).slice(0, 4);
   const india = helplines.filter(h => h.country === 'India');
   const byName = (re: RegExp) => india.filter(h => re.test(`${h.mission ?? ''} ${h.kind ?? ''} ${h.value}`));
   const actions: CaseFile['actions'] = [];
@@ -88,7 +90,7 @@ function actionsFor(risks: Risk[], facts: CaseSlots, helplines: Helpline[]): Cas
   if (ids.has('PASSPORT_HELD') || ids.has('SALARY_UNPAID') || ids.has('JOB_MISMATCH') || ids.has('SALARY_MISMATCH') || ids.has('HOURS_MISMATCH')) {
     actions.push({ who: 'MADAD (MEA grievance portal)', what: 'Register a grievance with this file: passport retention / unpaid wages / contract substitution.', contacts: byName(/madad/i) });
   }
-  if (ids.has('FEE_ABOVE_CAP') || ids.has('VISIT_VISA') || ids.has('AGENT_NOT_IN_REGISTRY') || ids.has('AGENT_DISTRICT_MISMATCH') || ids.has('AGENT_FLAGGED')) {
+  if (ids.has('FEE_ABOVE_CAP') || ids.has('VISIT_VISA') || ids.has('AGENT_FRAUD_REPORTED') || ids.has('AGENT_NOT_IN_REGISTRY') || ids.has('AGENT_DISTRICT_MISMATCH') || ids.has('AGENT_FLAGGED')) {
     actions.push({ who: 'Protector of Emigrants, Hyderabad / eMigrate', what: 'Complain against the recruiting agent: illegal fee, visit visa for a job, unregistered agent. Attach payment proof.', contacts: [...byName(/protector|poe/i), ...byName(/emigrate/i)] });
     if (!abroad) actions.push({ who: 'Worker (before departure)', what: 'Do not pay more and do not travel until the agent licence and an employment visa are verified.', contacts: [] });
   }

@@ -76,6 +76,10 @@ small.muted { color: var(--muted); }
 <nav>
   <button data-tab="bench" class="active">Benchmark</button>
   <button data-tab="live">Live / Try it</button>
+  <button data-tab="gate">Gate (mid-call)</button>
+  <button data-tab="cases">Case files</button>
+  <button data-tab="agents">Agent check</button>
+  <a href="/facts.html" style="margin-left:auto;padding:10px 12px;color:var(--accent);font-size:14px">Fact sheet →</a>
 </nav>
 <main>
   <section id="bench">
@@ -104,6 +108,41 @@ small.muted { color: var(--muted); }
       <div class="row"><button class="btn ghost" id="textBtn">Run on text</button></div>
     </div>
     <div id="liveView" style="margin-top:12px"></div>
+  </section>
+  <section id="gate" class="hidden">
+    <div class="card">
+      <p class="kv">Paste a Bolna transcript (or any <b>assistant:</b>/<b>user:</b> lines). The gate decides in code what the agent must do next: <b>ESCALATE</b>, <b>CONFIRM</b>, <b>NOTE</b> or <b>CONTINUE</b>. Bolna can call <code>POST /api/gate</code> as a custom tool mid-call.</p>
+      <label>Transcript</label>
+      <textarea id="gateTx" rows="6">assistant: మిమ్మల్ని ఎవరు తీసుకెళ్లారు? AI NOOR CLEANING వాళ్లేనా?
+user: లేదు వేరే వాళ్ళు.
+user: నన్ను కిడ్నాప్ చేశారు.</textarea>
+      <label>Promise record / context (Bolna recipient_data JSON)</label>
+      <textarea id="gateCtx" rows="3">{"worker_name":"మల్లయ్య","employer_name":"AI NOOR CLEANING","promised_job":"cleaner","dest_city":"DUBAI","code_phrase":"అమ్మ బాగుందా"}</textarea>
+      <div class="row"><button class="btn" id="gateBtn">Run gate</button></div>
+    </div>
+    <div id="gateOut" style="margin-top:12px"></div>
+  </section>
+
+  <section id="cases" class="hidden">
+    <div class="card">
+      <p class="kv">Case files are built from what was heard: risks with the exact words, promise vs now, who to contact. New ones arrive from the Bolna webhook (<code>POST /webhooks/bolna</code>). Below: saved cases, then demo files built from your recorded calls.</p>
+      <div id="caseList"></div>
+    </div>
+  </section>
+
+  <section id="agents" class="hidden">
+    <div class="card">
+      <p class="kv">Checks against MEA's official <b>list of active recruiting agents</b> (as on 08-04-2026, 2,388 parsed). A person's name is usually not in the list (it lists agencies) — "not found" means <b>ask for the licence (RC) number</b>, not "illegal".</p>
+      <div class="row" style="margin-top:0">
+        <input id="agName" placeholder="Agency name, e.g. Karthik International" style="flex:2 1 220px">
+        <input id="agDist" placeholder="District (optional)" style="flex:1 1 140px">
+        <button class="btn" id="agBtn">Check</button>
+      </div>
+      <div id="agOut" style="margin-top:10px"></div>
+      <label style="margin-top:14px">Registered agencies in a Telangana district</label>
+      <div class="row" style="margin-top:0"><select id="agList" style="max-width:260px"><option>Jagtial</option><option>Nizamabad</option><option>Nirmal</option><option>Karimnagar</option><option>Kamareddy</option><option>Hyderabad</option><option>Vemulawada</option></select></div>
+      <div id="agListOut" class="scroll" style="margin-top:8px"></div>
+    </div>
   </section>
 </main>
 
@@ -226,6 +265,40 @@ $('#recBtn').onclick = async () => {
     rec.start(); $('#recBtn').textContent = '■ Stop'; $('#recStatus').textContent = 'Recording…';
   } catch (e) { $('#recStatus').textContent = 'Mic not available: ' + e.message; }
 };
+
+// ---------------- Gate tab
+$('#gateBtn').onclick = async () => {
+  let rd = {}; try { rd = JSON.parse($('#gateCtx').value || '{}'); } catch { }
+  const r = await fetch('/api/gate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ transcript: $('#gateTx').value, recipient_data: rd }) }).then(r => r.json());
+  const color = r.action === 'ESCALATE' ? 'escalate' : '';
+  $('#gateOut').innerHTML = `<div class="card">${r.action === 'ESCALATE' ? '<div class="escalate">ESCALATE — human caseworker now</div>' : `<h3>Action: ${esc(r.action)}</h3>`}
+    ${r.sayTe ? `<p class="kv">Agent should say: <b>${esc(r.sayTe)}</b></p>` : ''}
+    <p class="kv">Instruction to the LLM: ${esc(r.instruction)}</p>
+    <h3 style="margin-top:12px">Risks</h3>${risksHtml(r.risks)}
+    <h3 style="margin-top:12px">Facts</h3>${slotsHtml(r.slots)}</div>`;
+};
+
+// ---------------- Cases tab
+async function loadCases() {
+  const saved = await fetch('/api/cases').then(r => r.json()).catch(() => []);
+  const demo = ['bc44db4c', '6bb7d5c6', '59dc411a', '96d83759', '3d12bcdc', 'd09a4337'];
+  $('#caseList').innerHTML = `<h3>Saved cases</h3>${saved.length ? `<table><tr><th>Case</th><th>Severity</th><th>Risks</th><th>Summary</th></tr>${saved.map(c => `<tr><td><a href="/cases/${encodeURIComponent(c.id)}" target="_blank">${esc(c.id)}</a></td><td>${esc(c.severity)}${c.escalate ? ' · ESCALATE' : ''}</td><td>${esc(c.risks.join(', '))}</td><td>${esc(c.summaryEn)}</td></tr>`).join('')}</table>` : '<p class="none">None yet — they appear when Bolna posts a finished call to /webhooks/bolna.</p>'}
+  <h3 style="margin-top:14px">Demo case files from your recorded calls</h3><div class="clips">${demo.map(id => `<a class="btn ghost" style="text-decoration:none" href="/api/bolna/casefile/${id}" target="_blank">${id}</a>`).join('')}</div>`;
+}
+document.querySelector('nav button[data-tab=cases]').addEventListener('click', loadCases);
+
+// ---------------- Agents tab
+$('#agBtn').onclick = async () => {
+  const r = await fetch(`/api/agents/check?name=${encodeURIComponent($('#agName').value)}&district=${encodeURIComponent($('#agDist').value)}`).then(r => r.json());
+  const label = { registered: 'Registered (found in MEA list)', registered_other_district: 'Name found, but in a different district — confirm RC number', not_found: 'Not found by name — ask for the RC licence number before paying', flagged: 'FLAGGED (demo list)' }[r.status];
+  $('#agOut').innerHTML = `<div class="risk ${r.status === 'registered' ? '' : 'critical'}"><div class="te">${esc(label)}</div>${r.match ? `<div class="en">${esc(r.match.name)} · ${esc(r.match.raId)} · ${esc(r.match.district)}, ${esc(r.match.state)} · RC ${esc(r.match.rc ?? '—')} · ${esc(r.match.status)}</div>` : ''}<div class="en">Source: ${esc(r.source)}</div></div>`;
+};
+async function loadAgentList() {
+  const list = await fetch(`/api/agents?district=${encodeURIComponent($('#agList').value)}`).then(r => r.json());
+  $('#agListOut').innerHTML = `<table><tr><th>RA ID</th><th>Agency</th><th>District</th><th>RC number</th><th>Status</th></tr>${list.map(a => `<tr><td>${esc(a.raId)}</td><td>${esc(a.name)}</td><td>${esc(a.district)}</td><td>${esc(a.rc ?? '—')}</td><td>${esc(a.status)}</td></tr>`).join('')}</table><p class="kv">${list.length} agencies · source: MEA active RA list as on 08-04-2026 (parsed; verify on emigrate.gov.in)</p>`;
+}
+$('#agList').onchange = loadAgentList;
+document.querySelector('nav button[data-tab=agents]').addEventListener('click', loadAgentList);
 </script>
 </body>
 </html>

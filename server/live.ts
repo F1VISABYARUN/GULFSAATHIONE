@@ -9,6 +9,9 @@ import { withQuestionContext, parseBolnaTranscript, type Turn } from './harness/
 import { assessRisks } from './risk/engine.ts';
 import { buildCaseFile, renderCaseFileHtml, type CaseFile } from './casefile.ts';
 import type { CallContext } from './harness/types.ts';
+import { checkAgent, listAgents } from './risk/agents.ts';
+import { GULF_TERMS } from './harness/lexicon.ts';
+import { MANDAL_DISTRICTS } from './harness/gazetteer.ts';
 
 const CASES = join(dirname(fileURLToPath(import.meta.url)), 'data', 'cases');
 
@@ -84,6 +87,21 @@ export function registerLive(app: Express) {
     const cf = buildCaseFile([{ text: withQuestionContext(turns), date: String(e.created_at ?? e.initiated_at ?? '').slice(0, 10), kind: String(rd.call_kind ?? 'call'), id: String(e.id ?? '') }], ctx, { id, workerName: rd.worker_name });
     saveCase({ ...cf, source: { provider: 'bolna', execution_id: e.id, agent_id: e.agent_id } });
     res.json({ ok: true, case_id: cf.id, escalate: cf.escalate, severity: cf.severity, risks: cf.risks.map(r => r.id) });
+  });
+
+  // Registered recruiting agents (official MEA list)
+  app.get('/api/agents/check', (req, res) => res.json(checkAgent(String(req.query.name ?? ''), req.query.district ? String(req.query.district) : undefined, req.query.ra ? String(req.query.ra) : undefined)));
+  app.get('/api/agents', (req, res) => res.json(listAgents(req.query.district ? String(req.query.district) : undefined, req.query.state ? String(req.query.state) : 'Telangana')));
+
+  // STT hint list (keywords) for a call: people, places, Gulf terms — paste into Sarvam/Deepgram/OpenAI hints
+  app.get('/api/hints', (req, res) => {
+    const names = String(req.query.names ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const districts = String(req.query.districts ?? 'Jagtial,Karimnagar,Nizamabad').split(',').map(s => s.trim());
+    const mandals = [...MANDAL_DISTRICTS.entries()].filter(([, ds]) => ds.some(d => districts.includes(d))).map(([m]) => m);
+    const gulf = GULF_TERMS.map(t => t.canonical);
+    const money = ['laksha', 'lakshalu', 'velu', 'dirhams', 'riyals', 'jeetham', 'లక్ష', 'లక్షలు', 'వేలు', 'జీతం', 'దిర్హామ్స్', 'రియాల్స్'];
+    const keywords = [...new Set([...names, ...districts, ...mandals, ...gulf, ...money, 'Dubai', 'Riyadh', 'Muscat', 'Doha', 'Kuwait', 'Bahrain', 'Shamshabad'])];
+    res.json({ keywords, prompt: `Telugu-English call from a Telangana Gulf migrant worker. ${keywords.slice(0, 120).join(', ')}.` });
   });
 
   app.get('/api/cases', (_req, res) => {
