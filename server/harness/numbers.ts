@@ -4,7 +4,7 @@
 import type { Token } from './tokens.ts';
 import {
   UNIT_WORDS, HUNDRED_WORDS, MULTIPLIER_WORDS, FRACTION_WORDS, MODIFIER_WORDS, CURRENCY_WORDS,
-  DIGIT_WORDS, PHONE_TENS, REPEAT_WORDS, FILLERS, HOUR_WORDS,
+  DIGIT_WORDS, PHONE_TENS, REPEAT_WORDS, FILLERS, HOUR_WORDS, ID_CUES, TIME_WORDS, FEE_WORDS, SALARY_WORDS, MONEY_CUES,
 } from './lexicon.ts';
 import type { Entity } from './types.ts';
 
@@ -15,6 +15,7 @@ export interface PhoneValue {
   country?: 'IN' | 'AE' | 'SA' | 'GULF';
   valid: boolean;
   issue?: string;
+  kind?: 'phone' | 'id12' | 'long';   // id12: 12 digits that are not a country-coded phone (Aadhaar/UAN-sized)
 }
 
 export function classifyPhone(raw: string): PhoneValue {
@@ -26,8 +27,17 @@ export function classifyPhone(raw: string): PhoneValue {
   if (d.length === 10 && /^[6-9]/.test(d)) return { digits: d, e164: `+91 ${d.slice(0, 5)} ${d.slice(5)}`, country: 'IN', valid: true };
   if (d.length === 10 && d.startsWith('05')) return { digits: d, country: 'GULF', valid: true, issue: 'Gulf mobile — country (UAE/Saudi) not stated' };
   if (d.length === 9 && d.startsWith('5')) return { digits: d, country: 'GULF', valid: true, issue: 'Gulf mobile — country (UAE/Saudi) not stated' };
-  return { digits: raw, valid: false, issue: `${raw.length} digits heard — an Indian mobile needs 10` };
+  if (raw.length === 12) return { digits: raw, valid: false, kind: 'id12', issue: '12 digits — not a phone number; Aadhaar or UAN sized' };
+  return { digits: raw, valid: false, kind: 'long', issue: `${raw.length} digits heard — an Indian mobile needs 10` };
 }
+
+const MAX_DIGIT_TOKEN = 18;
+/** Look back a few tokens for a word that names an identifier ("UAN number ...", "account no ..."). */
+function idCue(tokens: Token[], i: number): string | undefined {
+  for (let k = i - 1; k >= Math.max(0, i - 4); k--) { const c = ID_CUES.get(tokens[k].norm); if (c) return c; }
+  return undefined;
+}
+export const groupDigits = (d: string) => d.replace(/(\d{4})(?=\d)/g, '$1 ');
 
 export function formatPhone(p: PhoneValue): string {
   if (p.e164) return p.e164;
@@ -56,7 +66,7 @@ export function findPhones(tokens: Token[], repair = false): Entity[] {
         if (next !== undefined) { digits += String(next).repeat(REPEAT_WORDS.get(t)!); j += 2; lastDigitEnd = j; continue; }
         break;
       }
-      if (/^\d+$/.test(t) && t.length <= 10) { digits += t; j++; lastDigitEnd = j; continue; }
+      if (/^\d+$/.test(t) && t.length <= MAX_DIGIT_TOKEN) { digits += t; j++; lastDigitEnd = j; continue; }
       if (PHONE_TENS.has(t)) {
         const tens = PHONE_TENS.get(t)!;
         const next = j + 1 < tokens.length ? englishUnit(tokens[j + 1].norm) : undefined;
@@ -70,6 +80,13 @@ export function findPhones(tokens: Token[], repair = false): Entity[] {
     if (digits.length >= 7) {
       const value = classifyPhone(digits);
       const surface = tokens.slice(i, lastDigitEnd).map(t => t.raw).join(' ');
+      const cue = idCue(tokens, i);
+      // A named identifier, or 12 digits that are not a country-coded phone, is never stored as a phone number.
+      if (cue || value.kind === 'id12') {
+        const kind = cue ?? 'ID';
+        out.push({ type: 'idnumber', start: i, end: lastDigitEnd, text: groupDigits(digits), surface, value: { kind, digits, named: !!cue }, layer: 'L2-id', changed: false, risky: true });
+        i = lastDigitEnd; continue;
+      }
       out.push({ type: 'phone', start: i, end: lastDigitEnd, text: formatPhone(value), surface, value, layer: 'L2-phone', changed: surface !== formatPhone(value), risky: !value.valid });
       i = lastDigitEnd;
     } else {
@@ -83,7 +100,7 @@ function isPhoneToken(tokens: Token[], i: number): boolean {
   const t = tokens[i].norm;
   if (REPEAT_WORDS.has(t)) return i + 1 < tokens.length && singleDigit(tokens[i + 1].norm) !== undefined;
   // a phone run must start with a digit-ish token; single English/Telugu digit words or digit strings
-  return DIGIT_WORDS.has(t) || PHONE_TENS.has(t) || (/^\d+$/.test(t) && t.length <= 10);
+  return DIGIT_WORDS.has(t) || PHONE_TENS.has(t) || (/^\d+$/.test(t) && t.length <= MAX_DIGIT_TOKEN);
 }
 function singleDigit(t: string): number | undefined {
   if (/^\d$/.test(t)) return Number(t);
@@ -184,7 +201,16 @@ export function findMoney(tokens: Token[], consumed: Set<number>): Entity[] {
       if (CURRENCY_WORDS[tokens[k].norm]) { currency = CURRENCY_WORDS[tokens[k].norm]; end = k + 1; }
     }
     const loneHundred = words.length === 1 && HUNDRED_WORDS.has(words[0]) && currency === undefined;
-    const isMoney = !loneHundred && (ev.hasScale || currency !== undefined || (ev.hasDigit && ev.value >= 100));
+    // A bare digit string is money only when something says so: a currency, a scale word, or a fee/salary cue nearby.
+    // Years (2010), long digit strings and unexplained numbers are left alone instead of being invented into rupees.
+    const single = j - i === 1 ? tokens[i].norm : '';
+    const yearLike = /^\d{4}$/.test(single) && ev.value >= 1900 && ev.value <= 2100;
+    const nearTime = (j < tokens.length && TIME_WORDS.has(tokens[j].norm)) || (i > 0 && TIME_WORDS.has(tokens[i - 1].norm));
+    let cue = false;
+    for (let k = Math.max(0, i - 6); k < Math.min(tokens.length, j + 6); k++) if ((k < i || k >= j) && (FEE_WORDS.has(tokens[k].norm) || SALARY_WORDS.has(tokens[k].norm) || MONEY_CUES.has(tokens[k].norm))) { cue = true; break; }
+    const longDigits = tokens.slice(i, j).some(t => /^\d{8,}$/.test(t.norm));
+    const bareDigitMoney = ev.hasDigit && ev.value >= 100 && cue && !longDigits && !(yearLike && nearTime);
+    const isMoney = !loneHundred && (ev.hasScale || currency !== undefined || bareDigitMoney);
     // hours are handled elsewhere: "12 gantalu" is not money
     const nextIsHour = j < tokens.length && HOUR_WORDS.has(tokens[j].norm);
     if (isMoney && !nextIsHour) {

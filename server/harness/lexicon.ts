@@ -173,3 +173,20 @@ export const STOPWORDS = new Set([
   'hello', 'please', 'thank', 'thanks', 'call', 'phone', 'number', 'money', 'dabbulu', 'paisa', 'work', 'pani',
   'who', 'what', 'where', 'when', 'his', 'her', 'him', 'they', 'it', 'mosam', 'mosamu', 'cheated', 'fraud', 'adi', 'idi', 'emo', 'kuda', 'ayithe', 'kooda', 'vere', 'okaru', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
 ]);
+
+
+// Words that say a long digit string is an identifier (UAN, Aadhaar, account...), not a phone number or an amount.
+export const ID_CUES = new Map<string, string>([
+  ['uan', 'UAN'], ['uaan', 'UAN'], ['yuean', 'UAN'], ['yuaen', 'UAN'], ['uaen', 'UAN'], ['epf', 'PF'], ['pf', 'PF'], ['pfo', 'PF'],
+  ['aadhaar', 'Aadhaar'], ['aadhar', 'Aadhaar'], ['adhar', 'Aadhaar'], ['adhaar', 'Aadhaar'], ['aadhaaru', 'Aadhaar'], ['pan', 'PAN'],
+  ['yooeen', 'UAN'], ['akaunt', 'account'], ['akaunti', 'account'], ['peeeph', 'PF'], ['paan', 'PAN'], ['khaataa', 'account'], ['account', 'account'], ['acct', 'account'], ['khata', 'account'], ['khaata', 'account'], ['ifsc', 'IFSC'], ['upi', 'UPI'],
+  ['emirates', 'Emirates ID'], ['eid', 'Emirates ID'], ['iqamaid', 'iqama'], ['ration', 'ration card'], ['voter', 'voter ID'], ['id', 'ID'],
+  ['reference', 'reference'], ['ref', 'reference'], ['application', 'application'], ['receipt', 'receipt'],
+]);
+// A four-digit number next to one of these is a year/date, not money.
+export const TIME_WORDS = new Set(['lo', 'nundi', 'year', 'years', 'saal', 'sal', 'sanvatsaram', 'sanvatsaralu', 'since', 'in', 'from', 'tarikh', 'date', 'ki', 'varaku', 'tho']);
+// Everyday Telugu/Hindi words that sound close to a Gulf term but are not one (kept out of fuzzy repair).
+export const COMMON_WORDS = new Set(['ikkada', 'ikkade', 'ikkadi', 'akkada', 'ekkada', 'ikada', 'ekada', 'akada', 'ikapai', 'inka', 'inkaa', 'ikkadaki']);
+
+// Words that make a nearby bare number an amount ("700 pampandi" = send 700, "UPI 700", "total 3000").
+export const MONEY_CUES = new Set(['pampandi', 'pampu', 'pampinchandi', 'pampinchu', 'pampanu', 'pampamu', 'send', 'sent', 'transfer', 'payment', 'amount', 'total', 'balance', 'gpay', 'phonepe', 'paytm', 'bhejo', 'bhej', 'bheja', 'paise', 'paisa', 'rate', 'price', 'cost', 'kharcha', 'rupayalu', 'rupaayalu']);

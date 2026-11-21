@@ -13,7 +13,9 @@
     "eval:bolna": "tsx eval/bolna/run.ts",
     "audio:bolna": "node eval/bolna/download-audio.mjs",
     "export:python": "tsx scripts/export-lexicon.ts",
-    "benchmark": "tsx eval/reliability/run.ts"
+    "benchmark": "tsx eval/reliability/run.ts",
+    "eval:robust": "tsx eval/robustness/run.ts",
+    "eval:fuzz": "tsx eval/robustness/fuzz.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.10",

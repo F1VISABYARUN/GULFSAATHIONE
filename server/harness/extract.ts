@@ -90,6 +90,8 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
 
   const phones = live.filter(e => e.type === 'phone').map(e => e.text);
   if (phones.length) slots.phones = phones;
+  const ids = live.filter(e => e.type === 'idnumber').map(e => ({ kind: (e.value as { kind: string }).kind, digits: (e.value as { digits: string }).digits }));
+  if (ids.length) slots.idNumbers = ids;
   const places = [...new Set(live.filter(e => e.type === 'place').map(e => e.text))];
   if (places.length) slots.places = places;
   const country = [...places].reverse().find(p => GULF_COUNTRY[p]);

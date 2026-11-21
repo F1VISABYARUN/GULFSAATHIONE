@@ -19,6 +19,15 @@ def test_money():
     assert 'fee_inr' not in normalize('వండ పని అని చెప్పారు')
 
 
+def test_digit_typing_and_false_money():
+    assert normalize('2010 లో నేను ఇండియా వచ్చాను') == {}
+    assert 'fee_inr' not in normalize('నా నంబర్ 98485210345') and normalize('నా నంబర్ 98485210345')['phone_incomplete']
+    f = normalize('my UAN number is 100234567890')
+    assert f['id_numbers'][0]['kind'] == 'UAN' and 'phones' not in f
+    assert 'phones' not in normalize('9 8 4 8 5 2 1 0 3 4 5 6')
+    assert normalize('agent ki 150000 ichanu')['fee_inr'] == 150000
+
+
 def test_phone():
     assert normalize('98 48 జీరో వన్ టూ త్రీ ఫోర్ ఫైవ్')['phones'] == ['+91 98480 12345']
     assert normalize('9 8 4 4 జూలై ఎయిట్ 1 2 3 4')['phones'] == ['+91 98440 81234']
