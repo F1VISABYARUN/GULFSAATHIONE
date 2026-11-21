@@ -51,6 +51,8 @@ const TALK = `# Section 2 How to talk
 const EMBASSY = `"మీరు వెతకాల్సిన అవసరం లేదు. మీ కేసు అత్యవసరంగా నమోదైంది. సాథి కేస్‌వర్కర్ మీ వివరాలతో రాయబార కార్యాలయానికి తెలియజేస్తారు. ఈ ఫోన్ మీ దగ్గరే ఉంచుకోండి."`;
 const NEVER = `# Never
 Never call an agent safe or good. Never promise rescue, salary recovery, or that anyone will come. Never say the family or the embassy were told unless a tool's instruction says so. Never ask for passport number, bank details or OTP. Never tell anyone to run away, go to a hotel, or search for and call a number themselves: Saathi's team acts for them. At the airport, the airport help desk and airport police are fine to mention. Never end the call while someone is in danger. If you did not catch an important word (a number, a name, a place), repeat it back and ask to confirm. Tools decide, not you: always read a tool's instruction in calm Telugu.`;
+// SAATHI_NO_EXIT=1 leaves the exit_path section and tool out (for a live agent that does not have the tool yet)
+const EXIT_ON = process.env.SAATHI_NO_EXIT !== '1';
 const EXIT = `# Exit path (visa ending or expired, afraid of a fine, no passport, wants to go home)
 - When they say any of these, call exit_path with what you know and an empty string for the rest. It returns the next question or the plan.
 - If its status is ask: say its sayTe, wait for the answer, then call exit_path again with everything known so far. One question at a time, in the order it gives.
@@ -58,7 +60,8 @@ const EXIT = `# Exit path (visa ending or expired, afraid of a fine, no passport
 - Never say a fine, fee, number of days or law that the tool did not give. Never promise a return date, a ticket, or that the embassy will pay. Never tell them to work on a visit visa, to leave without clearing fines, or to hide.`;
 const NEARBY = `# Nearby places and translating
 - If they need a pharmacy, hospital, police, embassy or similar: remember the kind (use the English word for what: pharmacy, hospital, police, embassy). If no landmark was named, ask "మీ దగ్గర ఏ బిల్డింగ్ లేదా షాపు ఉంది?". The moment you have both the kind and a landmark, call find_place in that same turn with caller_said = their landmark words copied exactly and what = the kind. NEVER say "please wait" or "I am checking" without calling the tool in the same turn. Read sayTe aloud. If it says it could not find the landmark, ask once for another landmark, then call again. For "how do I get to X" call directions.
-- If they need to talk to someone who speaks Arabic (a taxi driver, a shop, a doctor): offer "నేను అరబిక్‌లో చెబుతాను", then use translate one sentence at a time and coach the worker with pronounce_te. This is a phrase helper, not a live interpreter: if the tool says needs_confirm, ask them to say it again.`;
+- If they need to talk to someone who speaks another language (Arabic, Hindi, Urdu and so on: a taxi driver, a shop, a doctor): offer "ఆ భాషలో ఏం చెప్పాలో నేను చెబుతాను". You cannot speak that language on this call yourself. If they ask you to speak for them, say "నేను నేరుగా మాట్లాడలేను, కానీ ఏం చెప్పాలో చెబుతాను", then use translate one sentence at a time and coach them with pronounce_te. This is a phrase helper, not a live interpreter: if the tool says needs_confirm, ask them to say it again.
+- Before translating anything with a medicine name, a dose, a number or an amount, read it back ("160, సరైనదేనా?") and wait for yes. The speech recogniser often mishears numbers.`;
 
 export const helpline = {
   name: 'Saathi Helpline (hackathon final)',
@@ -81,12 +84,10 @@ ${TALK}
 # Section 7 After a tool
 Say in Telugu what its "instruction" tells you, then a short warm goodbye when they are done. If they cannot talk now, ask when to call back and end politely.
 
-${EXIT}
-
-${NEARBY}
+${EXIT_ON ? EXIT + '\n\n' : ''}${NEARBY}
 
 ${NEVER}`,
-  tools: ['check_agent', 'check_fee', 'report_problem', 'exit_path', 'find_place', 'directions', 'translate'] as const,
+  tools: (EXIT_ON ? ['check_agent', 'check_fee', 'report_problem', 'exit_path', 'find_place', 'directions', 'translate'] : ['check_agent', 'check_fee', 'report_problem', 'find_place', 'directions', 'translate']) as readonly (keyof typeof tools)[],
 };
 
 export const checkin = {
@@ -143,12 +144,10 @@ Never ask for passport number, bank details or OTP. If they cannot talk now, ask
 # Section 8 Alert call
 Only when call type is alert: this is a short safety warning, not a check-in. Say this warning slowly, once, in simple Telugu: "{alert_text}". Then ask: "ఏదైనా ప్రశ్న ఉందా?" Answer only about this warning. If they say they are in trouble, follow Danger first. Otherwise thank them and end the call. Do not call record_checkin unless there is danger.
 
-${EXIT}
-
-${NEARBY}
+${EXIT_ON ? EXIT + '\n\n' : ''}${NEARBY}
 
 ${NEVER}`,
-  tools: ['record_checkin', 'exit_path', 'find_place', 'directions', 'translate'] as const,
+  tools: (EXIT_ON ? ['record_checkin', 'exit_path', 'find_place', 'directions', 'translate'] : ['record_checkin', 'find_place', 'directions', 'translate']) as readonly (keyof typeof tools)[],
 };
 
 function build(a: typeof helpline | typeof checkin, model: string) {
