@@ -60,3 +60,14 @@ GET /api/saathi/cases/:id/file returns the shared case-file JSON built from the 
 
 ### Bolna outbound calls
 POST https://api.bolna.ai/call with Authorization: Bearer BOLNA_API_KEY. Send agent_id (BOLNA_CHECKIN_AGENT_ID), recipient_phone_number in E.164, and user_data with the worker context and actual call kind. Optional BOLNA_FROM_PHONE_NUMBER sets from_phone_number. A successful queue response supplies execution_id; this is distinct from an answered call. Missing key or agent stays dry-run. Contract cross-checked with [Bolna’s maintained integration](https://github.com/bolna-ai/n8n-nodes-bolna/blob/main/nodes/Bolna/Bolna.node.ts); direct access to docs.bolna.ai was blocked in this environment.
+
+## LIVE agents (use these)
+
+Created on 2026-11-21 with the real URL, `https://gulfsaathione.vercel.app`, already in every tool and webhook.
+
+| Agent | ID |
+|---|---|
+| Saathi Helpline LIVE (hackathon) | `e849d210-73bb-42bc-9a27-fc1f8df4beb0` |
+| Saathi Check-in LIVE (hackathon) | `e9d8ed81-0eb9-4246-976e-fb38c440ae1b` (set as `BOLNA_CHECKIN_AGENT_ID`) |
+
+The earlier "Saathi Harness … (hackathon)" pair has placeholder tool URLs. Delete it in the Bolna dashboard.
