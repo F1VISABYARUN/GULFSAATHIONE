@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call Fact Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e3e1da;
+  --red: #c43d2f; --red-bg: #fbe7e4; --green: #1f7a4d; --green-bg: #e2f3e9; --amber: #a86a00; --amber-bg: #fdf1d8; --accent: #0f5c63;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --panel: #1d1d1b; --ink: #ecebe6; --muted: #9c9a92; --line: #33322e;
+    --red: #ff8a7a; --red-bg: #3b1e1a; --green: #6fd39f; --green-bg: #17301f; --amber: #f2be5c; --amber-bg: #33280f; --accent: #6cc4cc;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", "Noto Sans Telugu", sans-serif; }
+header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+header p { margin: 0; color: var(--muted); font-size: 13px; flex: 1 1 280px; }
+header a { color: var(--accent); font-size: 13px; }
+.wrap { display: grid; grid-template-columns: 240px 1fr; gap: 12px; padding: 12px 16px; max-width: 1200px; margin: 0 auto; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } .list { max-height: 220px; } }
+.list { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-y: auto; max-height: calc(100vh - 100px); }
+.list button { display: flex; width: 100%; gap: 8px; align-items: center; text-align: left; font: inherit; font-size: 13px; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); cursor: pointer; }
+.list button.active { background: var(--green-bg); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--amber); }
+.dot.verified { background: var(--green); } .dot.skip { background: var(--muted); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.card h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+audio { width: 100%; }
+.turns { font-size: 15px; line-height: 1.7; max-height: 260px; overflow-y: auto; }
+.turns div { padding: 2px 0; border-bottom: 1px dashed var(--line); }
+.turns .q { color: var(--muted); font-size: 12px; }
+.note { background: var(--amber-bg); color: var(--amber); padding: 8px 10px; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+input, select, textarea { width: 100%; font: inherit; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+.checks label { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); font-size: 14px; margin: 0; }
+.checks input { width: auto; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.btn { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); cursor: pointer; }
+.btn.ghost { background: none; color: var(--accent); }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; }
+.pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin: 2px; border: 1px solid var(--line); }
+.pill.hit { border-color: var(--green); color: var(--green); } .pill.miss { border-color: var(--red); color: var(--red); } .pill.fa { border-color: var(--amber); color: var(--amber); }
+small { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Call Fact Sheet</h1>
+  <p>Listen to each call and write down what is <b>really</b> true. Leave a field on “can't tell” when you can't hear it. Only calls you mark <b>verified</b> are scored. <span id="progress"></span></p>
+  <a href="/">← Harness</a>
+</header>
+<div class="wrap">
+  <nav class="list" id="list"></nav>
+  <main id="detail"><div class="card">Loading…</div></main>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const DISTRICTS = ['Jagtial', 'Karimnagar', 'Nizamabad', 'Sircilla', 'Kamareddy', 'Nirmal', 'Adilabad', 'Mancherial', 'Peddapalli', 'Medak', 'Siddipet', 'Warangal', 'Hyderabad'];
+const COUNTRIES = ['UAE', 'Saudi Arabia', 'Oman', 'Qatar', 'Kuwait', 'Bahrain'];
+const JOBS = ['cleaner', 'driver', 'helper', 'cook', 'shepherd', 'farm worker', 'camel herder', 'mason', 'security guard', 'domestic worker', 'labour'];
+const DISTRESS = ['violence', 'threat', 'help', 'deprivation', 'confinement'];
+const RISKS = ['DISTRESS', 'TAKEN_BY_STRANGER', 'VISIT_VISA', 'FEE_ABOVE_CAP', 'PASSPORT_HELD', 'SALARY_UNPAID', 'HUROOB', 'JOB_MISMATCH', 'HOURS_MISMATCH', 'SALARY_MISMATCH'];
+const FEE_CAP = 30000 * 1.18;
+let calls = [], cur = 0;
+
+async function load(keep) {
+  const r = await fetch('/api/bolna/calls').then(r => r.json());
+  calls = r.calls;
+  if (!keep) cur = Math.max(0, calls.findIndex(c => c.fact.status === 'unverified' && c.turns.length));
+  renderList(); renderDetail();
+}
+function renderList() {
+  const v = calls.filter(c => c.fact.status === 'verified').length;
+  $('#progress').textContent = `${v} / ${calls.filter(c => c.fact.status !== 'skip').length} verified.`;
+  $('#list').innerHTML = calls.map((c, i) => `<button class="${i === cur ? 'active' : ''}" data-i="${i}"><span class="dot ${c.fact.status}"></span>${esc(c.id8)} · ${esc(c.date)} · ${c.agent === 'checkin' ? 'check-in' : 'saathi'}</button>`).join('');
+  document.querySelectorAll('#list button').forEach(b => b.onclick = () => { cur = +b.dataset.i; renderList(); renderDetail(); });
+}
+const sel = (name, opts, val) => `<select name="${name}"><option value="">can't tell</option>${opts.map(o => `<option ${String(val) === String(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+const yn = (name, val) => `<select name="${name}"><option value="">can't tell</option><option value="true" ${val === true ? 'selected' : ''}>yes</option><option value="false" ${val === false ? 'selected' : ''}>no</option></select>`;
+
+function renderDetail() {
+  const c = calls[cur]; if (!c) return;
+  const f = c.fact.facts || {};
+  const distressKnown = Array.isArray(f.distress);
+  const s = c.scored;
+  const cmp = s ? s.variants.map(v => `<div><b>${esc(v.name)}</b><br>${v.risks.map(r => `<span class="pill ${c.fact.risks.includes(r) ? 'hit' : 'fa'}">${esc(r)}</span>`).join('') || '<small>no risks</small>'}${v.missed.length ? '<br>missed: ' + v.missed.map(r => `<span class="pill miss">${esc(r)}</span>`).join('') : ''}</div>`).join('') : '';
+  $('#detail').innerHTML = `
+  <div class="card"><h3>${esc(c.header)}</h3>
+    ${c.audioAvailable ? `<audio controls preload="none" src="/${esc(c.audio)}"></audio><small>Left channel = caller, right = bot.</small>` : '<div class="note">Audio file not on this machine (eval/audio/bolna/). Use the transcript, or re-download.</div>'}
+  </div>
+  <div class="card"><h3>Caller turns — as the base STT heard them</h3>
+    <div class="turns">${c.turns.map(t => `<div>${t.q ? `<div class="q">bot asked: ${esc(t.q)}</div>` : ''}${esc(t.text)}</div>`).join('') || '<small>No speech.</small>'}</div>
+  </div>
+  <form class="card" id="form"><h3>What is really true? ${c.fact.status === 'unverified' ? '<small>(pre-filled with Claude\'s guesses — check them)</small>' : ''}</h3>
+    ${c.fact.notes ? `<div class="note">${esc(c.fact.notes)}</div>` : ''}
+    <div class="grid">
+      <div><label>Agent name</label><input name="agentName" value="${esc(f.agentName ?? '')}" placeholder="can't tell"></div>
+      <div><label>Telangana district</label>${sel('district', DISTRICTS, f.district)}</div>
+      <div><label>Gulf country</label>${sel('country', COUNTRIES, f.country)}</div>
+      <div><label>Fee asked / paid to agent (₹)</label><input name="feeINR" type="number" value="${esc(f.feeINR ?? '')}" placeholder="can't tell"></div>
+      <div><label>Visa type</label>${sel('visaType', ['work', 'visit'], f.visaType)}</div>
+      <div><label>Job (now / told)</label>${sel('job', JOBS, f.job)}</div>
+      <div><label>Passport taken / not with him?</label>${yn('passportHeld', f.passportHeld)}</div>
+      <div><label>Salary paid?</label>${yn('salaryPaid', f.salaryPaid)}</div>
+      <div><label>Picked up by strangers?</label>${yn('takenByStranger', f.takenByStranger)}</div>
+      <div><label>Phone number said (if any)</label><input name="phones" value="${esc((f.phones || []).join(', '))}" placeholder="+91 ..."></div>
+    </div>
+    <label style="margin-top:12px">Distress in the call</label>
+    <div class="checks"><label><input type="checkbox" name="distressUnknown" ${distressKnown ? '' : 'checked'}> can't tell</label>${DISTRESS.map(d => `<label><input type="checkbox" name="distress" value="${d}" ${distressKnown && f.distress.includes(d) ? 'checked' : ''}> ${d}</label>`).join('')}</div>
+    <label style="margin-top:12px">Risks that SHOULD be flagged <small>(auto-filled from the facts above; adjust if needed)</small></label>
+    <div class="checks" id="risks">${RISKS.map(r => `<label><input type="checkbox" name="risks" value="${r}" ${c.fact.risks.includes(r) ? 'checked' : ''}> ${r}</label>`).join('')}</div>
+    <label style="margin-top:12px">Notes</label><textarea name="notes" rows="2">${esc(c.fact.notes ?? '')}</textarea>
+    <div class="row">
+      <button class="btn" type="submit" value="verified">Save — verified (I listened)</button>
+      <button class="btn ghost" type="submit" value="unverified">Save draft</button>
+      <button class="btn ghost" type="submit" value="skip">Skip this call</button>
+      <small id="saved"></small>
+    </div>
+  </form>
+  ${s ? `<div class="card"><h3>What the engine finds on this call (vs your risks)</h3><div class="cmp">${cmp}</div></div>` : ''}`;
+
+  const form = $('#form');
+  form.addEventListener('change', e => { if (e.target.name !== 'risks' && e.target.name !== 'notes') autoRisks(form); });
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const status = e.submitter.value;
+    const fd = new FormData(form);
+    const val = k => fd.get(k) === '' || fd.get(k) === null ? null : fd.get(k);
+    const bool = k => val(k) === null ? null : val(k) === 'true';
+    const facts = {
+      agentName: val('agentName'), district: val('district'), country: val('country'),
+      feeINR: val('feeINR') === null ? null : Number(val('feeINR')), visaType: val('visaType'), job: val('job'),
+      passportHeld: bool('passportHeld'), salaryPaid: bool('salaryPaid'), takenByStranger: bool('takenByStranger'),
+      phones: val('phones') ? String(val('phones')).split(',').map(s => s.trim()).filter(Boolean) : null,
+      distress: fd.get('distressUnknown') ? null : fd.getAll('distress'),
+    };
+    await fetch(`/api/bolna/facts/${c.id8}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status, facts, risks: fd.getAll('risks'), notes: fd.get('notes') }) });
+    $('#saved').textContent = 'Saved.';
+    const next = calls.findIndex((x, i) => i > cur && x.fact.status === 'unverified' && x.turns.length);
+    await load(true);
+    if (status !== 'unverified' && next >= 0) { cur = next; renderList(); renderDetail(); }
+  };
+}
+
+function autoRisks(form) {
+  const fd = new FormData(form);
+  const want = new Set();
+  if (fd.get('visaType') === 'visit') want.add('VISIT_VISA');
+  if (Number(fd.get('feeINR')) > FEE_CAP) want.add('FEE_ABOVE_CAP');
+  if (fd.get('passportHeld') === 'true') want.add('PASSPORT_HELD');
+  if (fd.get('salaryPaid') === 'false') want.add('SALARY_UNPAID');
+  if (fd.get('takenByStranger') === 'true') want.add('TAKEN_BY_STRANGER');
+  if (!fd.get('distressUnknown') && fd.getAll('distress').length) want.add('DISTRESS');
+  form.querySelectorAll('input[name=risks]').forEach(cb => {
+    if (['VISIT_VISA', 'FEE_ABOVE_CAP', 'PASSPORT_HELD', 'SALARY_UNPAID', 'TAKEN_BY_STRANGER', 'DISTRESS'].includes(cb.value)) cb.checked = want.has(cb.value);
+  });
+}
+load();
+</script>
+</body>
+</html>
