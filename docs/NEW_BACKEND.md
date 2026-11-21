@@ -80,3 +80,19 @@ POST /api/saathi/cases/:id/translations with {from:"te"|"ar",text:"..."} for con
 ### Places and recruiting-agent sources
 GOOGLE_MAPS_API_KEY enables Google Places Text Search and transit Directions for a named landmark. Enable the applicable APIs and billing in Google Cloud. Network failures, permission errors and timeouts return the unavailable path.
 The active RA register is bundled. The notified-unregistered register must be supplied separately. Point EMIGRATE_NOTIFIED_FILE at a private reviewed JSON transcription with {source,asOf,agents:[{name,district}]}, using the official HTTPS eMigrate export URL and its YYYY-MM-DD publication date. Restart after updating the snapshot. Only an exact name and district match produces a notified-list flag; fictional sample entries are excluded. Without that file Saathi can check active registration only.
+
+
+## Final Bolna agents (end to end)
+
+Source of truth: `bolna/agents.ts` (prompts rebuilt from the earlier Gulf Saathi agent, tools point at this backend with the `x-saathi-secret` header).
+
+| Agent | Use | Tools |
+|---|---|---|
+| Saathi Helpline (hackathon final) `b78d8229-8fd5-4c71-b3de-cb772364731e` | callers phone in (inbound) | check_agent, check_fee, report_problem, find_place, directions, translate |
+| Saathi Check-in (hackathon final) `db67f657-9ddc-49a5-834d-6f2fae5d9461` | we call the worker (set `BOLNA_CHECKIN_AGENT_ID` to this) | record_checkin, find_place, directions, translate |
+
+Regenerate JSON: `SAATHI_SECRET=... npx tsx bolna/agents.ts > bolna/agents.generated.json` (gitignored).
+
+Google: find_place needs **Places API (New)**; directions needs **Routes API** (the legacy Directions API is not enabled on new projects). Failures return `reason` from Google in the JSON so they can be diagnosed.
+
+The translator is a phrase helper for a phone call: it returns the Arabic and `pronounce_te` (Arabic in Telugu letters) for the worker to say. A voice-to-voice interpreter would need Arabic speech-to-text and text-to-speech.
