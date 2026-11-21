@@ -35,3 +35,25 @@ One phone leg carries both voices. Bolna agents run one speech recogniser and on
 
 ### Test (use `.claude/skills/saathi-eval`)
 Per language: recogniser word error on real phone speech; critical facts kept (numbers, negation, who did what); end-to-end delay; then a bilingual reviewer on 100 real worker sentences. Fresh speakers for the held-out set. A first prototype can reuse `/tools/translate` with a human pressing "translate" before any voice-to-voice work.
+
+## Run the transcriber
+
+For a recording or a live microphone, the local recognizer runs on CPU and emits JSON lines with start/end seconds and original-language text. It uses Silero to find speech and Whisper to decode a completed segment. Audio stays in memory. The output goes to standard output, so redirect it only when you intend to retain a transcript. A nonempty transcript is a model hypothesis, including when its status is `transcribed`. Speaker identity and critical facts still need verification.
+
+Install FFmpeg and the Python dependencies in `python/requirements-transcriber.txt`. Obtain the quantized multilingual Whisper turbo encoder, decoder and tokens from the [sherpa-onnx Whisper release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models) and [Silero VAD model](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models). Set `WHISPER_ONNX_PREFIX` to the file prefix such as `/models/sherpa-onnx-whisper-turbo/turbo` and `SILERO_VAD_MODEL` to the VAD ONNX file.
+
+```bash
+python python/transcribe_call.py call.mp3 --language te
+# Known stereo layout: select one channel explicitly, indexed from zero.
+python python/transcribe_call.py call.mp3 --channel 0 --language te
+# Linux microphone; end capture with Ctrl+C. PCM pipes from other sources work too.
+ffmpeg -v error -f pulse -i default -ac 1 -ar 16000 -f s16le - | python python/transcribe_call.py - --language te
+```
+
+For cloud transcription, start the Express backend with `SAATHI_SECRET` and the selected provider key. POST multipart audio to `/api/saathi/stt` with `x-saathi-secret`, `audio`, `model` and optionally `language`. The audio goes to the provider selected for that request. OpenAI uses `OPENAI_API_KEY`, Gemini uses `GEMINI_API_KEY` and Sarvam uses `SARVAM_API_KEY`. Choose short WAV clips when comparing all providers. Hosting and upstream upload/duration limits apply. For Arabic select OpenAI or Gemini. Default remains OpenAI. No automatic failover sends recordings to additional providers.
+
+```bash
+STT_REFERENCE=verified-te.txt STT_RUNS=2 npm run stt:compare -- clip.wav te gpt-4o-transcribe gemini-2.5-flash saaras:v3
+```
+
+The comparison client uses localhost:3000 by default, or the server in `SAATHI_URL`. Each line reports one request including elapsed provider time, transcript and WER when a reference is supplied. Review negation, numbers and role attribution against the recording separately. Repeated runs of one clip count as one independent example. This command makes billable provider requests.

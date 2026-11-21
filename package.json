@@ -16,7 +16,8 @@
     "benchmark": "tsx eval/reliability/run.ts",
     "eval:robust": "tsx eval/robustness/run.ts",
     "eval:fuzz": "tsx eval/robustness/fuzz.ts",
-    "eval:translate": "tsx eval/translation/run.ts"
+    "eval:translate": "tsx eval/translation/run.ts",
+    "stt:compare": "tsx eval/e2e/compare-recording.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.10",
