@@ -55,3 +55,6 @@ Use the existing SAATHI_SECRET header (x-saathi-secret). GET /api/saathi/cases s
 
 ### Escalation clock
 The case list computes overdue for open high/critical cases at 24 hours since escalation or the latest caseworker note, whichever is later. For historical workers without an escalation timestamp, creation time is the fallback.
+
+### Case file
+GET /api/saathi/cases/:id/file returns the shared case-file JSON built from the worker’s promise and chronological calls. Provider transcripts contribute caller speech with question context. Missed calls contribute no speech evidence.

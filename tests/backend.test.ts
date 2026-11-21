@@ -67,3 +67,13 @@ test('overdue starts at escalation, restarts on a note and stops on closure',asy
   assert.equal(isOverdue({...alert,notes:[{at:new Date(start+day).toISOString(),text:'contacted'}]},start+day),false);
   assert.equal(isOverdue({...alert,status:'closed'},start+day),false);
 });
+test('case file uses worker promise and caller speech only',async t=>{
+  const request=await api(t), id='GS-FILE';
+  await store.addWorker({caseId:id,name:'Worker',phone:'unknown',consent:true,promise:{job:'cleaner'}});
+  await store.addCall({caseId:id,id:'a',kind:'arrival',at:new Date().toISOString(),status:'answered',reasons:[],transcript:'assistant: passport teeskunnaru\nuser: hello'});
+  assert.equal((await request('/'+id+'/file',undefined,false)).status,401);
+  assert.equal((await request('/missing/file')).status,404);
+  const f=await (await request('/'+id+'/file')).json();
+  assert.equal(f.promise.job,'cleaner'); assert.equal(f.id,id);
+  assert.equal(f.timeline[0].heard,'hello'); assert.equal(f.timeline[0].callId,'a');
+});

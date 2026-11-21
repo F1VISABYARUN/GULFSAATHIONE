@@ -8,6 +8,7 @@ import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
 import { assessRisks, type Risk } from './risk/engine.ts';
 import { checkAgent } from './risk/agents.ts';
 import { store, newCaseId, type WorkerRec } from './store.ts';
+import { buildCaseFile } from './casefile.ts';
 import { familyProvider, type SmsStatus } from './family-sms.ts';
 import type { CaseSlots } from './harness/types.ts';
 
@@ -96,6 +97,17 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const workers = (await store.workers()).filter(w => (!level || w.riskLevel === level) && (!status || w.status === status));
     res.json(workers.map(w => ({ caseId: w.caseId, name: w.name, riskLevel: w.riskLevel, status: w.status,
       overdue: isOverdue(w), notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+  });
+  app.get('/api/saathi/cases/:id/file', guard, async (req, res) => {
+    const w = await store.worker(String(req.params.id));
+    if (!w) return res.sendStatus(404);
+    const calls = (await store.calls(w.caseId)).sort((a,b) => a.at.localeCompare(b.at)).map(c => {
+      const transcript = c.transcript ?? '';
+      const text = /^(assistant|user):/m.test(transcript) ? withQuestionContext(parseBolnaTranscript(transcript)) : transcript;
+      return { id: c.id, kind: c.kind, date: c.at, text };
+    });
+    res.json(buildCaseFile(calls, { promise: w.promise, codePhrase: w.codePhrase, places: w.destCity ? [w.destCity] : [] },
+      { id: w.caseId, workerName: w.name }));
   });
   app.post('/api/saathi/cases/:id/note', guard, async (req, res) => {
     const text = str(req.body?.note).trim();
