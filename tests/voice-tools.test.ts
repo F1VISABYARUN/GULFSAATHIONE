@@ -71,3 +71,16 @@ test('inbound Arabic and low-confidence model replies',async t=>{
   assert.equal((await relay('مرحبا','ar','te')).say_to_worker,'నమస్కారం');assert.equal(mock.mock.callCount(),1);
   confidence='low';const r=await relay('నాకు తిండి కావాలి','te','ar');assert.equal(r.status,'needs_confirm');assert.ok('fixed_phrase' in r);
 });
+
+test('Telugu-script landmarks and loose place kinds from real Bolna calls are understood',async()=>{
+  const {extractAnchor}=await import('../server/assistant.ts');
+  const {normalizeKind,bareLandmark}=await import('../server/voice-maps.ts');
+  assert.equal(extractAnchor('అవునండి. దుబాయ్ మాల్.').anchor,'Dubai Mall');
+  assert.equal(extractAnchor('బుర్జ్ ఖాలీఫా').anchor,'Burj Khalifa');
+  assert.equal(normalizeKind('Pharmacy'),'pharmacy');
+  assert.equal(normalizeKind('మందుల షాపు'),'pharmacy');
+  assert.equal(normalizeKind('xyz'),undefined);
+  assert.equal(bareLandmark('అవునండి','Dubai'),undefined);
+  assert.equal(bareLandmark('pharmacy','Dubai'),undefined);
+  assert.ok(bareLandmark('అల్ ఖుసైస్ మెట్రో','Dubai'));
+});
