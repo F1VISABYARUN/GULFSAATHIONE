@@ -10,3 +10,5 @@ server/data/cases/
 bolna/agents.generated.json
 eval/e2e/out/
 eval/e2e/cache/
+__pycache__/
+*.pyc
