@@ -76,21 +76,24 @@ export async function voiceDirections(text:string,city:string,destination:string
   if(!destination)return {status:'needs_destination',sayTe:'మీరు ఎక్కడికి వెళ్లాలి?'};
   const taxi={status:'unavailable',sayTe:'దారి సమాచారం అందుబాటులో లేదు. టాక్సీ డ్రైవర్‌కు ఈ మాట చెప్పవచ్చు.',taxi_ar:`من فضلك خذني إلى ${destination}.`};
   const key=process.env.GOOGLE_MAPS_API_KEY;if(!key)return taxi;
-  const params=new URLSearchParams({origin:[anchor,city].filter(Boolean).join(', '),destination,mode,language:'en',key});
-  const r=await mapsFetch('https://maps.googleapis.com/maps/api/directions/json?'+params);
-  const data=r?.ok?await r.json().catch(()=>null):null;
-  if(data?.status!=='OK')return {...taxi,reason:data?.status??'no_response',...(data?.error_message?{detail:String(data.error_message).slice(0,160)}:{})};
-  const all=data.routes?.[0]?.legs?.[0]?.steps;
-  if(!Array.isArray(all)||!all.length)return taxi;
-  const steps=all.slice(0,4).map(s=>{
-    const t=s.transit_details;
-    if(t?.departure_stop?.name&&t.arrival_stop?.name)return `${t.departure_stop.name} వద్ద ${t.line?.short_name||t.line?.name||'సర్వీసు'} ఎక్కండి. ${t.arrival_stop.name} వద్ద దిగండి.`;
-    return String(s.html_instructions??'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+  // Routes API (New): the legacy Directions API is no longer enabled on new Google projects.
+  const place=(x:string)=>({address:[x,city].filter(Boolean).join(', ')});
+  const r=await mapsFetch('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',
+    headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.legs.steps.navigationInstruction,routes.legs.steps.transitDetails,routes.legs.steps.distanceMeters'},
+    body:JSON.stringify({origin:place(anchor),destination:place(destination),travelMode:mode==='transit'?'TRANSIT':'WALK',languageCode:'en'})});
+  const data=r?await r.json().catch(()=>null):null;
+  if(!r?.ok||!data?.routes?.[0])return {...taxi,reason:r?String(data?.error?.status??r.status):'no_response',...(data?.error?.message?{detail:String(data.error.message).slice(0,160)}:{})};
+  const route=data.routes[0];const all=route.legs?.[0]?.steps;
+  if(!Array.isArray(all)||!all.length)return {...taxi,reason:'no_steps'};
+  const steps=all.slice(0,4).map((s:any)=>{
+    const t=s.transitDetails?.stopDetails;
+    if(t?.departureStop?.name&&t.arrivalStop?.name)return `${t.departureStop.name} వద్ద ${s.transitDetails.transitLine?.nameShort||s.transitDetails.transitLine?.name||'సర్వీసు'} ఎక్కండి. ${t.arrivalStop.name} వద్ద దిగండి.`;
+    return String(s.navigationInstruction?.instructions??'').replace(/\s+/g,' ').trim();
   });
-  if(steps.some(s=>!s))return {...taxi,reason:'empty_step'};
-  const leg=data.routes[0].legs[0];const meters=leg.distance?.value,mins=Math.round((leg.duration?.value??0)/60);
+  if(steps.some((s:string)=>!s))return {...taxi,reason:'empty_step'};
+  const meters=route.distanceMeters,mins=Math.round(parseInt(String(route.duration??'0'),10)/60);
   const head=meters?`మొత్తం సుమారు ${meters} మీటర్లు${mins?`, ${mins} నిమిషాలు`:''}. `:'';
-  return {status:'route',steps,more_steps:all.length>4,sayTe:head+steps.map((x,i)=>`${i+1}. ${x}`).join(' ')+(all.length>4?' ఇవి మొదటి నాలుగు దశలు.':'')};
+  return {status:'route',steps,more_steps:all.length>4,sayTe:head+steps.map((x:string,i:number)=>`${i+1}. ${x}`).join(' ')+(all.length>4?' ఇవి మొదటి నాలుగు దశలు.':'')};
 }
 
 export async function placeForSms(id:string){
