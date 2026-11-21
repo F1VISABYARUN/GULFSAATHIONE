@@ -77,3 +77,25 @@ test('case file uses worker promise and caller speech only',async t=>{
   assert.equal(f.promise.job,'cleaner'); assert.equal(f.id,id);
   assert.equal(f.timeline[0].heard,'hello'); assert.equal(f.timeline[0].callId,'a');
 });
+import { placeCall } from '../server/saathi.ts';
+test('Bolna queues a documented make-call payload and validates its receipt',async t=>{
+  const d={caseId:'GS-CALL',phone:'+919000000000',kind:'retry' as const};
+  await store.addWorker({...d,promise:{job:'cleaner'},consent:true});
+  delete process.env.BOLNA_API_KEY;
+  const mock=t.mock.method(globalThis,'fetch',async(url:unknown,init:RequestInit)=>{
+    assert.equal(url,'https://api.bolna.ai/call');
+    assert.equal(init.method,'POST');
+    assert.equal(new Headers(init.headers).get('authorization'),'Bearer fixture');
+    const body=JSON.parse(String(init.body));
+    assert.equal(body.agent_id,'agent');assert.equal(body.recipient_phone_number,d.phone);
+    assert.equal(body.user_data.case_id,d.caseId);assert.equal(body.user_data.call_kind,'retry');
+    return Response.json({execution_id:'exec'});
+  });
+  assert.equal((await placeCall(d)).placed,false);assert.equal(mock.mock.callCount(),0);
+  process.env.BOLNA_API_KEY='fixture';process.env.BOLNA_CHECKIN_AGENT_ID='agent';
+  t.after(()=>{delete process.env.BOLNA_API_KEY;delete process.env.BOLNA_CHECKIN_AGENT_ID;});
+  const queued=await placeCall(d); assert.ok('execution_id' in queued); assert.equal(queued.execution_id,'exec');
+  mock.mock.mockImplementation(async()=>Response.json({error:'invalid'},{status:400}));
+  assert.equal((await placeCall(d)).placed,false);
+  assert.equal((await placeCall({...d,phone:'000'})).placed,false);
+});

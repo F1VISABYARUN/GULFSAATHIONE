@@ -247,18 +247,21 @@ export function dueCalls(now: Date, workers: WorkerRec[], calls: import('./store
   return out;
 }
 
-async function placeCall(d: DueCall) {
+export async function placeCall(d: DueCall) {
   const key = process.env.BOLNA_API_KEY, agent = process.env.BOLNA_CHECKIN_AGENT_ID;
   const w = (await store.worker(d.caseId))!;
   const user_data = {
-    case_id: w.caseId, call_kind: d.kind === 'retry' ? 'weekly' : d.kind, worker_name: w.name ?? '', employer_name: w.promise.employerName ?? '',
+    case_id: w.caseId, call_kind: d.kind, worker_name: w.name ?? '', employer_name: w.promise.employerName ?? '',
     promised_job: w.promise.job ?? '', dest_city: w.destCity ?? '', dest_country: w.destCountry ?? '', code_phrase: w.codePhrase ?? '',
   };
   if (!key || !agent) return { ...d, placed: false, reason: 'BOLNA_API_KEY / BOLNA_CHECKIN_AGENT_ID not set (dry run)', user_data };
-  // Bolna "make a call" API — verify the current endpoint and fields in Bolna's docs before going live
+  if (!/^\+[1-9]\d{7,14}$/.test(d.phone)) return { ...d, placed: false, reason: 'Expected E.164 recipient number' };
+  // Bolna Make Call: bearer auth, E.164 recipient, optional caller ID and template variables.
   const r = await fetch('https://api.bolna.ai/call', {
     method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ agent_id: agent, recipient_phone_number: d.phone, user_data }),
+    body: JSON.stringify({ agent_id: agent, recipient_phone_number: d.phone, from_phone_number: process.env.BOLNA_FROM_PHONE_NUMBER || undefined, user_data }),
   });
-  return { ...d, placed: r.ok, status: r.status };
+  if (!r.ok) return { ...d, placed: false, status: r.status };
+  const receipt = await r.json();
+  return { ...d, placed: typeof receipt.execution_id === 'string' && !!receipt.execution_id, status: r.status, execution_id: receipt.execution_id };
 }

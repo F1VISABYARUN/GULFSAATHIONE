@@ -15,7 +15,6 @@ All code here is new. Nothing is reused from the earlier gulf-saathi repo or web
 Storage is a JSON file by default. Use `STORE=memory` on Vercel, where the disk is read-only, until a database is added.
 
 **To verify:**
-- **Call API:** check the endpoint and fields in Bolna's docs (`POST /call` with `agent_id`, `recipient_phone_number` and `user_data`).
 - **Tool parameter:** add `caller_said` ("the caller's exact words") to each Bolna tool.
 
 ## New Bolna agents (created 2026-11-21, separate from the old ones)
@@ -58,3 +57,6 @@ The case list computes overdue for open high/critical cases at 24 hours since es
 
 ### Case file
 GET /api/saathi/cases/:id/file returns the shared case-file JSON built from the worker’s promise and chronological calls. Provider transcripts contribute caller speech with question context. Missed calls contribute no speech evidence.
+
+### Bolna outbound calls
+POST https://api.bolna.ai/call with Authorization: Bearer BOLNA_API_KEY. Send agent_id (BOLNA_CHECKIN_AGENT_ID), recipient_phone_number in E.164, and user_data with the worker context and actual call kind. Optional BOLNA_FROM_PHONE_NUMBER sets from_phone_number. A successful queue response supplies execution_id; this is distinct from an answered call. Missing key or agent stays dry-run. Contract cross-checked with [Bolna’s maintained integration](https://github.com/bolna-ai/n8n-nodes-bolna/blob/main/nodes/Bolna/Bolna.node.ts); direct access to docs.bolna.ai was blocked in this environment.
