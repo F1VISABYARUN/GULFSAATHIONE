@@ -57,7 +57,7 @@ export async function findPlace(text:string,city:string,what:string){
   if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(what==='embassy'){
     const mission=missions.find(m=>m.city.toLowerCase()===city.trim().toLowerCase());
-    if(mission)return {status:'official',places:[{...mission,place_id:'mission:'+mission.city,name_te:pronounce(mission.name),distance_m:null}],sayTe:`${pronounce(mission.name)}. సంప్రదింపు: ${mission.phone}. దూరం నిర్ధారించలేదు.`};
+    if(mission)return {status:'official',places:[{...mission,place_id:'mission:'+mission.city,name_te:pronounce(mission.name),distance_m:null}],sayTe:`${mission.name}. సంప్రదింపు: ${mission.phone}. దూరం నిర్ధారించలేదు.`};
     if(!city)return {status:'needs_city',sayTe:'మీరు ఏ నగరంలో ఉన్నారు?'};
   }
   const origins=await search([anchor,city].filter(Boolean).join(', '));
@@ -69,7 +69,7 @@ export async function findPlace(text:string,city:string,what:string){
   const results=await search(`${queryKind} near ${anchor}, ${city}`,origin.location);
   if(!results)return unavailable;
   const places=results.slice(0,3).map(p=>({place_id:p.id,name:p.displayName.text,name_te:pronounce(p.displayName.text),distance_m:distance(origin.location,p.location)})).sort((a,b)=>a.distance_m-b.distance_m);
-  return {status:'found',places,sayTe:places.length?places.map(p=>`${p.name_te}, గుర్తు నుంచి నేరుగా సుమారు ${p.distance_m} మీటర్లు.`).join(' '):'దగ్గరలో ఫలితాలు దొరకలేదు.'};
+  return {status:'found',places,sayTe:places.length?places.map(p=>`${p.name}, గుర్తు నుంచి నేరుగా సుమారు ${p.distance_m} మీటర్లు.`).join(' '):'దగ్గరలో ఫలితాలు దొరకలేదు.'};
 }
 export async function voiceDirections(text:string,city:string,destination:string,mode:'walking'|'transit'){
   const location=extractAnchor(text);const anchor=location.anchor;city=city||location.city||'';if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
