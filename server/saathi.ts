@@ -78,6 +78,42 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     res.json({ worker: w, calls: await store.calls(w.caseId) });
   });
 
+  app.get('/api/saathi/cases', guard, async (req, res) => {
+    const { level, status } = req.query;
+    if ((level !== undefined && !['critical','high','medium','ok'].includes(String(level))) ||
+        (status !== undefined && !['alert','registered','abroad','closed'].includes(String(status)))) {
+      return res.status(400).json({ error: 'invalid filter' });
+    }
+    const workers = (await store.workers()).filter(w => (!level || w.riskLevel === level) && (!status || w.status === status));
+    res.json(workers.map(w => ({ caseId: w.caseId, name: w.name, riskLevel: w.riskLevel, status: w.status,
+      notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+  });
+  app.post('/api/saathi/cases/:id/note', guard, async (req, res) => {
+    const text = str(req.body?.note).trim();
+    if (!text || text.length > 4000) return res.status(400).json({ error: 'note must be 1–4000 characters' });
+    const note = await store.change(String(req.params.id), w => {
+      if (w.status === 'closed') return null;
+      const item = { at: new Date().toISOString(), text };
+      (w.notes ??= []).push(item);
+      return item;
+    });
+    if (note === undefined) return res.sendStatus(404);
+    if (note === null) return res.sendStatus(409);
+    res.status(201).json(note);
+  });
+  app.post('/api/saathi/cases/:id/close', guard, async (req, res) => {
+    const outcome = req.body?.outcome;
+    if (!['solved','partly','not','withdrawn'].includes(outcome)) return res.status(400).json({ error: 'invalid outcome' });
+    const result = await store.change(String(req.params.id), w => {
+      if (w.status === 'closed' && w.outcome !== outcome) return null;
+      w.status = 'closed'; w.outcome = outcome; w.closedAt ??= new Date().toISOString();
+      return { caseId: w.caseId, status: w.status, outcome, closedAt: w.closedAt };
+    });
+    if (result === undefined) return res.sendStatus(404);
+    if (result === null) return res.sendStatus(409);
+    res.json(result);
+  });
+
   // ---- Bolna tools ------------------------------------------------------------------------
   // check_agent: { agency, owner, district, licence_no }
   app.post('/tools/check-agent', guard, (req, res) => {

@@ -49,3 +49,6 @@ The old "Gulf Saathi" and "Saathi Check-in agent" were not changed.
 
 ### Family SMS
 On first entry into high/critical risk, reserve one notification for the family phone. Configure MSG91_AUTH_KEY and MSG91_TEMPLATE_ID with an approved Telugu template matching familyMessage and a single case_id variable. Family phone numbers must include their country code. The worker record holds familySms.sentAt (attempt time) and status. Missing settings produce dry-run. Provider acceptance is not delivery confirmation. Pending/failed attempts require operator reconciliation before any manual resend. Run a single process for file storage or use Redis for shared workers.
+
+### Caseworker JSON API
+Use the existing SAATHI_SECRET header (x-saathi-secret). GET /api/saathi/cases supports optional level and status filters. POST /api/saathi/cases/:id/note takes {"note":"..."}. POST /api/saathi/cases/:id/close takes {"outcome":"solved"}; partly, not and withdrawn are also valid. Closing again with the same outcome returns the original closure.

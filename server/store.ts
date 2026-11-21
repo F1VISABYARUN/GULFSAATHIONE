@@ -13,6 +13,9 @@ export interface WorkerRec {
   caseId: string;
   name?: string;
   phone: string;
+  notes?: { at: string; text: string }[];
+  outcome?: 'solved' | 'partly' | 'not' | 'withdrawn';
+  closedAt?: string;
   familyPhone?: string;
   familySms?: import('./family-sms.ts').SmsRecord;
   district?: string;

@@ -27,3 +27,33 @@ test('MSG91 needs a successful application response; missing config is dry run',
   mock.mock.mockImplementation(async()=>Response.json({type:'error'}));
   assert.equal(await familyProvider().send('+919000000000','GS-TEST'),'failed');
 });
+
+import express from 'express';
+import type { AddressInfo } from 'node:net';
+import type { TestContext } from 'node:test';
+import { once } from 'node:events';
+import { registerSaathi } from '../server/saathi.ts';
+async function api(t: TestContext) {
+  const app=express(); app.use(express.json());
+  registerSaathi(app,(req,res,next)=>req.get('x-saathi-secret')==='fixture'?next():void res.sendStatus(401));
+  const server=app.listen(0,'127.0.0.1'); await once(server,'listening');
+  t.after(()=>{server.close();});
+  return (path:string, body?:object, auth=true)=>fetch('http://127.0.0.1:'+ (server.address() as AddressInfo).port+'/api/saathi/cases'+path,{
+    method:body?'POST':'GET',headers:{'content-type':'application/json','x-saathi-secret':auth?'fixture':''},body:body?JSON.stringify(body):undefined});
+}
+test('caseworker filters, notes and idempotent closure',async t=>{
+  const request=await api(t);
+  const id='GS-WORK';
+  await store.addWorker({caseId:id,promise:{},phone:'unknown',consent:true});
+  await store.updateWorker(id,{status:'alert',riskLevel:'high'});
+  for(const [path,body] of [['',undefined],['/'+id+'/note',{note:'n'}],['/'+id+'/close',{outcome:'solved'}]] as const)
+    assert.equal((await request(path,body,false)).status,401);
+  assert.ok((await (await request('?level=high&status=alert')).json()).some((w: {caseId:string})=>w.caseId===id));
+  assert.equal((await request('/'+id+'/note',{note:' '})).status,400);
+  assert.equal((await request('/'+id+'/note',{note:'Reached worker'})).status,201);
+  assert.equal((await request('/'+id+'/close',{outcome:'bad'})).status,400);
+  const close=()=>request('/'+id+'/close',{outcome:'partly'});
+  assert.deepEqual(await (await close()).json(),await (await close()).json());
+  assert.equal((await request('/'+id+'/close',{outcome:'not'})).status,409);
+  assert.equal((await request('/missing/note',{note:'ok'})).status,404);
+});
