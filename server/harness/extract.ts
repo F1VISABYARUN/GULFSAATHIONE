@@ -5,6 +5,7 @@ import type { Entity, CaseSlots } from './types.ts';
 import { SALARY_WORDS, FEE_WORDS, STOPWORDS } from './lexicon.ts';
 import type { MoneyValue, PhoneValue } from './numbers.ts';
 import { GULF_COUNTRY, TELANGANA_DISTRICTS } from './lexicon.te.ts';
+import { MANDAL_DISTRICTS, DISTRICT_NAMES, districtOf } from './gazetteer.ts';
 
 const SURNAMES = new Set(['reddy', 'goud', 'gowda', 'rao', 'yadav', 'naidu', 'chary', 'babu', 'khan', 'ahmed', 'kumar', 'shetty', 'patel', 'singh']);
 const POSITIVE_PAID = new Set(['ichhadu', 'ichadu', 'ichaadu', 'ichharu', 'icharu', 'ichindi', 'vachindi', 'paid', 'mili', 'diya', 'padindi', 'credited', 'vesaru', 'vesadu']);
@@ -92,8 +93,13 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   if (places.length) slots.places = places;
   const country = [...places].reverse().find(p => GULF_COUNTRY[p]);
   if (country) slots.country = GULF_COUNTRY[country];
-  const district = places.find(p => TELANGANA_DISTRICTS.has(p));
+  const district = places.find(p => TELANGANA_DISTRICTS.has(p) || DISTRICT_NAMES.has(p));
   if (district) slots.district = district;
+  const mandal = places.find(p => MANDAL_DISTRICTS.has(p) && !DISTRICT_NAMES.has(p));
+  if (mandal) {
+    slots.mandal = mandal;
+    if (!slots.district) slots.district = districtOf(mandal).district;
+  }
   return slots;
 }
 

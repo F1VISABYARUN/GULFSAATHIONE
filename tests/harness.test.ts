@@ -165,3 +165,10 @@ test('agent check uses the official MEA registered-RA list', () => {
   assert.equal(checkAgent('Karthik International', 'Jagtial').status, 'registered_other_district');
   assert.equal(checkAgent('Ramesh').status, 'not_found');
 });
+test('official mandal gazetteer: mandal gives district; duplicate mandal asks', () => {
+  const h = runHarness('naa peru Ramesh, Kodimyal mandal nundi');
+  assert.equal(h.slots.mandal, 'Kodimial');
+  assert.equal(h.slots.district, 'Jagtial');
+  const dup = runHarness('memu Sarangapur nundi');
+  assert.ok(dup.readBacks.some(r => /Jagtial/.test(r.reason) && /Nirmal/.test(r.reason)));
+});

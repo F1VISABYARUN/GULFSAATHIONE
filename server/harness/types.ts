@@ -43,6 +43,7 @@ export interface CaseSlots {
   places?: string[];
   country?: string;        // Gulf country (from city/country mentions)
   district?: string;       // Telangana district
+  mandal?: string;         // Telangana mandal (from the official gazetteer)
   takenByStranger?: boolean; // picked up by someone other than the employer
   codePhrase?: boolean;    // worker said the agreed safety phrase
 }
