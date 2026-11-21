@@ -137,5 +137,10 @@ app.get('/api/results/bolna', (_req, res) => {
   res.json(JSON.parse(readFileSync(p, 'utf8')));
 });
 
-const port = Number(process.env.PORT || 3000);
-app.listen(port, () => console.log(`Gulf Saathi harness on http://localhost:${port}  (OpenAI key: ${hasKey() ? 'set' : 'NOT set — text mode only'})`));
+// Vercel runs the exported app as a function; locally we listen on a port.
+if (process.env.VERCEL && !process.env.STORE) process.env.STORE = 'memory'; // read-only disk on Vercel
+export default app;
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT || 3000);
+  app.listen(port, () => console.log(`Gulf Saathi harness on http://localhost:${port}  (OpenAI key: ${hasKey() ? 'set' : 'NOT set — text mode only'})`));
+}

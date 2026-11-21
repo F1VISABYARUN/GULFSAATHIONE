@@ -4,7 +4,10 @@
 import type { CaseSlots } from '../harness/types.ts';
 import { similarity } from '../harness/phonetic.ts';
 import { checkAgent } from './agents.ts';
-import config from '../data/rules.json' with { type: 'json' };
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const config = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'rules.json'), 'utf8'));
 
 export type Severity = 'critical' | 'high' | 'medium';
 export interface Risk { id: string; severity: Severity; en: string; te: string; evidence?: string }
