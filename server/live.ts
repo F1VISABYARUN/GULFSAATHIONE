@@ -58,9 +58,17 @@ function loadCase(id: string): CaseFile | undefined {
   return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : undefined;
 }
 
+// Optional shared secret: set SAATHI_SECRET and send it as the x-saathi-secret header (or ?secret=).
+const guard = (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
+  const want = process.env.SAATHI_SECRET;
+  if (!want) return next();
+  if (req.get('x-saathi-secret') === want || req.query.secret === want) return next();
+  res.status(401).json({ error: 'missing or wrong x-saathi-secret' });
+};
+
 export function registerLive(app: Express) {
   // Mid-call gate. Body: { transcript?: "assistant: ..\nuser: ..", turns?: Turn[], text?: string, context?: CallContext, recipient_data?: {...} }
-  app.post('/api/gate', (req, res) => {
+  app.post('/api/gate', guard, (req, res) => {
     const b = req.body ?? {};
     const turns: Turn[] = b.turns ?? (b.transcript ? parseBolnaTranscript(String(b.transcript)) : [{ text: String(b.text ?? '') }]);
     const ctx: CallContext = { ...contextFromRecipient(b.recipient_data), ...(b.context ?? {}) };
@@ -76,7 +84,7 @@ export function registerLive(app: Express) {
   });
 
   // Post-call webhook (point the Bolna agent's webhook_url here). Accepts the Bolna execution payload.
-  app.post('/webhooks/bolna', (req, res) => {
+  app.post('/webhooks/bolna', guard, (req, res) => {
     const e = req.body ?? {};
     if (!e.transcript || typeof e.transcript !== 'string') return res.json({ ok: true, ignored: 'no transcript yet' });
     const rd = e.context_details?.recipient_data ?? {};
@@ -104,14 +112,14 @@ export function registerLive(app: Express) {
     res.json({ keywords, prompt: `Telugu-English call from a Telangana Gulf migrant worker. ${keywords.slice(0, 120).join(', ')}.` });
   });
 
-  app.get('/api/cases', (_req, res) => {
+  app.get('/api/cases', guard, (_req, res) => {
     if (!existsSync(CASES)) return res.json([]);
     const list = readdirSync(CASES).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(join(CASES, f), 'utf8')) as CaseFile)
       .map(c => ({ id: c.id, createdAt: c.createdAt, worker: c.worker, severity: c.severity, escalate: c.escalate, risks: c.risks.map(r => r.id), summaryEn: c.summaryEn }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     res.json(list);
   });
-  app.get('/cases/:id', (req, res) => {
+  app.get('/cases/:id', guard, (req, res) => {
     const cf = loadCase(String(req.params.id));
     if (!cf) return res.status(404).send('Case not found');
     res.type('html').send(renderCaseFileHtml(cf));
