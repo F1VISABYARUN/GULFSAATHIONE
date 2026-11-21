@@ -50,8 +50,8 @@ export function foldLatin(s: string): string {
   return s.toLowerCase().replace(/ph/g, 'f').replace(/aa/g, 'a').replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 const LANDMARKS: [RegExp, string][] = [
-  [/\b(burj|bruj) ?k?hal(i|e)?(fa|pha)?\b/, 'Burj Khalifa'],
-  [/\bduba(i|y|yi)? ?mal+\b/, 'Dubai Mall'],
+  [/\b(burj|bruj|burch|burz|buruj|burg)( ?k?hal(i|e)?(fa|pha)?)?\b/, 'Burj Khalifa'],
+  [/\bduba(i|y|yi)? ?m[ao]+l+\b/, 'Dubai Mall'],
   [/\bmal+ (of|af|aaf) (the|di|da) emir(a|e)t(e)?s\b/, 'Mall of the Emirates'],
   [/\bgold s(o|u)u?k\b/, 'Gold Souk'],
   [/\bclo?ck tow?(e|a)r\b|\bklak tavar\b/, 'Clock Tower'],
