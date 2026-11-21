@@ -197,7 +197,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       await store.addWorker({ caseId, phone: str(b.caller_phone) || 'unknown', name: str(b.caller_name) || undefined, promise: {}, consent: true });
     }
     const w = (await store.worker(caseId))!;
-    const slots = runHarness(str(b.caller_said) || str(b.notes), { codePhrase: w.codePhrase, names: [w.name, w.promise.employerName].filter(Boolean) as string[] }, ALL_ON).slots;
+    const slots = runHarness([str(b.caller_said), str(b.notes)].filter(Boolean).join('. '), { codePhrase: w.codePhrase, names: [w.name, w.promise.employerName].filter(Boolean) as string[] }, ALL_ON).slots;
     // the LLM's yes/no fields can add danger, never remove it
     if (b.threatened === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'violence'])];
     if (b.passport_with_worker === 'no') slots.passportHeld = true;
