@@ -11,6 +11,8 @@ import { checkAgent } from './risk/agents.ts';
 import { store, newCaseId, type WorkerRec } from './store.ts';
 import { translationRoutes } from './translations.ts';
 import { buildCaseFile } from './casefile.ts';
+import { planExit, countryOf, visaOf, parseExpiry } from './exit/engine.ts';
+import { gateDecision } from './live.ts';
 import { familyProvider, type SmsStatus } from './family-sms.ts';
 import type { CaseSlots } from './harness/types.ts';
 
@@ -238,6 +240,37 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) + (smsStatus === 'delivered' && !slots.codePhrase ? ' మీ కుటుంబానికి సమాచారం అందింది.' : '') });
   };
   app.post('/tools/report-problem', guard, record);
+  // exit_path: guided steps for someone abroad whose visa is ending, who has overstayed, or who wants to go home.
+  // The agent passes what it knows; the tool returns the next question or the sourced plan. { caller_said, country, visa_type, expiry,
+  // passport_with_worker, problem, intent, case_id, caller_phone }
+  app.post('/tools/exit-path', guard, async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const b = req.body ?? {};
+    const said = str(b.caller_said);
+    const today = new Date();
+    let caseId = str(b.case_id);
+    const w0 = caseId ? await store.worker(caseId) : undefined;
+    const gate = said ? gateDecision([{ text: said }], { codePhrase: w0?.codePhrase }) : undefined;
+    const danger = gate?.action === 'ESCALATE';
+    const country = str(b.country) ? (countryOf(str(b.country)) ?? str(b.country)) : countryOf(said);
+    const visaText = str(b.visa_type) || (visaOf(said) !== 'unknown' ? said : '');
+    const expiryText = str(b.expiry) || (parseExpiry(said, today) ? said : '');
+    const plan = planExit({ country, visaType: visaText, expiry: expiryText, passportHeld: str(b.passport_with_worker), problem: str(b.problem), intent: str(b.intent), danger, today });
+    // remember the case: danger and a missing passport raise the risk level; the plan goes on the case as a note
+    if (plan.status !== 'ask' && (caseId || str(b.caller_phone))) {
+      if (!caseId || !w0) {
+        caseId = newCaseId();
+        await store.addWorker({ caseId, phone: str(b.caller_phone) || 'unknown', promise: {}, consent: true });
+      }
+      const slots = runHarness(said, { codePhrase: w0?.codePhrase }, ALL_ON).slots;
+      if (/^(no|n|ledu|లేదు)/i.test(str(b.passport_with_worker).trim())) slots.passportHeld = true;
+      await applyToWorker(caseId, slots, 'exit_path', said);
+      const note = `Exit path: ${plan.country ?? '?'}, ${plan.visa ?? '?'} visa, expiry ${plan.expiryISO ?? '?'} (${plan.daysLeft ?? '?'} days), urgency ${plan.urgency}, flags ${plan.flags.join(',') || 'none'}`;
+      await store.change(caseId, wk => { (wk.notes ??= []).push({ at: new Date().toISOString(), text: note }); });
+    }
+    res.json({ ...plan, case_id: caseId || undefined, instruction: plan.sayTe });
+  });
+
   app.post('/tools/record-checkin', guard, record);
 
   // ---- post-call webhook for the new backend: safety net + missed calls ------------------
