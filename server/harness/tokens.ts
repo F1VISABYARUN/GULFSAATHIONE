@@ -1,6 +1,8 @@
 // Tokenization shared by every harness layer.
 // We keep the original surface form and a normalized form for matching.
 
+import { toLatin } from './translit.ts';
+
 export interface Token {
   i: number;        // index in token array
   raw: string;      // original text (with punctuation)
@@ -8,12 +10,14 @@ export interface Token {
 }
 
 export function tokenize(text: string): Token[] {
+  // raw keeps the original script (for display); norm is Roman (for matching)
   const parts = text
     .replace(/₹/g, ' rs ')
     .replace(/(\d)\s*k\b/gi, '$1k')
+    .replace(/[।॥]/g, ' ')
     .split(/\s+/)
     .filter(Boolean);
-  return parts.map((raw, i) => ({ i, raw, norm: normalizeWord(raw) })).filter(t => t.norm.length > 0)
+  return parts.map((raw, i) => ({ i, raw, norm: normalizeWord(toLatin(raw)) })).filter(t => t.norm.length > 0)
     .map((t, i) => ({ ...t, i }));
 }
 

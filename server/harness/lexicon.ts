@@ -129,7 +129,7 @@ export const PLACES: string[] = [
   'Armoor', 'Balkonda', 'Bheemgal', 'Bodhan', 'Mortad', 'Kammarpally', 'Velpur', 'Nandipet', 'Choppadandi',
   'Gangadhara', 'Ramadugu', 'Huzurabad', 'Shamshabad',
   // Gulf
-  'Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah', 'Riyadh', 'Jeddah', 'Dammam',
+  'Dubai', 'Deira', 'UAE', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah', 'Fujairah', 'Riyadh', 'Jeddah', 'Dammam',
   'Al Khobar', 'Jubail', 'Muscat', 'Salalah', 'Doha', 'Kuwait', 'Manama', 'Bahrain', 'Qatar', 'Oman', 'Saudi',
 ];
 
@@ -140,7 +140,7 @@ export const CORRECTION_MARKERS: string[][] = [
   ['correction'], ['wait'], ['ledu'], ['nahi'],
 ];
 
-export type DistressKind = 'violence' | 'threat' | 'help' | 'deprivation' | 'confinement' | 'passport_held' | 'salary_unpaid';
+export type DistressKind = 'violence' | 'threat' | 'help' | 'deprivation' | 'confinement' | 'passport_held' | 'salary_unpaid' | 'taken_by_stranger';
 
 export const DISTRESS_PHRASES: { kind: DistressKind; phrases: string[]; te: string }[] = [
   { kind: 'violence', te: 'kodutunnaru (himsa)', phrases: ['kodutunnaru', 'kodthunnaru', 'kottaru', 'kottinaru', 'kodtunnadu', 'kottadu', 'beating me', 'beat me', 'hitting me', 'maar rahe', 'maarte hain', 'maara'] },

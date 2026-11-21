@@ -21,6 +21,7 @@ export function assessRisks(slots: CaseSlots, promise?: CaseSlots): Risk[] {
 
   if (slots.distress?.length) add({ id: 'DISTRESS', severity: 'critical', en: `Distress signal (${slots.distress.join(', ')}) — escalate to a human now`, te: 'Pramadam sanketham — ventane manishi ki escalate cheyyali', evidence: slots.distress.join(', ') });
   if (slots.huroob) add({ id: 'HUROOB', severity: 'critical', en: 'Huroob (absconding report) mentioned — worker may be made "illegal"', te: 'Huroob case prastavana — worker illegal ayye pramadam' });
+  if (slots.takenByStranger) add({ id: 'TAKEN_BY_STRANGER', severity: 'critical', en: 'Picked up by someone other than the employer — the first-48-hours danger', te: 'Employer kaakunda vere vaallu teesukellaaru — ventane escalate' });
   if (slots.visaType === 'visit') add({ id: 'VISIT_VISA', severity: 'critical', en: 'Visit visa for a job — working on it is illegal', te: 'Job ki visit visa — deenitho pani cheyyadam chattaviruddham' });
 
   if (slots.agentName) {

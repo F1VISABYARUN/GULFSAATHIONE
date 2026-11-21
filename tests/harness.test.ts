@@ -96,3 +96,40 @@ test('a word locked by another layer is never taken as a name ("kafeel who rub")
   assert.equal(runHarness('kafeel who rub pettadu').slots.employerName, undefined);
   assert.equal(runHarness('kafeel who rub pettadu', {}, ALL_OFF).slots.employerName, undefined);
 });
+
+// ---- Telugu script (turns taken from real Saathi test calls)
+import { toLatin } from '../server/harness/translit.ts';
+test('transliterate Telugu and Devanagari', () => {
+  assert.equal(toLatin('ఒక లక్ష యాభై వేలు'), 'oka laksha yaabhai velu');
+  assert.equal(toLatin('జీతం రాలేదండి'), 'jeetam raaledandi');
+  assert.equal(toLatin('आया मैं खतर में हूं'), 'aayaa main khatar men hoon');
+});
+test('Telugu-script money, visa, place', () => {
+  const h = runHarness('జగిత్యాల పదిహేను లక్షలు ఇచ్చినాము. సందర్శక వీజా.');
+  assert.equal(h.slots.feeINR, 1500000);
+  assert.equal(h.slots.visaType, 'visit');
+  assert.equal(h.slots.district, 'Jagtial');
+});
+test('Telugu-script distress + airport stranger escalates', () => {
+  const h = runHarness('చేరుకున్నాను వేరే వాళ్ళు తీసుకెళ్లారు. పాస్పోర్ట్ తీసుకున్నారు.');
+  assert.equal(h.slots.takenByStranger, true);
+  assert.equal(h.slots.passportHeld, true);
+  assert.equal(h.escalate, true);
+  assert.ok(assessRisks(h.slots).some(r => r.id === 'TAKEN_BY_STRANGER'));
+});
+test('phone in Telugu-script English digit words', () => {
+  assert.equal(runHarness('98 48 జీరో వన్ టూ త్రీ ఫోర్ ఫైవ్').slots.phones?.[0], '+91 98480 12345');
+});
+test('"zero" heard as జూలై is repaired only by the harness', () => {
+  const t = '9 8 4 4 జూలై ఎయిట్ 1 2 3 4';
+  assert.equal(runHarness(t).slots.phones?.[0], '+91 98440 81234');
+  assert.notEqual(runHarness(t, {}, ALL_OFF).slots.phones?.[0], '+91 98440 81234');
+});
+test('"visit విజయ్" (visa misheard as a name) repaired only by the harness', () => {
+  assert.equal(runHarness('విజిట్ విజయ్ మీద పోయి').slots.visaType, 'visit');
+  assert.equal(runHarness('విజిట్ విజయ్ మీద పోయి', {}, ALL_OFF).slots.visaType, undefined);
+});
+test('near-miss distress word (కోరుతున్నాడు ≈ కొడుతున్నాడు) triggers a read-back', () => {
+  const h = runHarness('నన్ను ఓనర్ కోరుతున్నాడు');
+  assert.ok(h.readBacks.some(r => /distress/i.test(r.reason)));
+});

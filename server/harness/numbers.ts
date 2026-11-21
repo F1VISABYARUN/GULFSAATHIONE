@@ -35,7 +35,11 @@ export function formatPhone(p: PhoneValue): string {
 }
 
 /** Find spoken phone numbers: "nine eight four eight double zero ..." / "tommidi enimidi ..." */
-export function findPhones(tokens: Token[]): Entity[] {
+// Mishearings of digits seen in real calls ("zero" -> "జూలై"/July). Only used when the harness repairs.
+const REPAIR_DIGITS = new Map<string, number>([['joolai', 0], ['july', 0], ['jeero', 0], ['zeero', 0]]);
+
+export function findPhones(tokens: Token[], repair = false): Entity[] {
+  const digitOf = (t: string) => DIGIT_WORDS.get(t) ?? (repair ? REPAIR_DIGITS.get(t) : undefined);
   const out: Entity[] = [];
   let i = 0;
   while (i < tokens.length) {
@@ -59,7 +63,8 @@ export function findPhones(tokens: Token[]): Entity[] {
         if (next !== undefined) { digits += `${tens}${next}`; j += 2; } else { digits += `${tens}0`; j++; }
         lastDigitEnd = j; continue;
       }
-      if (DIGIT_WORDS.has(t)) { digits += String(DIGIT_WORDS.get(t)); j++; lastDigitEnd = j; continue; }
+      const dv = digitOf(t);
+      if (dv !== undefined && (DIGIT_WORDS.has(t) || digits.length > 0)) { digits += String(dv); j++; lastDigitEnd = j; continue; }
       break;
     }
     if (digits.length >= 7) {

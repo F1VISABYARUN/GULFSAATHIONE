@@ -40,4 +40,7 @@ export interface CaseSlots {
   distress?: string[];
   phones?: string[];
   places?: string[];
+  country?: string;        // Gulf country (from city/country mentions)
+  district?: string;       // Telangana district
+  takenByStranger?: boolean; // picked up by someone other than the employer
 }

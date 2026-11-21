@@ -8,6 +8,7 @@
 // the same Saathi extractor on the raw transcript, exact lexicon lookups only, no repair.
 
 import { tokenize, joinSpelledLetters, type Token } from './tokens.ts';
+import { PLACE_ALIASES } from './lexicon.te.ts'; // also extends the lexicon with Telugu-script entries
 import { findPhones, findMoney, findHours } from './numbers.ts';
 import { findNamesAndPlaces, type Target } from './phonetic.ts';
 import { findGulfTerms, findDistress, findJobs, resolveSelfCorrections } from './terms.ts';
@@ -43,13 +44,14 @@ export function runHarness(text: string, ctx: CallContext = {}, layers: HarnessL
   const claim = (es: Entity[]) => { for (const e of es) for (let k = e.start; k < e.end; k++) consumed.add(k); return es; };
 
   const entities: Entity[] = [];
-  entities.push(...claim(findPhones(tokens)));
+  entities.push(...claim(findPhones(tokens, layers.repair)));
   entities.push(...claim(findHours(tokens, consumed)));
   entities.push(...claim(findMoney(tokens, consumed)));
   entities.push(...claim(findGulfTerms(tokens, consumed, layers.repair)));
 
   const targets: Target[] = [
     ...PLACES.map(p => ({ text: p, type: 'place' as const, fromContext: false })),
+    ...Object.entries(PLACE_ALIASES).map(([alias, canonical]) => ({ text: alias, canonical, type: 'place' as const, fromContext: false })),
     ...(layers.context ? (ctx.places ?? []).map(p => ({ text: p, type: 'place' as const, fromContext: true })) : []),
     ...(layers.context ? (ctx.names ?? []).map(n => ({ text: n, type: 'name' as const, fromContext: true })) : []),
   ];
@@ -77,7 +79,12 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
   for (const r of revisions) {
     if (r.type === 'money') readBacks.push({ reason: `Amount corrected mid-sentence: ${r.from} → ${r.to}`, te: `${r.to} — idi correct-aa?`, entity: r.to });
   }
-  const escalate = (slots.distress?.length ?? 0) > 0 || slots.huroob === true;
+  // near-miss distress words ("korutunnaadu" for "kodutunnaadu"): ask, don't ignore
+  for (const e of entities) {
+    if (e.type === 'distress' && e.layer === 'L3-distress-fuzzy') readBacks.push({ reason: `Possible distress word: heard "${e.surface}" (≈ ${e.value})`, te: `"${e.surface}" ante — mimmalni ${e.value === 'violence' ? 'kodutunnaaraa' : 'emaina ibbandi pedutunnaaraa'}? Cheppandi.`, entity: e.surface });
+  }
+  const exactDistress = entities.some(e => e.type === 'distress' && e.layer === 'L3-distress' && !['passport_held', 'salary_unpaid'].includes(String(e.value)));
+  const escalate = exactDistress || slots.huroob === true || slots.takenByStranger === true;
   return { readBacks, escalate };
 }
 

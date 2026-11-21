@@ -4,10 +4,11 @@ import type { Token } from './tokens.ts';
 import type { Entity, CaseSlots } from './types.ts';
 import { SALARY_WORDS, FEE_WORDS, STOPWORDS } from './lexicon.ts';
 import type { MoneyValue, PhoneValue } from './numbers.ts';
+import { GULF_COUNTRY, TELANGANA_DISTRICTS } from './lexicon.te.ts';
 
 const SURNAMES = new Set(['reddy', 'goud', 'gowda', 'rao', 'yadav', 'naidu', 'chary', 'babu', 'khan', 'ahmed', 'kumar', 'shetty', 'patel', 'singh']);
 const POSITIVE_PAID = new Set(['ichhadu', 'ichadu', 'ichaadu', 'ichharu', 'icharu', 'ichindi', 'vachindi', 'paid', 'mili', 'diya', 'padindi', 'credited', 'vesaru', 'vesadu']);
-const NEGATIVE_SUFFIX = /(ledu|ledhu|aledu|atledu|tledu|ledu|nahi|nahin|not|never|ivvaledu|raledu)$/;
+const NEGATIVE_SUFFIX = /(ledu|ledhu|ledandi|ledhandi|ledani|aledu|atledu|tledu|nahi|nahin|not|never|ivvaledu|raledu)$/;
 
 export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   const live = entities.filter(e => !e.superseded).sort((a, b) => a.start - b.start);
@@ -36,7 +37,8 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   const distress = live.filter(e => e.type === 'distress');
   if (distress.some(d => d.value === 'passport_held')) slots.passportHeld = true;
   if (distress.some(d => d.value === 'salary_unpaid')) slots.salaryPaid = false;
-  const kinds = [...new Set(distress.map(d => String(d.value)).filter(k => k !== 'passport_held' && k !== 'salary_unpaid'))];
+  if (distress.some(d => d.value === 'taken_by_stranger')) slots.takenByStranger = true;
+  const kinds = [...new Set(distress.map(d => String(d.value)).filter(k => k !== 'passport_held' && k !== 'salary_unpaid' && k !== 'taken_by_stranger'))];
   if (kinds.length) slots.distress = kinds;
   if (slots.salaryPaid === undefined) {
     for (let i = 0; i < tokens.length; i++) {
@@ -87,6 +89,10 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   if (phones.length) slots.phones = phones;
   const places = [...new Set(live.filter(e => e.type === 'place').map(e => e.text))];
   if (places.length) slots.places = places;
+  const country = [...places].reverse().find(p => GULF_COUNTRY[p]);
+  if (country) slots.country = GULF_COUNTRY[country];
+  const district = places.find(p => TELANGANA_DISTRICTS.has(p));
+  if (district) slots.district = district;
   return slots;
 }
 

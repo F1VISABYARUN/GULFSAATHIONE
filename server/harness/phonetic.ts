@@ -40,7 +40,7 @@ export function similarity(a: string, b: string): number {
   return 1 - levenshtein(ka, kb) / Math.max(ka.length, kb.length);
 }
 
-export interface Target { text: string; type: 'place' | 'name'; fromContext: boolean }
+export interface Target { text: string; type: 'place' | 'name'; fromContext: boolean; canonical?: string }
 
 /**
  * Find names/places in the token stream.
@@ -75,9 +75,9 @@ export function findNamesAndPlaces(tokens: Token[], consumed: Set<number>, targe
       if (!best) continue;
       for (const t of span) taken.add(t.i);
       out.push({
-        type: best.t.type, start: i, end: i + size, text: best.t.text, surface,
+        type: best.t.type, start: i, end: i + size, text: best.t.canonical ?? best.t.text, surface,
         layer: best.score === 1 ? 'L2-lexicon' : best.t.fromContext ? 'L0-context' : 'L2-phonetic',
-        changed: best.score < 1, score: Number(best.score.toFixed(2)),
+        changed: best.score < 1 || (best.t.canonical !== undefined && best.t.canonical !== surface), score: Number(best.score.toFixed(2)),
         risky: best.score < 0.8,
       });
     }
