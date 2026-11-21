@@ -1,0 +1,83 @@
+{
+  "_note": "TEMPLATE clips (one fictional worker's journey + one held-out test clip). Replace 'reference' with YOUR call scripts exactly as spoken, record each as eval/audio/<id>.wav, and fill 'expected' by hand. Names are fictional. Keep test-split clips untouched while tuning the harness.",
+  "clips": [
+    {
+      "id": "c1_promise",
+      "title": "Promise call: agent's offer",
+      "split": "dev",
+      "audio": "audio/c1_promise.wav",
+      "reference": "Anna naa peru Ramesh, Kodimial nundi. Agent Raju Dubai lo driver job undi ani cheppadu, jeetham 1500 dirhams, rojuki 8 gantalu. Fee oka laksha kadu kadu oka laksha yaabhai velu adigadu, work visa ani cheppadu. Kafeel peru Saleem Al Harbi. Agent number tommidi enimidi nalugu enimidi double sunna aidu rendu moodu okati.",
+      "context": { "names": ["Ramesh", "Raju", "Saleem Al Harbi"], "places": ["Kodimial", "Dubai"] },
+      "expected": {
+        "criticalTerms": ["Ramesh", "Kodimial", "Raju", "Dubai", "Saleem Al Harbi", "kafeel"],
+        "slots": { "agentName": "Raju", "employerName": "Saleem Al Harbi", "feeINR": 150000, "visaType": "work", "salary": { "amount": 1500, "currency": "AED" }, "hoursPerDay": 8, "job": "driver", "phones": ["+91 98480 05231"] },
+        "risks": ["AGENT_FLAGGED", "FEE_ABOVE_CAP"]
+      }
+    },
+    {
+      "id": "c2_departure",
+      "title": "Departure: visa is a visit visa",
+      "split": "dev",
+      "audio": "audio/c2_departure.wav",
+      "reference": "Anna flight repu Shamshabad nundi. Visa chusanu, visit visa ani raasi undi. Agent emo work visa tarvata vastundi annadu.",
+      "context": { "names": ["Ramesh", "Raju"], "places": ["Shamshabad", "Dubai"] },
+      "expected": {
+        "criticalTerms": ["Shamshabad", "visit visa"],
+        "slots": { "visaType": "visit" },
+        "risks": ["VISIT_VISA"]
+      }
+    },
+    {
+      "id": "c3_arrival",
+      "title": "Arrival: wrong person, passport taken",
+      "split": "dev",
+      "audio": "audio/c3_arrival.wav",
+      "reference": "Anna Riyadh airport ki vachanu. Kafeel raaledu, vere okaru vachadu, atani peru Fahad. Passport teeskunnaru, iqama tarvata istham annaru.",
+      "context": { "names": ["Ramesh", "Saleem Al Harbi"], "places": ["Riyadh"], "promiseFrom": "c1_promise" },
+      "expected": {
+        "criticalTerms": ["Riyadh", "Fahad", "iqama", "kafeel"],
+        "slots": { "pickupName": "Fahad", "passportHeld": true },
+        "risks": ["PICKUP_MISMATCH", "PASSPORT_HELD"]
+      }
+    },
+    {
+      "id": "c4_week2",
+      "title": "Week 2: goats, no salary, long hours",
+      "split": "dev",
+      "audio": "audio/c4_week2.wav",
+      "reference": "Anna ikkada edari lo mekalu kaayistunna, driver pani ledu. Rendu nelalu jeetham ivvaledu, arbab bukra bukra antunnadu. Rojuki padaharu gantalu pani.",
+      "context": { "names": ["Ramesh", "Saleem Al Harbi"], "places": ["Riyadh"], "promiseFrom": "c1_promise" },
+      "expected": {
+        "criticalTerms": ["mekalu", "arbab", "bukra", "ivvaledu"],
+        "slots": { "job": "shepherd", "salaryPaid": false, "hoursPerDay": 16 },
+        "risks": ["JOB_MISMATCH", "SALARY_UNPAID", "HOURS_MISMATCH"]
+      }
+    },
+    {
+      "id": "c5_distress",
+      "title": "Distress call",
+      "split": "dev",
+      "audio": "audio/c5_distress.wav",
+      "reference": "Anna kodutunnaru, annam pettatledu, kapadandi. Kafeel huroob pettadu ani bediristhunnadu.",
+      "context": { "names": ["Ramesh", "Saleem Al Harbi"], "places": ["Riyadh"] },
+      "expected": {
+        "criticalTerms": ["kodutunnaru", "kapadandi", "huroob"],
+        "slots": { "distress": ["violence", "deprivation", "help"], "huroob": true },
+        "risks": ["DISTRESS", "HUROOB"]
+      }
+    },
+    {
+      "id": "t1_hindi_mix",
+      "title": "Held-out: Hindi-English, visit visa, fee",
+      "split": "test",
+      "audio": "audio/t1_hindi_mix.wav",
+      "reference": "Sir mera naam Imtiaz hai, Nizamabad se. Sub agent ko dedh lakh rupaye diye, visit visa pe bheja. Salary 1000 riyals bola tha lekin abhi 600 riyals de raha hai. Mera number nine seven zero one triple two five six eight.",
+      "context": { "names": ["Imtiaz"], "places": ["Nizamabad"] },
+      "expected": {
+        "criticalTerms": ["Imtiaz", "Nizamabad", "visit visa"],
+        "slots": { "feeINR": 150000, "visaType": "visit", "salary": { "amount": 600, "currency": "SAR" }, "phones": ["+91 97012 22568"] },
+        "risks": ["VISIT_VISA", "FEE_ABOVE_CAP"]
+      }
+    }
+  ]
+}

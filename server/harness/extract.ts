@@ -24,12 +24,12 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   // ---- visa / passport / gulf signals
   for (const e of live) {
     if (e.type === 'gulf' && e.value === 'visit_visa') slots.visaType = 'visit';
-    if (e.type === 'gulf' && e.value === 'work_visa') slots.visaType = 'work';
+    if (e.type === 'gulf' && e.value === 'work_visa' && slots.visaType !== 'visit') slots.visaType = 'work'; // risk-conservative: any live "visit visa" wins
     if (e.type === 'gulf' && e.value === 'huroob') slots.huroob = true;
     if (e.type === 'gulf' && e.value === 'mafi_fulus') slots.salaryPaid = false;
     if (e.type === 'passportType') slots.passportType = e.value === 'ecr' ? 'ECR' : 'ECNR';
     if (e.type === 'hours') slots.hoursPerDay = e.value as number;
-    if (e.type === 'job') slots.job = e.text;
+    if (e.type === 'job' && !negatedAfter(tokens, e.end)) slots.job = e.text; // "driver pani ledu" = NOT driver
   }
 
   // ---- distress + passport + salary polarity
@@ -56,7 +56,7 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
     const ent = nameAt(k);
     if (ent) return ent.text;
     const t = tokens[k];
-    if (STOPWORDS.has(t.norm) || /\d/.test(t.norm) || t.norm.length < 3) return undefined;
+    if (STOPWORDS.has(t.norm) || /\d/.test(t.norm) || t.norm.length < 3 || VERB_LIKE.test(t.norm)) return undefined;
     let name = cap(t.raw);
     if (k + 1 < tokens.length && SURNAMES.has(tokens[k + 1].norm)) name += ' ' + cap(tokens[k + 1].raw);
     return name;
@@ -86,6 +86,12 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   const places = [...new Set(live.filter(e => e.type === 'place').map(e => e.text))];
   if (places.length) slots.places = places;
   return slots;
+}
+
+const VERB_LIKE = /(ledu|ledhu|adu|aru|indi|anu|amu|undi|unnadu|aledu|tunnadu|tunnaru|chesadu|cheppadu)$/;
+const NEG = new Set(['ledu', 'ledhu', 'kadu', 'kaadu', 'nahi', 'not', 'no', 'ivvaledu', 'raledu']);
+function negatedAfter(tokens: Token[], end: number): boolean {
+  return tokens.slice(end, end + 2).some(t => NEG.has(t.norm));
 }
 
 function moneyKind(tokens: Token[], e: Entity, v: MoneyValue): 'fee' | 'salary' | undefined {

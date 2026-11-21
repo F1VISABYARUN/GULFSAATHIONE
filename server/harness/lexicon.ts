@@ -153,7 +153,7 @@ export const DISTRESS_PHRASES: { kind: DistressKind; phrases: string[]; te: stri
 ];
 
 export const SALARY_WORDS = new Set(['salary', 'jeetham', 'jitham', 'jeetam', 'raatib', 'ratib', 'pagar', 'tankha', 'vetanam', 'nelaki', 'monthly', 'month', 'mahina']);
-export const FEE_WORDS = new Set(['fee', 'fees', 'kattanu', 'kattamu', 'kattaru', 'ichhanu', 'ichanu', 'icchanu', 'ichamu', 'ichaanu', 'adigadu', 'adigaru', 'adugutunnadu', 'charge', 'charges', 'diya', 'liya', 'advance', 'commission', 'agent', 'paid', 'pay', 'teeskunnadu', 'tisukunnadu']);
+export const FEE_WORDS = new Set(['fee', 'fees', 'kattanu', 'kattamu', 'kattaru', 'ichhanu', 'ichanu', 'icchanu', 'ichamu', 'ichaanu', 'adigadu', 'adigaru', 'adugutunnadu', 'charge', 'charges', 'diya', 'diye', 'liya', 'liye', 'advance', 'commission', 'agent', 'paid', 'pay', 'teeskunnadu', 'tisukunnadu']);
 export const HOUR_WORDS = new Set(['hours', 'hour', 'hrs', 'gantalu', 'ganta', 'gantala', 'ghante', 'ghanta']);
 
 export const JOB_WORDS: Record<string, string> = {
@@ -171,5 +171,5 @@ export const STOPWORDS = new Set([
   'salary', 'job', 'agent', 'visa', 'passport', 'company', 'peru', 'name', 'sir', 'madam', 'okay', 'ok', 'haan', 'avunu',
   'cheppadu', 'chepparu', 'vachadu', 'vellanu', 'vellali', 'month', 'nelaki', 'emi', 'em', 'enti', 'ippudu', 'appudu',
   'hello', 'please', 'thank', 'thanks', 'call', 'phone', 'number', 'money', 'dabbulu', 'paisa', 'work', 'pani',
-  'adi', 'idi', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
+  'adi', 'idi', 'emo', 'kuda', 'ayithe', 'kooda', 'vere', 'okaru', 'atanu', 'aame', 'vallu', 'manaki', 'naaku', 'meeku', 'kani', 'inka', 'malli', 'chala', 'baga',
 ]);
