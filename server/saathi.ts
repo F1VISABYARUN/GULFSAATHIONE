@@ -1,0 +1,187 @@
+// New Gulf Saathi backend: worker registration, Bolna tool endpoints, call scheduler.
+// Every tool takes the caller's own words (caller_said) and runs them through the harness, so the
+// LLM's guesses never decide risk on their own.
+
+import type { Express, Request, Response } from 'express';
+import { runHarness, ALL_ON } from './harness/index.ts';
+import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
+import { assessRisks, type Risk } from './risk/engine.ts';
+import { checkAgent } from './risk/agents.ts';
+import { store, newCaseId, type WorkerRec } from './store.ts';
+import type { CaseSlots } from './harness/types.ts';
+
+const FEE_CAP = 30000 * 1.18;
+const LEVEL: Record<string, number> = { ok: 0, medium: 1, high: 2, critical: 3 };
+
+function levelOf(risks: Risk[]): WorkerRec['riskLevel'] {
+  return risks.reduce<WorkerRec['riskLevel']>((acc, r) => (LEVEL[r.severity] > LEVEL[acc] ? r.severity : acc), 'ok');
+}
+
+/** What the voice agent should say for a risk level (Telugu). Never promises rescue or claims actions. */
+export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolean): string {
+  if (codePhrase) return 'సరే, అర్థమైంది. మామూలుగా మాట్లాడండి.';
+  return {
+    critical: 'మీరు ఒంటరి కాదు. మీ కేసు అత్యవసరం అని నమోదైంది, మా మనిషి ఇప్పుడే చూస్తారు. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పండి.',
+    high: 'మీ సమస్య నమోదైంది. మా మనిషి ఎంబసీతో మాట్లాడటానికి దీన్ని తీసుకుంటారు. జీతం లేదా పాస్‌పోర్ట్ తిరిగి వస్తుందని మేము హామీ ఇవ్వలేము.',
+    medium: 'నమోదు చేశాను. సాథి మళ్ళీ మిమ్మల్ని కాల్ చేస్తుంది.',
+    ok: 'మంచిది, బాగున్నారని నమోదు చేశాను. వచ్చే వారం మళ్ళీ కాల్ చేస్తాం.',
+  }[level];
+}
+
+function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string) {
+  const w = store.worker(caseId);
+  const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
+  const level = levelOf(risks);
+  store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id) });
+  if (w) {
+    const worse = LEVEL[level] > LEVEL[w.riskLevel];
+    store.updateWorker(caseId, {
+      riskLevel: worse ? level : w.riskLevel,
+      reasons: [...new Set([...w.reasons, ...risks.map(r => r.id)])],
+      status: level === 'critical' || level === 'high' ? 'alert' : w.status === 'registered' ? 'abroad' : w.status,
+    });
+  }
+  return { risks, level };
+}
+
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
+
+export function registerSaathi(app: Express, guard: (req: Request, res: Response, next: () => void) => void) {
+  // ---- worker registration (before departure) -----------------------------------------
+  app.post('/api/saathi/workers', guard, (req, res) => {
+    const b = req.body ?? {};
+    if (!b.phone || !b.consent) return res.status(400).json({ error: 'phone and consent are required' });
+    const promise = runHarness(str(b.promise_said), {}, ALL_ON).slots;   // promise in the worker's own words
+    const rec = store.addWorker({
+      caseId: b.caseId || newCaseId(), name: b.name, phone: b.phone, familyPhone: b.familyPhone, district: b.district ?? promise.district,
+      promise: { ...promise, employerName: b.employerName ?? promise.employerName, job: b.job ?? promise.job },
+      destCity: b.destCity, destCountry: b.destCountry, codePhrase: b.codePhrase, departedOn: b.departedOn, consent: true,
+    });
+    const preDeparture = assessRisks(rec.promise).filter(r => ['VISIT_VISA', 'FEE_ABOVE_CAP'].includes(r.id));
+    res.json({ worker: rec, preDepartureWarnings: preDeparture });
+  });
+  app.get('/api/saathi/workers/:caseId', guard, (req, res) => {
+    const w = store.worker(String(req.params.caseId));
+    if (!w) return res.status(404).json({ error: 'not found' });
+    res.json({ worker: w, calls: store.calls(w.caseId) });
+  });
+
+  // ---- Bolna tools ------------------------------------------------------------------------
+  // check_agent: { agency, owner, district, licence_no }
+  app.post('/tools/check-agent', guard, (req, res) => {
+    const b = req.body ?? {};
+    const name = str(b.agency) || str(b.owner) || str(b.query);
+    const r = checkAgent(name, str(b.district) || undefined, str(b.licence_no) || undefined);
+    const say = {
+      registered: 'ఈ పేరు ప్రభుత్వ లైసెన్స్ జాబితాలో ఉంది. కానీ మంచివారా కాదా నేను చెప్పలేను; డబ్బు డిజిటల్‌గా ఇచ్చి రసీదు తీసుకోండి.',
+      registered_other_district: `ఈ పేరు ${r.match?.district ?? 'వేరే'} జిల్లాలో ఉన్న ఏజెన్సీది. మీ ఏజెంట్ అదేనా? లైసెన్స్ నంబర్ అడగండి.`,
+      not_found: 'ఈ పేరు ప్రభుత్వ లైసెన్స్ జాబితాలో దొరకలేదు. డబ్బు ఇచ్చే ముందు లైసెన్స్ నంబర్ అడగండి.',
+      flagged: 'ఈ పేరు మీద ఫిర్యాదులు ఉన్నాయి. ఇంకా డబ్బు ఇవ్వకండి.',
+    }[r.status];
+    res.json({ status: r.status, match: r.match ? { raId: r.match.raId, name: r.match.name, district: r.match.district, rc: r.match.rc } : null, instruction: say, source: r.source });
+  });
+
+  // check_fee: { payments: "10000; 25000", caller_said }
+  app.post('/tools/check-fee', guard, (req, res) => {
+    const b = req.body ?? {};
+    const llm = str(b.payments).split(/[;,]/).map(x => Number(x.replace(/[^\d.]/g, ''))).filter(n => n > 0);
+    const llmTotal = llm.reduce((a, n) => a + n, 0);
+    const heard = b.caller_said ? runHarness(str(b.caller_said), {}, ALL_ON).slots.feeINR : undefined;
+    const total = heard ?? llmTotal;
+    const over = Math.max(0, total - FEE_CAP);
+    const mismatch = heard !== undefined && llmTotal > 0 && Math.abs(heard - llmTotal) > 1;
+    res.json({
+      total, cap: FEE_CAP, over_cap: over > 0, over_by: over, mismatch: mismatch ? { llm: llmTotal, heard } : undefined,
+      instruction: mismatch ? `${heard!.toLocaleString('en-IN')} రూపాయలు అని విన్నాను — ఇది సరైనదేనా?`
+        : over > 0 ? `మొత్తం ${total.toLocaleString('en-IN')} రూపాయలు. చట్టం ప్రకారం గరిష్టం 35,400 మాత్రమే; ${over.toLocaleString('en-IN')} ఎక్కువ. ఇంకా డబ్బు ఇవ్వకండి.`
+          : 'ఇది చట్టపరమైన పరిమితిలో ఉంది. డిజిటల్‌గా మాత్రమే ఇచ్చి రసీదు తీసుకోండి.',
+    });
+  });
+
+  // report_problem / record_checkin: { case_id, caller_said, call_kind, ...LLM fields }
+  const record = (req: Request, res: Response) => {
+    const b = req.body ?? {};
+    let caseId = str(b.case_id);
+    if (!caseId || !store.worker(caseId)) {
+      caseId = newCaseId();
+      store.addWorker({ caseId, phone: str(b.caller_phone) || 'unknown', name: str(b.caller_name) || undefined, promise: {}, consent: true });
+    }
+    const w = store.worker(caseId)!;
+    const slots = runHarness(str(b.caller_said) || str(b.notes), { codePhrase: w.codePhrase, names: [w.name, w.promise.employerName].filter(Boolean) as string[] }, ALL_ON).slots;
+    // the LLM's yes/no fields can add danger, never remove it
+    if (b.threatened === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'violence'])];
+    if (b.passport_with_worker === 'no') slots.passportHeld = true;
+    if (b.taken_by_stranger === 'yes' || ['other_person', 'nobody'].includes(str(b.pickup_status))) slots.takenByStranger = true;
+    if (b.salary_received === 'no') slots.salaryPaid = false;
+    if (b.code_phrase_used === 'yes') slots.codePhrase = true;
+    if (b.movement_restricted === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'confinement'])];
+    const { risks, level } = applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
+    res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) });
+  };
+  app.post('/tools/report-problem', guard, record);
+  app.post('/tools/record-checkin', guard, record);
+
+  // ---- post-call webhook for the new backend: safety net + missed calls ------------------
+  app.post('/webhooks/saathi', guard, (req, res) => {
+    const e = req.body ?? {};
+    const rd = e.context_details?.recipient_data ?? {};
+    const caseId = str(rd.case_id);
+    const w = caseId ? store.worker(caseId) : undefined;
+    if (!w) return res.json({ ok: true, ignored: 'unknown case' });
+    const answered = e.status === 'completed' && typeof e.transcript === 'string' && /(^|\n)user:/.test(e.transcript);
+    if (!answered) {
+      store.addCall({ id: String(e.id ?? Date.now()), caseId, kind: str(rd.call_kind) || 'call', at: new Date().toISOString(), status: String(e.status ?? 'missed'), reasons: ['missed'] });
+      return res.json({ ok: true, missed: true });
+    }
+    const slots = runHarness(withQuestionContext(parseBolnaTranscript(e.transcript)), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
+    const { risks, level } = applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript);
+    res.json({ ok: true, level, reasons: risks.map(r => r.id) });
+  });
+
+  // ---- scheduler: which calls are due now; places them through Bolna when configured -------
+  app.post('/api/saathi/scheduler/tick', guard, async (req, res) => {
+    const due = dueCalls(new Date(String(req.body?.now ?? new Date().toISOString())));
+    const placed = [];
+    for (const d of due) placed.push(await placeCall(d));
+    res.json({ due: due.length, placed });
+  });
+}
+
+// ---------------------------------------------------------------- scheduling (pure, testable)
+export interface DueCall { caseId: string; kind: 'arrival' | 'weekly' | 'retry'; phone: string }
+
+export function dueCalls(now: Date, workers = store.workers(), calls = store.calls()): DueCall[] {
+  const out: DueCall[] = [];
+  for (const w of workers) {
+    if (w.status === 'closed' || !w.consent || !w.departedOn) continue;
+    const mine = calls.filter(c => c.caseId === w.caseId).sort((a, b) => a.at.localeCompare(b.at));
+    const answered = mine.filter(c => c.status === 'answered');
+    const last = mine[mine.length - 1];
+    const lastAnswered = answered[answered.length - 1];
+    const dep = new Date(w.departedOn).getTime();
+    const h = (t: number) => (now.getTime() - t) / 3600_000;
+    if (h(dep) < 6) continue;                                                   // still flying
+    if (last && last.status !== 'answered' && h(new Date(last.at).getTime()) >= (lastAnswered ? 24 : 3)) {
+      out.push({ caseId: w.caseId, kind: 'retry', phone: w.phone }); continue;  // retry a missed call
+    }
+    if (!lastAnswered) { if (!last) out.push({ caseId: w.caseId, kind: 'arrival', phone: w.phone }); continue; }
+    if (h(new Date(lastAnswered.at).getTime()) >= 7 * 24) out.push({ caseId: w.caseId, kind: 'weekly', phone: w.phone });
+  }
+  return out;
+}
+
+async function placeCall(d: DueCall) {
+  const key = process.env.BOLNA_API_KEY, agent = process.env.BOLNA_CHECKIN_AGENT_ID;
+  const w = store.worker(d.caseId)!;
+  const user_data = {
+    case_id: w.caseId, call_kind: d.kind === 'retry' ? 'weekly' : d.kind, worker_name: w.name ?? '', employer_name: w.promise.employerName ?? '',
+    promised_job: w.promise.job ?? '', dest_city: w.destCity ?? '', dest_country: w.destCountry ?? '', code_phrase: w.codePhrase ?? '',
+  };
+  if (!key || !agent) return { ...d, placed: false, reason: 'BOLNA_API_KEY / BOLNA_CHECKIN_AGENT_ID not set (dry run)', user_data };
+  // Bolna "make a call" API — verify the current endpoint and fields in Bolna's docs before going live
+  const r = await fetch('https://api.bolna.ai/call', {
+    method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ agent_id: agent, recipient_phone_number: d.phone, user_data }),
+  });
+  return { ...d, placed: r.ok, status: r.status };
+}

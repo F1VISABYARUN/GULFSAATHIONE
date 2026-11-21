@@ -68,6 +68,7 @@ const guard = (req: import('express').Request, res: import('express').Response, 
 };
 
 export function registerLive(app: Express) {
+  import('./saathi.ts').then(m => m.registerSaathi(app, guard));
   // Mid-call gate. Body: { transcript?: "assistant: ..\nuser: ..", turns?: Turn[], text?: string, context?: CallContext, recipient_data?: {...} }
   app.post('/api/gate', guard, (req, res) => {
     const b = req.body ?? {};
