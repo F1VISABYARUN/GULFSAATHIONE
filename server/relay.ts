@@ -13,7 +13,7 @@ export const TEST_MODELS=['gpt-4.1','gpt-4.1-mini','gpt-4o-mini','gpt-5.4','gpt-
 const reasoning=(m:string)=>/^(gpt-5|o\d)/.test(m);
 /** Reasoning models reject temperature and need a low effort to stay fast on a phone call. */
 function tuning(m:string){return reasoning(m)?{reasoning_effort:'low'}:{temperature:0};}
-const defaultModel=()=>process.env.OPENAI_TEXT_MODEL||'gpt-4o-mini';
+const defaultModel=()=>process.env.OPENAI_TEXT_MODEL||'gpt-4.1';
 async function model(text:string,from:string,to:string,locks:string[],m:string) {
   const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',signal:AbortSignal.timeout(15000),
     headers:{authorization:'Bearer '+process.env.OPENAI_API_KEY,'content-type':'application/json'},
@@ -37,10 +37,17 @@ async function phonetic(text:string,m:string):Promise<string> {
     return /[\u0C00-\u0C7F]/.test(t)&&!/[\u0600-\u06FF]/.test(t)?t:'';
   } catch { return ''; }
 }
+// Equivalent spellings of the terms that matter most, so a correct Telugu back-translation isn't rejected over spelling.
+const ALT:[RegExp,string][]=[
+  [/^(పాస్పోర్ట్|పాస్పోర్టు|passport)$/i,'(?:పాస్పోర్ట్|పాస్పోర్టు|పాస్ పోర్ట్|passport)'],
+  [/^(జీతం|జీతము|salary)$/i,'(?:జీతం|జీతము|వేతనం|జీత|salary)'],
+  [/^(వీసా|visa)$/i,'(?:వీసా|visa)'],
+];
 function hasLocks(text:string,locks:string[]) {
   const padded=' '+plain(text)+' ';
   return locks.every(value=>{
-    const escaped=plain(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const v=plain(value);const alt=ALT.find(([re])=>re.test(v));
+    const escaped=alt?alt[1]:v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
     return new RegExp('(?<![\\p{L}\\p{M}\\p{N}])'+escaped+'(?![\\p{L}\\p{M}\\p{N}])','u').test(padded);
   });
 }
@@ -70,12 +77,14 @@ export async function relay(text:string,from:string,to:string,ctx:CallContext={}
     if(forward.safety==='human')return blocked(true);
     if(forward.safety!=='ordinary'||forward.confidence!=='high'||typeof forward.text!=='string'||!forward.text.trim())return fallback();
     if(!intact(forward.text,from===to||to==='te'||from!=='te'))return blocked();
+    const own=typeof forward.pronounce_te==='string'?forward.pronounce_te.trim():'';
+    const ownOk=/[\u0C00-\u0C7F]/.test(own)&&!/[\u0600-\u06FF]/.test(own);
+    const phon:Promise<string>=to==='te'?Promise.resolve(''):ownOk?Promise.resolve(own):phonetic(forward.text,m); // runs alongside the back-translation
     const back=to==='te'?forward:await model(forward.text,to,'te',locks,m);
     if(back.safety==='human')return blocked(true);
     if(back.safety!=='ordinary'||back.confidence!=='high'||typeof back.text!=='string'||!back.text.trim()||!intact(back.text))return blocked();
     const say=to==='te'?'':forward.text;
-    const own=typeof forward.pronounce_te==='string'?forward.pronounce_te.trim():'';
-    const pronounce_te=to==='te'?'':(/[\u0C00-\u0C7F]/.test(own)&&!/[\u0600-\u06FF]/.test(own)?own:await phonetic(forward.text,m));
+    const pronounce_te=await phon;
     return {status:'translated',say_to_other:say,pronounce_te,say_to_worker:back.text,back_translation:back.text,confidence:'high',locked_ok:true,label:'unchecked by native speaker'};
   } catch {return fallback();}
 }

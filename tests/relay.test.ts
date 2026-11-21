@@ -30,3 +30,12 @@ test('Telugu salary sentence translates: Arabic need not contain Telugu words, T
   const back=await relay('أين جواز سفرك؟','ar','te');
   assert.equal(back.status,'translated'); assert.match(seen.at(-1)!,/Telugu/);
 });
+test('passport spelling variants in the Telugu back-translation are accepted',async t=>{
+  process.env.OPENAI_API_KEY='fixture'; t.after(()=>{delete process.env.OPENAI_API_KEY;});
+  t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+    const {to}=JSON.parse(JSON.parse(String(init.body)).messages[1].content);
+    const text=String(to).startsWith('Telugu')?'నా పాస్‌పోర్టు తిరిగి ఇవ్వండి':'أعد لي جواز سفري';
+    return Response.json({choices:[{message:{content:JSON.stringify({safety:'ordinary',confidence:'high',text,pronounce_te:'అఇద్ లీ'})}}]});
+  });
+  assert.equal((await relay('నా పాస్పోర్ట్ తిరిగి ఇవ్వండి','te','ar')).status,'translated');
+});
