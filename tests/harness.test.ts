@@ -84,7 +84,7 @@ test('context names (L0) repair an unseen name', () => {
 test('risk engine: visit visa + fee above cap + unlicensed agent', () => {
   const h = runHarness('agent Srinivas ki oka laksha yaabhai velu kattanu, visit visa ichadu');
   const ids = assessRisks(h.slots).map(r => r.id);
-  for (const id of ['VISIT_VISA', 'FEE_ABOVE_CAP', 'AGENT_UNLICENSED']) assert.ok(ids.includes(id), id);
+  for (const id of ['VISIT_VISA', 'FEE_ABOVE_CAP', 'AGENT_NOT_IN_REGISTRY']) assert.ok(ids.includes(id), id);
 });
 test('risk engine: check-in vs promise mismatch', () => {
   const promise = runHarness('driver job, salary 1500 dirhams, rojuki 8 gantalu').slots;
@@ -141,4 +141,27 @@ test('Telugu agent name and place with case suffix', () => {
   const h = runHarness('ఏజెంట్ పేరు రమేష్. నేను దుబాయ్లో ఉన్నాను');
   assert.equal(h.slots.agentName, 'Ramesh');
   assert.equal(h.slots.country, 'UAE');
+});
+test('code phrase is caught by sound, escalates silently', () => {
+  const ctx = { codePhrase: 'అమ్మ బాగుందా' };
+  const h = runHarness('అంతా బాగుంది. అమ్మ బాగుంది అని చెప్పండి', ctx);
+  assert.equal(h.slots.codePhrase, true);
+  assert.equal(h.escalate, true);
+  assert.ok(!h.readBacks.some(r => /amma/i.test(r.te)), 'never echo the code phrase');
+  assert.equal(runHarness('అంతా బాగుంది', ctx).slots.codePhrase, undefined);
+});
+import { withQuestionContext, parseBolnaTranscript } from '../server/harness/qa.ts';
+test('Q/A layer reads a bare "no" using the question', () => {
+  const turns = parseBolnaTranscript('assistant: ఈ నెల జీతం వచ్చిందా?\nuser: రాలేదండి\nassistant: మీ పాస్‌పోర్ట్ మీ దగ్గరే ఉందా?\nuser: లేదు.');
+  const h = runHarness(withQuestionContext(turns));
+  assert.equal(h.slots.salaryPaid, false);
+  assert.equal(h.slots.passportHeld, true);
+});
+import { checkAgent } from '../server/risk/agents.ts';
+test('agent check uses the official MEA registered-RA list', () => {
+  const hit = checkAgent('Karthik International', 'Karimnagar');
+  assert.equal(hit.status, 'registered');
+  assert.equal(hit.match?.raId, 'RA7468');
+  assert.equal(checkAgent('Karthik International', 'Jagtial').status, 'registered_other_district');
+  assert.equal(checkAgent('Ramesh').status, 'not_found');
 });

@@ -3,7 +3,7 @@
 
 import type { CaseSlots } from '../harness/types.ts';
 import { similarity } from '../harness/phonetic.ts';
-import agents from '../data/agents.sample.json' with { type: 'json' };
+import { checkAgent } from './agents.ts';
 import config from '../data/rules.json' with { type: 'json' };
 
 export type Severity = 'critical' | 'high' | 'medium';
@@ -11,24 +11,21 @@ export interface Risk { id: string; severity: Severity; en: string; te: string; 
 
 const feeCap = config.feeCapINR * (1 + config.gstRate);
 
-function inList(name: string, list: string[]): string | undefined {
-  return list.find(n => similarity(n, name) >= 0.85);
-}
-
 export function assessRisks(slots: CaseSlots, promise?: CaseSlots): Risk[] {
   const risks: Risk[] = [];
   const add = (r: Risk) => { if (!risks.some(x => x.id === r.id)) risks.push(r); };
 
   if (slots.distress?.length) add({ id: 'DISTRESS', severity: 'critical', en: `Distress signal (${slots.distress.join(', ')}) — escalate to a human now`, te: 'Pramadam sanketham — ventane manishi ki escalate cheyyali', evidence: slots.distress.join(', ') });
   if (slots.huroob) add({ id: 'HUROOB', severity: 'critical', en: 'Huroob (absconding report) mentioned — worker may be made "illegal"', te: 'Huroob case prastavana — worker illegal ayye pramadam' });
+  if (slots.codePhrase) add({ id: 'CODE_PHRASE', severity: 'critical', en: 'Worker said the agreed safety phrase — treat as distress; do not reveal it on the call', te: 'Safety code cheppadu — pramadam; call lo bayataku cheppakandi' });
   if (slots.takenByStranger) add({ id: 'TAKEN_BY_STRANGER', severity: 'critical', en: 'Picked up by someone other than the employer — the first-48-hours danger', te: 'Employer kaakunda vere vaallu teesukellaaru — ventane escalate' });
   if (slots.visaType === 'visit') add({ id: 'VISIT_VISA', severity: 'critical', en: 'Visit visa for a job — working on it is illegal', te: 'Job ki visit visa — deenitho pani cheyyadam chattaviruddham' });
 
   if (slots.agentName) {
-    const flagged = inList(slots.agentName, agents.flagged);
-    const licensed = inList(slots.agentName, agents.licensed);
-    if (flagged) add({ id: 'AGENT_FLAGGED', severity: 'critical', en: `Agent "${slots.agentName}" matches a flagged list entry`, te: `Agent ${slots.agentName} flagged list lo unnadu`, evidence: flagged });
-    else if (!licensed) add({ id: 'AGENT_UNLICENSED', severity: 'high', en: `Agent "${slots.agentName}" not found in licensed list`, te: `Agent ${slots.agentName} licensed list lo ledu`, evidence: slots.agentName });
+    const chk = checkAgent(slots.agentName, slots.district);
+    if (chk.status === 'flagged') add({ id: 'AGENT_FLAGGED', severity: 'critical', en: `Agent "${slots.agentName}" matches a flagged entry (${chk.source})`, te: `Agent ${slots.agentName} flagged list lo unnadu`, evidence: chk.flaggedName });
+    else if (chk.status === 'not_found') add({ id: 'AGENT_NOT_IN_REGISTRY', severity: 'medium', en: `"${slots.agentName}" not found by name in the ${chk.source} — ask for the RA licence (RC) number before paying`, te: `${slots.agentName} peru registered agents list lo kanapadaledu — dabbulu ichche mundu licence number adagandi` });
+    else if (chk.status === 'registered_other_district') add({ id: 'AGENT_DISTRICT_MISMATCH', severity: 'medium', en: `Name matches registered RA "${chk.match!.name}" in ${chk.match!.district}, not ${slots.district} — confirm it is the same agency (ask the RC number)`, te: `Ee peru ${chk.match!.district} lo unna agency di — mee agent ade na? licence number adagandi`, evidence: chk.match!.raId });
   }
   if (slots.feeINR !== undefined && slots.feeINR > feeCap) {
     add({ id: 'FEE_ABOVE_CAP', severity: 'high', en: `Fee ₹${slots.feeINR.toLocaleString('en-IN')} is above the legal cap (₹${config.feeCapINR.toLocaleString('en-IN')} + GST)`, te: `Fee ₹${slots.feeINR.toLocaleString('en-IN')} — legal limit kante ekkuva`, evidence: String(slots.feeINR) });

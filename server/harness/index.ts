@@ -11,7 +11,7 @@ import { tokenize, joinSpelledLetters, type Token } from './tokens.ts';
 import { PLACE_ALIASES } from './lexicon.te.ts'; // also extends the lexicon with Telugu-script entries
 import { findPhones, findMoney, findHours } from './numbers.ts';
 import { findNamesAndPlaces, type Target } from './phonetic.ts';
-import { findGulfTerms, findDistress, findJobs, resolveSelfCorrections } from './terms.ts';
+import { findGulfTerms, findDistress, findJobs, resolveSelfCorrections, findCodePhrase } from './terms.ts';
 import { extractSlots } from './extract.ts';
 import { PLACES } from './lexicon.ts';
 import type { Entity, Revision, CallContext, CaseSlots } from './types.ts';
@@ -61,6 +61,7 @@ export function runHarness(text: string, ctx: CallContext = {}, layers: HarnessL
   const distress = findDistress(tokens, layers.repair);
   const revisions = layers.corrections ? resolveSelfCorrections(tokens, entities) : [];
   entities.push(...distress);
+  if (layers.context && ctx.codePhrase) entities.push(...findCodePhrase(tokens, tokenize(ctx.codePhrase).map(t => t.norm)));
   entities.sort((a, b) => a.start - b.start);
 
   const slots = extractSlots(tokens, entities);
@@ -84,7 +85,7 @@ function gate(entities: Entity[], revisions: Revision[], slots: CaseSlots): { re
     if (e.type === 'distress' && e.layer === 'L3-distress-fuzzy') readBacks.push({ reason: `Possible distress word: heard "${e.surface}" (≈ ${e.value})`, te: `"${e.surface}" ante — mimmalni ${e.value === 'violence' ? 'kodutunnaaraa' : 'emaina ibbandi pedutunnaaraa'}? Cheppandi.`, entity: e.surface });
   }
   const exactDistress = entities.some(e => e.type === 'distress' && e.layer === 'L3-distress' && !['passport_held', 'salary_unpaid'].includes(String(e.value)));
-  const escalate = exactDistress || slots.huroob === true || slots.takenByStranger === true;
+  const escalate = exactDistress || slots.huroob === true || slots.takenByStranger === true || slots.codePhrase === true;
   return { readBacks, escalate };
 }
 

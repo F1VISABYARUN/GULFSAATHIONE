@@ -91,6 +91,25 @@ export function findDistress(tokens: Token[], fuzzy: boolean): Entity[] {
   return out;
 }
 
+// ---------------------------------------------------------------- code phrase
+/** The safety phrase agreed with the worker ("అమ్మ బాగుందా"). Matched by sound; never echoed back. */
+export function findCodePhrase(tokens: Token[], phraseNorms: string[]): Entity[] {
+  if (!phraseNorms.length) return [];
+  const target = phoneticKey(phraseNorms.join(''));
+  const out: Entity[] = [];
+  for (const n of [phraseNorms.length, phraseNorms.length + 1, phraseNorms.length - 1].filter(n => n > 0)) {
+    for (let i = 0; i + n <= tokens.length; i++) {
+      const cand = phoneticKey(tokens.slice(i, i + n).map(t => t.norm).join(''));
+      if (cand.length < 4) continue;
+      const score = 1 - levenshtein(cand, target) / Math.max(cand.length, target.length);
+      if (score >= 0.8 && !out.some(e => e.start < i + n && i < e.end)) {
+        out.push({ type: 'distress', start: i, end: i + n, text: 'code_phrase', surface: tokens.slice(i, i + n).map(t => t.raw).join(' '), value: 'code_phrase', layer: 'L0-code-phrase', changed: false, score: Number(score.toFixed(2)) });
+      }
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- self-correction
 const GROUP = (e: Entity): string => {
   if (e.type === 'gulf') {
