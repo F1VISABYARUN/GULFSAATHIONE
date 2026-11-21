@@ -17,3 +17,25 @@ Storage is a JSON file by default. Use `STORE=memory` on Vercel, where the disk 
 **To verify:**
 - **Call API:** check the endpoint and fields in Bolna's docs (`POST /call` with `agent_id`, `recipient_phone_number` and `user_data`).
 - **Tool parameter:** add `caller_said` ("the caller's exact words") to each Bolna tool.
+
+## New Bolna agents (created 2026-11-21, separate from the old ones)
+
+The old "Gulf Saathi" and "Saathi Check-in agent" were not changed.
+
+| Agent | ID | Points to |
+|---|---|---|
+| Saathi Harness Helpline (hackathon) | `209a9a4e-aea2-4094-ba33-0fbda791bb4c` | `/tools/check-agent`, `/tools/check-fee`, `/tools/report-problem`, webhook `/webhooks/saathi` |
+| Saathi Harness Check-in (hackathon) | `21c64ea5-5b61-4988-bcdf-4b340ca77778` | `/tools/record-checkin`, webhook `/webhooks/saathi` |
+
+**How they're set up:**
+- Speech-to-text: Sarvam `saaras:v3` with **language `te`**, plus keywords.
+- Voice: Sarvam `bulbul:v3`, Telugu.
+- Every tool sends `caller_said`, the caller's exact words, so the harness reads them itself.
+- Endpointing: 400 ms.
+
+**After deploying to Vercel:**
+1. Replace `https://YOUR-SAATHI-HARNESS.vercel.app` in both agents' tool URLs and webhook with the real URL.
+2. Set `BOLNA_CHECKIN_AGENT_ID=21c64ea5-5b61-4988-bcdf-4b340ca77778`.
+3. Test one call. **Things to check:**
+   - The Telugu voice: Ashutosh with language `te` is untested; switch to a Telugu voice in the dashboard if it sounds wrong.
+   - Whether the welcome message's `{worker_name}` gets filled in.
