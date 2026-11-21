@@ -13,7 +13,7 @@
   "crons": [
     {
       "path": "/api/saathi/cron",
-      "schedule": "0 * * * *"
+      "schedule": "30 3 * * *"
     }
   ]
 }

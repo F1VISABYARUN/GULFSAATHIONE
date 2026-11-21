@@ -45,4 +45,4 @@ The old "Gulf Saathi" and "Saathi Check-in agent" were not changed.
   - Upstash Redis if `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (Vercel KV's `KV_REST_API_URL` and `KV_REST_API_TOKEN` also work).
   - Otherwise memory on Vercel, or a JSON file locally.
   - Add Upstash from Vercel → Storage → Marketplace; it fills the variables.
-- **Cron:** `vercel.json` runs `GET /api/saathi/cron` every hour. Set `CRON_SECRET` in Vercel. Note: Vercel's Hobby plan may limit how often crons can run; check your plan.
+- **Cron:** `vercel.json` runs `GET /api/saathi/cron` **once a day** (03:30 UTC), because Vercel's Hobby plan allows only daily crons; an hourly schedule failed the deploy. For arrival calls within hours, point a free external cron (e.g. cron-job.org) at `/api/saathi/cron` every 15–60 minutes with header `Authorization: Bearer $CRON_SECRET`.
