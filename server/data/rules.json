@@ -1,0 +1,5 @@
+{
+  "_note": "Fee cap per MEA advisories: Rs 30,000 + 18% GST. VERIFY the current figure on emigrate.gov.in before demo.",
+  "feeCapINR": 30000,
+  "gstRate": 0.18
+}
