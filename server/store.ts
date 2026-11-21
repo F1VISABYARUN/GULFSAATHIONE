@@ -4,7 +4,7 @@
 //  - memory (STORE=memory) — tests / quick demos
 //  - JSON file (default) — local machine / VM
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CaseSlots } from './harness/types.ts';
@@ -14,6 +14,7 @@ export interface WorkerRec {
   name?: string;
   phone: string;
   familyPhone?: string;
+  familySms?: import('./family-sms.ts').SmsRecord;
   district?: string;
   promise: CaseSlots;
   destCity?: string;
@@ -51,6 +52,7 @@ async function load(): Promise<Db> {
     const { url, token } = redisEnv()!;
     const r = await fetch(`${url}/get/${encodeURIComponent(KEY)}`, { headers: { authorization: `Bearer ${token}` } });
     const j: any = await r.json();
+    if (!r.ok || j.error) throw Error('Redis read failed');
     return j.result ? JSON.parse(j.result) : { workers: [], calls: [] };
   }
   return existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : { workers: [], calls: [] };
@@ -64,30 +66,65 @@ async function save(db: Db) {
     return;
   }
   mkdirSync(dirname(FILE), { recursive: true });
-  writeFileSync(FILE, JSON.stringify(db, null, 2));
+  writeFileSync(FILE + ".tmp", JSON.stringify(db, null, 2));
+  renameSync(FILE + ".tmp", FILE);
 }
 
-// Small single-document store: fine for a pilot (hundreds of workers). Move to Postgres beyond that.
+// Optimistic compare-and-set across Redis clients. Serialize local memory/file writers.
+let pending = Promise.resolve();
+async function mutate<T>(edit: (db: Db) => T): Promise<T> {
+  if (backend() === 'redis') {
+    const { url, token } = redisEnv()!;
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    async function command(args: unknown[]) {
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(args) });
+      const data = await res.json();
+      if (!res.ok || data.error) throw Error('Redis mutation failed');
+      return data.result;
+    }
+    for (let i = 0; i < 16; i++) {
+      const before = await command(['GET', KEY]);
+      const db: Db = before ? JSON.parse(before) : { workers: [], calls: [] };
+      const value = edit(db);
+      const script = "if (redis.call('GET',KEYS[1]) or '') == ARGV[1] then redis.call('SET',KEYS[1],ARGV[2]); return 1 end return 0";
+      if (await command(['EVAL', script, 1, KEY, before ?? '', JSON.stringify(db)])) return value;
+    }
+    throw Error('Worker store busy');
+  }
+  const task = pending.then(async () => {
+    const db = await load();
+    const value = edit(db);
+    await save(db);
+    return value;
+  });
+  pending = task.then(() => {}, () => {});
+  return task;
+}
+
 export const store = {
   async addWorker(w: Omit<WorkerRec, 'status' | 'riskLevel' | 'reasons' | 'createdAt'>): Promise<WorkerRec> {
-    const db = await load();
-    const rec: WorkerRec = { ...w, status: 'registered', riskLevel: 'ok', reasons: [], createdAt: new Date().toISOString() };
-    db.workers = [...db.workers.filter(x => x.caseId !== w.caseId), rec];
-    await save(db);
-    return rec;
+    return mutate(db => {
+      const existing = db.workers.find(x => x.caseId === w.caseId);
+      if (existing) return existing;
+      const rec: WorkerRec = { ...w, status: 'registered', riskLevel: 'ok', reasons: [], createdAt: new Date().toISOString() };
+      db.workers.push(rec);
+      return rec;
+    });
   },
   async worker(caseId: string) { return (await load()).workers.find(w => w.caseId === caseId); },
   async workers() { return (await load()).workers; },
-  async updateWorker(caseId: string, patch: Partial<WorkerRec>) {
-    const db = await load();
-    const w = db.workers.find(x => x.caseId === caseId);
-    if (w) Object.assign(w, patch);
-    await save(db);
-    return w;
+  async change<T>(caseId: string, edit: (w: WorkerRec) => T) {
+    return mutate(db => {
+      const w = db.workers.find(x => x.caseId === caseId);
+      return w ? edit(w) : undefined;
+    });
   },
-  async addCall(c: CallRec) { const db = await load(); db.calls.push(c); await save(db); return c; },
+  async updateWorker(caseId: string, patch: Partial<WorkerRec>) {
+    return this.change(caseId, w => Object.assign(w, patch));
+  },
+  async addCall(c: CallRec) { return mutate(db => { db.calls.push(c); return c; }); },
   async calls(caseId?: string) { return (await load()).calls.filter(c => !caseId || c.caseId === caseId); },
-  async reset() { await save({ workers: [], calls: [] }); },
+  async reset() { await mutate(db => { db.workers = []; db.calls = []; }); },
 };
 
 export function newCaseId(): string {

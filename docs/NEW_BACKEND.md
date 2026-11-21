@@ -46,3 +46,6 @@ The old "Gulf Saathi" and "Saathi Check-in agent" were not changed.
   - Otherwise memory on Vercel, or a JSON file locally.
   - Add Upstash from Vercel → Storage → Marketplace; it fills the variables.
 - **Cron:** `vercel.json` runs `GET /api/saathi/cron` **once a day** (03:30 UTC), because Vercel's Hobby plan allows only daily crons; an hourly schedule failed the deploy. For arrival calls within hours, point a free external cron (e.g. cron-job.org) at `/api/saathi/cron` every 15–60 minutes with header `Authorization: Bearer $CRON_SECRET`.
+
+### Family SMS
+On first entry into high/critical risk, reserve one notification for the family phone. Configure MSG91_AUTH_KEY and MSG91_TEMPLATE_ID with an approved Telugu template matching familyMessage and a single case_id variable. Family phone numbers must include their country code. The worker record holds familySms.sentAt (attempt time) and status. Missing settings produce dry-run. Provider acceptance is not delivery confirmation. Pending/failed attempts require operator reconciliation before any manual resend. Run a single process for file storage or use Redis for shared workers.

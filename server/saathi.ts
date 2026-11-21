@@ -8,6 +8,7 @@ import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
 import { assessRisks, type Risk } from './risk/engine.ts';
 import { checkAgent } from './risk/agents.ts';
 import { store, newCaseId, type WorkerRec } from './store.ts';
+import { familyProvider, type SmsStatus } from './family-sms.ts';
 import type { CaseSlots } from './harness/types.ts';
 
 const FEE_CAP = 30000 * 1.18;
@@ -28,20 +29,31 @@ export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolea
   }[level];
 }
 
-async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string) {
+export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider()) {
   const w = await store.worker(caseId);
   const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
   const level = levelOf(risks);
   await store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id) });
-  if (w) {
-    const worse = LEVEL[level] > LEVEL[w.riskLevel];
-    await store.updateWorker(caseId, {
-      riskLevel: worse ? level : w.riskLevel,
-      reasons: [...new Set([...w.reasons, ...risks.map(r => r.id)])],
-      status: level === 'critical' || level === 'high' ? 'alert' : w.status === 'registered' ? 'abroad' : w.status,
-    });
+  const target = await store.change(caseId, worker => {
+    const alert = level === 'critical' || level === 'high';
+    const crossing = LEVEL[worker.riskLevel] < LEVEL.high && alert;
+    if (LEVEL[level] > LEVEL[worker.riskLevel]) worker.riskLevel = level;
+    worker.reasons = [...new Set([...worker.reasons, ...risks.map(r => r.id)])];
+    if (worker.status === 'closed') return;
+    if (alert) worker.status = 'alert';
+    else if (worker.status === 'registered') worker.status = 'abroad';
+    if (crossing && worker.familyPhone && !worker.familySms) {
+      worker.familySms = { sentAt: new Date().toISOString(), status: 'pending' };
+      return worker.familyPhone;
+    }
+  });
+  let smsStatus: SmsStatus | undefined;
+  if (target) {
+    try { smsStatus = await sms.send(target, caseId); } catch { smsStatus = 'failed'; }
+    const status = smsStatus;
+    await store.change(caseId, worker => { if (worker.familySms) worker.familySms.status = status; });
   }
-  return { risks, level };
+  return { risks, level, smsStatus };
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -115,8 +127,8 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (b.salary_received === 'no') slots.salaryPaid = false;
     if (b.code_phrase_used === 'yes') slots.codePhrase = true;
     if (b.movement_restricted === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'confinement'])];
-    const { risks, level } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
-    res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) });
+    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
+    res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) + (smsStatus === 'delivered' && !slots.codePhrase ? ' మీ కుటుంబానికి సమాచారం అందింది.' : '') });
   };
   app.post('/tools/report-problem', guard, record);
   app.post('/tools/record-checkin', guard, record);
