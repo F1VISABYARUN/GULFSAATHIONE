@@ -35,8 +35,8 @@ test('bilingual disclosure and both consents before capture; each speaker approv
   f.session.played(f.marks.at(-1)!); await f.session.digit('1'); await f.turn('1'); assert.deepEqual(f.stt,[]);
   await f.session.digit('2'); await f.turn('1');
   assert.deepEqual(f.stt,['te']); assert.ok(f.spoken.includes('te TE check'));
-  await f.session.digit('3'); assert.ok(!f.spoken.includes('ar AR translation'));
-  f.session.played(f.marks.at(-1)!); await f.session.digit('3'); assert.ok(f.spoken.includes('ar AR translation'));
+  await f.session.digit('3'); assert.ok(!f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR translation')));
+  f.session.played(f.marks.at(-1)!); await f.session.digit('3'); assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR translation')));
   f.session.played(f.marks.at(-1)!); await f.turn('2'); f.session.played(f.marks.at(-1)!);
   await f.session.digit('3'); assert.deepEqual(f.stt,['te','ar']); assert.ok(f.spoken.includes('te TE translation'));
 });
@@ -46,13 +46,13 @@ test('interruption invalidates a delayed translation and clears playback',async(
   const f=fixture({translate:async()=>{started();return new Promise(resolve=>{complete=resolve;});}});
   await f.consent(); const pending=f.turn('1'); await pendingStart; await f.session.digit('0');
   complete(ok); await pending; await f.session.digit('3');
-  assert.ok(!f.spoken.includes('ar AR translation')); assert.ok(f.cleared.length>0);
+  assert.ok(!f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR translation'))); assert.ok(f.cleared.length>0);
 });
 test('silence, excessive input and failed locks request another turn; emergencies exclusively hand off', async()=>{
   const f=fixture({translate:async()=>({...ok,locked_ok:false})});
   await f.consent(); await f.session.digit('1'); await f.session.media(Buffer.alloc(8000,255)); await f.session.digit('#');
   assert.deepEqual(f.stt,[]); await f.session.digit('1'); await f.session.media(Buffer.alloc(8000*25));
-  assert.deepEqual(f.stt,[]); await f.turn('1'); assert.ok(!f.spoken.includes('ar AR translation'));
+  assert.deepEqual(f.stt,[]); await f.turn('1'); assert.ok(!f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR translation')));
   const e=fixture({translate:async()=>({status:'emergency'})}); await e.consent(); await e.turn('1'); await e.turn('2');
   assert.deepEqual(e.stops,['handoff']); assert.equal(e.stt.length,1); assert.equal(e.spoken.length,2);
 });
@@ -125,14 +125,14 @@ test('a flagged amount is read back to its speaker and relayed only after key 3'
   f.session.played(f.marks.at(-1)!); await f.session.digit('3');
   assert.deepEqual(calls,[false,true]); assert.ok(f.spoken.includes('te TE check'));
   await f.session.digit('3'); f.session.played(f.marks.at(-1)!); await f.session.digit('3');
-  assert.ok(f.spoken.includes('ar AR translation'));
+  assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR translation')));
 });
 test('a correction replaces the flagged amount and is never sent confirmed',async()=>{
   const said=['ఐదు లక్షలు ఇవ్వలేదు','యాభై వేలు ఇవ్వలేదు']; const texts:string[]=[];
   const f=fixture({stt:async()=>said.shift()!,translate:async(t,_f,_to,c)=>{texts.push(t+(c?'!':''));return t.startsWith('ఐదు')?{status:'needs_confirm'}:ok;}});
   await f.consent(); await f.turn('1'); f.session.played(f.marks.at(-1)!); await f.turn('1');
   assert.deepEqual(texts,['ఐదు లక్షలు ఇవ్వలేదు','యాభై వేలు ఇవ్వలేదు']);
-  await f.session.digit('3'); assert.ok(!f.spoken.includes('ar AR translation'));
+  await f.session.digit('3'); assert.ok(!f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR translation')));
 });
 test('a private phrase triggers a silent desk alert, no transfer and no confirmation',async()=>{
   const alerts:string[]=[];
@@ -158,14 +158,14 @@ function agentFixture(steps:AgentStep[],said:string[],over:Partial<AgentServices
 }
 test('agent speaks for the worker, answers in the other language and reports back in Telugu',async()=>{
   const f=agentFixture([{say_to_other:'AR hello',say_to_worker:'సరే చెప్పాను'}],['టికెట్ కావాలి']);
-  await f.begin(); assert.ok(f.spoken.some(x=>x.startsWith('te చెప్పండి'))); await f.turn();
-  assert.ok(f.spoken.includes('ar AR hello')); assert.ok(f.spoken.includes('te సరే చెప్పాను'));
+  await f.begin(); assert.ok(f.spoken.some(x=>x.startsWith('te నమస్కారం'))); await f.turn();
+  assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR hello'))); assert.ok(f.spoken.includes('te సరే చెప్పాను'));
 });
 test('agent never says a number nobody said and never answers an amount before the worker decides',async()=>{
   const f=agentFixture([{say_to_other:'I pay 500',say_to_worker:'సరే'},{say_to_other:'OK',say_to_worker:'వాళ్ళు 300 అన్నారు'}],['టికెట్ కావాలి','سعر التذكرة 300']);
   await f.begin(); await f.turn();
   assert.ok(!f.spoken.some(x=>x.includes('500'))); assert.ok(f.spoken.some(x=>x.startsWith('te ఈ సంఖ్య')));
-  await f.turn(); assert.ok(!f.spoken.includes('ar OK')); assert.ok(f.spoken.includes('te వాళ్ళు 300 అన్నారు'));
+  await f.turn(); assert.ok(!f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('OK'))); assert.ok(f.spoken.includes('te వాళ్ళు 300 అన్నారు'));
 });
 test('agent refuses a Telugu report that drops the other speaker number and asks them to repeat',async()=>{
   const f=agentFixture([{say_to_other:'AR hi',say_to_worker:'సరే'},{say_to_other:'',say_to_worker:'ఎక్కువ ధర'}],['టికెట్ కావాలి','سعر التذكرة 300']);
@@ -175,7 +175,7 @@ test('agent: private phrase is silent, emergency transfers, failed transfer keep
   const alerts:string[]=[];
   const phrase='ఈ రోజు నేను మాట్లాడలేను';
   const c=agentFixture([],[phrase],{check:async()=>'covert',alert:async t=>{alerts.push(t);}});
-  await c.begin(); await c.turn(); assert.deepEqual(alerts,[phrase]); assert.deepEqual(c.stops,[]); assert.equal(c.spoken.length,3);
+  await c.begin(); await c.turn(); assert.deepEqual(alerts,[phrase]); assert.deepEqual(c.stops,[]); assert.equal(c.spoken.length,1);
   const e=agentFixture([],[phrase],{check:async()=>'emergency'}); await e.begin(); await e.turn(); assert.deepEqual(e.stops,['handoff']);
   const g=agentFixture([],[phrase],{check:async()=>'emergency',handoff:async()=>{throw Error('x');}}); await g.begin(); await g.turn();
   assert.ok(g.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.ok(!g.stops.includes('close'));
@@ -201,11 +201,17 @@ test('Telugu speech uses Cartesia when a key is set and falls back to OpenAI; Te
   assert.equal((await svc.speak('నమస్కారం','te')).length,100);   // Cartesia failed, OpenAI answered
 });
 
-test('agent mode opening has no keypad instructions and speaks both languages',async()=>{
-  const f=agentFixture([],[]); await f.begin();
-  assert.ok(f.spoken[0].startsWith('te నేను సాథి')); assert.ok(f.spoken[1].startsWith('ar أنا مساعد'));
-  assert.ok(!f.spoken.some(x=>/اثنين|ثلاثة|مربع|హాష్|ఒకటి నొక్కి/.test(x)));
+test('agent opening is a short Telugu greeting; the AI notice goes to the other person once, with the first thing said to them',async()=>{
+  const f=agentFixture([{say_to_other:'AR one',say_to_worker:''},{say_to_other:'AR two',say_to_worker:''}],['టికెట్ కావాలి','ఇంకొకటి కావాలి']);
+  await f.begin();
+  assert.deepEqual(f.spoken,['te నమస్కారం, నేను సాథి. చెప్పండి, ఏం కావాలి?']);
+  assert.ok(!f.spoken.some(x=>/నొక్కండి|సున్నా|اضغط|press/i.test(x)));
+  await f.turn(); const first=f.spoken.find(x=>x.endsWith('AR one'))!;
+  assert.ok(first.startsWith('ar أنا مساعد'));
+  await f.turn(); const second=f.spoken.find(x=>x.endsWith('AR two'))!;
+  assert.equal(second,'ar AR two');
 });
+
 
 test('agent ignores noise, its own voice and speech from the other person before the worker has stated a goal',async()=>{
   const steps=[{say_to_other:'AR hello',say_to_worker:'వాళ్ళకు చెప్పాను'}];
@@ -213,7 +219,7 @@ test('agent ignores noise, its own voice and speech from the other person before
   await f.begin(); const before=f.spoken.length;
   await f.turn(); await f.turn();                 // junk, then Arabic before any goal
   assert.equal(f.spoken.length,before); assert.equal(steps.length,1);
-  await f.turn(); assert.ok(f.spoken.includes('ar AR hello'));    // the worker's Telugu goal starts the conversation
+  await f.turn(); assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR hello')));    // the worker's Telugu goal starts the conversation
 });
 test('agent: short sound is ignored and a non-Telugu report to the worker is dropped',async()=>{
   const f=agentFixture([{say_to_other:'',say_to_worker:'I told them'}],['టికెట్ కావాలి']);
@@ -231,7 +237,7 @@ test('caller can interrupt the opening: sustained voice clears our audio and is 
   for(let i=0;i<30;i++) await session.media(Buffer.alloc(160,0));   // 0.6 s of voice over our speech
   assert.equal(cleared.length,1);
   await session.media(Buffer.alloc(6000,255));            // silence ends the turn
-  assert.ok(spoken.includes('ar AR hi'));
+  assert.ok(spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR hi')));
 });
 test('if Plivo never confirms playback the agent still starts listening',async()=>{
   const said=['టికెట్ కావాలి']; const marks:string[]=[]; const spoken:string[]=[];
@@ -240,7 +246,7 @@ test('if Plivo never confirms playback the agent still starts listening',async()
   const session=new AgentSession('ar',service,{play:(_b,m)=>marks.push(m),clear:()=>{},close:()=>{}},0);
   await session.start(); await new Promise(r=>setTimeout(r,3100));       // empty audio: fallback fires after 3 s
   await session.media(Buffer.alloc(4000,0)); await session.media(Buffer.alloc(6000,255));
-  assert.ok(spoken.includes('ar AR hi'));
+  assert.ok(spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR hi')));
 });
 
 test('non-Telugu speech is heard again with the target-language hint and Sarvam text is not used for it',async t=>{
