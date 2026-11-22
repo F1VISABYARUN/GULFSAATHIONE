@@ -269,18 +269,36 @@ def parse_bolna_transcript(transcript: str) -> list[dict]:
         if m.group(1) == 'assistant':
             last = m.group(2).strip()
         elif m.group(2).strip():
-            turns.append({'text': m.group(2).strip(), 'q': last if last.rstrip().endswith('?') else None})
+            turns.append({'text': m.group(2).strip(), 'q': last if last.rstrip().endswith(('?', '？')) else None})
     return turns
+
+
+def _salary_receipt(question: str, answer: str) -> bool | None:
+    """Attribute a short answer only to a single positive salary-receipt question."""
+    q = question.lower()
+    if not re.search(r'జీతం|salary|wages|jeetham|jitham|वेतन|तनख्वाह|వేతనం|వేతనము', q):
+        return None
+    if not re.search(r'मिला|मिली|వచ్చిందా|అందిందా|ఇచ్చారా|పడ్డదా|పడిందా|paid|receiv|did you get|vachinda', q):
+        return None
+    if re.search(r"\b(or|and|how|when|where|who|why|not|never)\b|n['’]t|ఎంత|ఎప్పుడు|లేదా|రాలేదా|ఇవ్వలేదా|అందలేదా|[?？].+\S", q):
+        return None
+    a = answer.strip().lower().rstrip('.,!?।？').strip()
+    if re.fullmatch(r"no|nope|not yet|i (?:didn['’]t|did not) (?:get|receive) it|नहीं|नाही|they (?:didn['’]t|did not) (?:give|pay)(?: (?:it|me))?|లేదు|లేదు అండి|లేదండి|రాలేదు|రాలేదండి|ఇవ్వలేదు|ఇవ్వలేదండి|అందలేదు|లేదు సార్|ledu|raaledu|raledu", a):
+        return False
+    if re.fullmatch(r'yes|yes i did|received|i (?:got|received) it|అవును|అవునండి|వచ్చింది|వచ్చిందండి|అందింది|పడింది|हाँ|हां|avunu|vachindi', a):
+        return True
+    return None
 
 
 def _with_questions(turns: list[dict]) -> str:
     parts = []
     for t in turns:
         a, q = t['text'], t.get('q') or ''
-        if q and _NEG.search(a):
-            if re.search('జీతం|salary', q, re.I):
-                a += ' [జీతం రాలేదు]'
-            elif re.search('పాస్‌?పోర్ట్|passport', q, re.I):
+        paid = _salary_receipt(q, a)
+        if paid is not None:
+            a += ' [jeetham paid]' if paid else ' [జీతం రాలేదు]'
+        elif q and _NEG.search(a):
+            if re.search('పాస్‌?పోర్ట్|passport', q, re.I):
                 a += ' [పాస్పోర్ట్ లేదు]'
             elif re.search('తీసుకెళ్ల|వాళ్లేనా', q) and re.search('వేరే|కొత్త', a):
                 a += ' [వేరే వాళ్ళు తీసుకెళ్లారు]'

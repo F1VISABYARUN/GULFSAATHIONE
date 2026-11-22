@@ -52,6 +52,15 @@ def test_safety_net_on_bolna_transcript():
 
 
 
+def test_salary_receipt_needs_clear_evidence():
+    q = 'ఈ నెల జీతం వచ్చిందా?'
+    for answer in ['అదలక', 'లేదు, బస్సు లేదు']:
+        assert 'salary_paid' not in normalize(turns=[{'q': q, 'text': answer}])
+    assert normalize(turns=[{'q': q, 'text': 'అవును'}])['salary_paid'] is True
+    assert normalize(turns=[{'q': q, 'text': "I didn't get it"}])['salary_paid'] is False
+    assert 'salary_paid' not in normalize(turns=[{'q': "Didn't you receive salary?", 'text': 'no'}])
+
+
 def test_example_app():
     try:
         from fastapi.testclient import TestClient
