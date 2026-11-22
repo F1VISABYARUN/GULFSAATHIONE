@@ -280,3 +280,35 @@ test('Telugu speech that OpenAI labels as another language is taken from Sarvam;
   globalThis.fetch=(async(_i:RequestInfo|URL,init?:RequestInit)=>Response.json({status:'transcribed',text:String((init?.body as FormData).get('model'))==='saaras:v3'?'':'Hello'})) as typeof fetch;
   assert.equal(await svc.stt(Buffer.alloc(80,0),''),'');                          // nothing usable -> ignore
 });
+
+test('a bare "okay" is ignored, and an agreement before the other person proposed anything is blocked',async()=>{
+  const f=agentFixture([],['సరే సరే']); await f.begin(); const before=f.spoken.length; await f.turn();
+  assert.equal(f.spoken.length,before);                                    // filler: no thinking, no speaking
+  const g=agentFixture([{say_to_other:'نعم، موافق على السعر.',say_to_worker:''}],['టికెట్ కావాలి']);
+  await g.begin(); const spokenBefore=g.spoken.length; await g.turn();
+  assert.equal(g.spoken.length,spokenBefore);                              // invented agreement never spoken
+});
+test('the AI notice is repeated if the first message to the other person was interrupted before it finished',async()=>{
+  const steps=[{say_to_other:'AR one',say_to_worker:''},{say_to_other:'AR two',say_to_worker:''}];
+  const f=agentFixture(steps,['టికెట్ కావాలి','ఇంకొకటి కావాలి']);
+  await f.begin(); await f.session.media(Buffer.alloc(4000,0)); await f.session.media(Buffer.alloc(5000,255)); // goal heard, first message queued
+  for(let i=0;i<30;i++) await f.session.media(Buffer.alloc(160,0));       // caller talks over it: interrupted, never marked as delivered
+  await f.session.media(Buffer.alloc(5000,255));
+  const second=f.spoken.find(x=>x.endsWith('AR two'))!;
+  assert.ok(second.startsWith('ar أنا مساعد'));
+});
+test('the model can call a tool and its answer is used; tool results come from our own endpoints',async t=>{
+  const original=globalThis.fetch; const urls:string[]=[]; let round=0;
+  t.after(()=>{globalThis.fetch=original;});
+  globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(input); urls.push(url);
+    if(url.includes('/tools/find-place')) return Response.json({sayTe:'దుబాయ్ మాల్ దగ్గర పోలీస్ స్టేషన్ ఉంది.'});
+    round++;
+    if(round===1) return Response.json({choices:[{message:{role:'assistant',content:null,tool_calls:[{id:'c1',type:'function',function:{name:'find_place',arguments:JSON.stringify({caller_said:'దుబాయ్ మాల్',what:'police',city:''})}}]}}]});
+    return Response.json({choices:[{message:{content:JSON.stringify({say_to_other:'',say_to_worker:'దుబాయ్ మాల్ దగ్గర పోలీస్ స్టేషన్ ఉంది.'})}}]});
+  }) as typeof fetch;
+  const {agentServices}=await import('../interpreter/providers.ts');
+  const svc=agentServices(cfg,'call',undefined,'+919999999999');
+  const step=await svc.think([{who:'worker',text:'నాకు పోలీస్ స్టేషన్ కావాలి'}],'ar');
+  assert.equal(step.say_to_worker,'దుబాయ్ మాల్ దగ్గర పోలీస్ స్టేషన్ ఉంది.'); assert.ok(urls.some(u=>u.includes('api.example/tools/find-place')));
+});

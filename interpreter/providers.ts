@@ -81,15 +81,39 @@ How to sound: natural and brief, like a person helping a friend. Never announce 
 - When OTHER speaks: say_to_worker reports faithfully what they said (every number, name, time, and any "not"/"no") in one or two short Telugu sentences, then at most one short question if a decision is needed. say_to_other stays empty unless a harmless clarifying question is needed.
 - When WORKER states a goal or decision, speak for them in ${lang}. Do not invent facts, names, amounts, dates or documents about the worker.
 - Never agree to a price, payment, contract, handing over a passport or ID, or signing: ask the worker in Telugu first and wait for a clear yes or no.
+- Tools: when the worker asks YOU for help (find a place, directions, visa ending or expired, check an agent or a fee, trouble), call the matching tool, then put its returned Telugu (sayTe or instruction) in say_to_worker, word for word, and say nothing to the other person. Never invent a place, fee, fine or date that a tool did not return.
 - The worker may also talk to YOU (greetings, "can you hear me?", "do you speak Telugu?", questions about what you will do): answer those in Telugu only, in a few words, and say nothing to the other person. Speak to the other person only for what the worker wants told or asked.
 - Do not offer help, ask "what do you need" or add pleasantries after the opening. Say nothing unless there is something to say to the other person or something the worker must know or decide.
 - If the worker has not yet said what they need, say nothing to the other person and ask the worker in Telugu. Never speak to the other person first.
 - If you did not understand, ask for repetition in the right language. done=true only when the worker's goal is finished or they say goodbye.
-Example. WORKER: "నాకు హైదరాబాద్ టికెట్ కావాలి" -> {"say_to_other":"I would like a ticket to Hyderabad, please.","say_to_worker":"","done":false}. OTHER: "It is 200 dirhams" -> {"say_to_other":"","say_to_worker":"వాళ్ళు 200 దిర్హామ్స్ అంటున్నారు. సరేనా?","done":false}.`;
+Example. WORKER: "నాకు హైదరాబాద్ టికెట్ కావాలి" -> {"say_to_other":"I would like a ticket to Hyderabad, please.","say_to_worker":"","done":false}. OTHER: "It is 200 dirhams" -> {"say_to_other":"","say_to_worker":"వాళ్ళు 200 దిర్హామ్స్ అంటున్నారు. సరేనా?","done":false}. WORKER: "వినిపిస్తుందా?" -> {"say_to_other":"","say_to_worker":"వినిపిస్తోంది.","done":false}. WORKER: "సరే" with nothing proposed yet -> {"say_to_other":"","say_to_worker":"","done":false}.`;
 
-export function agentServices(config: Config, call: string, caseId?: string): AgentServices {
+const TOOL_PATHS: Record<string,string> = { find_place:'/tools/find-place', directions:'/tools/directions', exit_path:'/tools/exit-path',
+  check_agent:'/tools/check-agent', check_fee:'/tools/check-fee', report_problem:'/tools/report-problem' };
+const tool = (name: string, description: string, props: Record<string,string>) => ({type:'function', function:{name, description,
+  parameters:{type:'object', properties:Object.fromEntries(Object.entries(props).map(([k,v])=>[k,{type:'string',description:v}])), required:Object.keys(props).filter(k=>k==='caller_said')}}});
+const TOOL_DEFS = [
+  tool('find_place','Find a pharmacy, hospital, police, embassy, Indian restaurant, bus stop, ATM, temple or mosque near a landmark the WORKER names. Use only when the worker asks YOU for help finding a place, never when they want the other person told something. If no landmark was said, ask the worker for one first.',
+    {caller_said:'The landmark words the worker said, copied exactly.', what:'pharmacy, hospital, police, embassy, Indian restaurant, bus stop, ATM, temple or mosque.', city:'City if known, else empty.'}),
+  tool('directions','Walking or transit directions from a landmark the worker names to a destination.', {caller_said:'The landmark where the worker is, copied exactly.', destination:'Where they want to go.', mode:'walking or transit.', city:'City if known.'}),
+  tool('exit_path','Guided steps when the worker\'s visa is ending or expired, they have no passport, or want to go home. Pass what you know and an empty string for the rest; it returns the next question or the plan.',
+    {caller_said:'The worker\'s exact words.', country:'Country as said, else empty.', visa_type:'visit/tourist, work or residence, else empty.', expiry:'Visa end date exactly as said (or "5 days"), else empty.', passport_with_worker:'yes or no, else empty.', problem:'Problem in a few words, else empty.', intent:'go home or stay, else empty.'}),
+  tool('check_agent','Check a recruiting agent against the government registered list.', {caller_said:'The worker\'s exact words.', agency:'Agency name, else empty.', owner:'Agent name, else empty.', district:'District, else empty.', licence_no:'RC or RA number, else empty.'}),
+  tool('check_fee','Check money paid or asked by an agent against the legal limit. Never add numbers yourself.', {caller_said:'The worker\'s exact words.', payments:'Each payment in rupees as digits, separated by semicolons.'}),
+  tool('report_problem','Record that the worker is in trouble (passport taken, not paid, locked in, stranger took them, no food). Call at once, then say its instruction.', {caller_said:'The worker\'s exact words.', threatened:'yes if beaten or threatened, else empty.', taken_by_stranger:'yes if someone other than the employer took them, else empty.', passport_with_worker:'no if the passport was taken, else empty.'}),
+];
+
+export function agentServices(config: Config, call: string, caseId?: string, from?: string): AgentServices {
   const base = services(config, call, caseId);
   const headers = { 'x-saathi-secret': config.secret, 'content-type': 'application/json' };
+  const phone = from && /^\+?\d{6,15}$/.test(from) ? from : '';
+  async function runTool(name: string, args: Record<string,unknown>) {
+    const path = TOOL_PATHS[name];
+    if (!path) return {error: 'unknown tool'};
+    const clean = Object.fromEntries(Object.entries(args).map(([k,v])=>[k, typeof v === 'string' ? v.slice(0, 1000) : '']));
+    const response = await checked(config.backend+path, {method:'POST', headers, body:JSON.stringify({...clean, caller_phone: phone, ...(caseId ? {case_id: caseId} : {})})});
+    return response.json();
+  }
   return {
     // Hear with OpenAI (auto language) and Sarvam at the same time. Sarvam's text is used only when OpenAI also heard Telugu
     // (Sarvam is forced to Telugu and would turn other languages into Telugu-looking nonsense).
@@ -134,15 +158,32 @@ export function agentServices(config: Config, call: string, caseId?: string): Ag
       const result = await response.json();
       return result.covert ? 'covert' : result.status === 'emergency' ? 'emergency' : 'ok';
     },
+    // The model may call the same tools as the Bolna Helpline (places, directions, Exit Path, agent and fee checks, problem report).
+    // Each tool is one of our own backend endpoints; its answer comes back to the model, which puts the returned Telugu in say_to_worker.
     async think(history: Turn[], target: string): Promise<AgentStep> {
       const model = process.env.INTERPRETER_AGENT_MODEL || 'gpt-4.1';
-      const response = await checked('https://api.openai.com/v1/chat/completions', {method:'POST',
-        headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
-        body:JSON.stringify({model, response_format:{type:'json_object'}, ...(model.startsWith('gpt-5') ? {reasoning_effort:'low'} : {temperature:0}),
-          messages:[{role:'system',content:AGENT_PROMPT(target)},
-            {role:'user',content:history.slice(-24).map(t=>t.who.toUpperCase()+': '+t.text).join('\n')}]})});
-      const body = await response.json();
-      try { return JSON.parse(body.choices[0].message.content) as AgentStep; } catch { return {}; }
+      const messages: object[] = [{role:'system',content:AGENT_PROMPT(target)},
+        {role:'user',content:history.slice(-24).map(t=>t.who.toUpperCase()+': '+t.text).join('\n')}];
+      for (let round = 0; round < 3; round++) {
+        const response = await checked('https://api.openai.com/v1/chat/completions', {method:'POST',
+          headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
+          body:JSON.stringify({model, response_format:{type:'json_object'}, ...(model.startsWith('gpt-5') ? {reasoning_effort:'low'} : {temperature:0}),
+            messages, ...(round < 2 ? {tools: TOOL_DEFS} : {})})});
+        const body = await response.json();
+        const message = body.choices?.[0]?.message;
+        if (message?.tool_calls?.length) {
+          messages.push(message);
+          for (const callInfo of message.tool_calls) {
+            let result: unknown;
+            try { result = await runTool(callInfo.function?.name, JSON.parse(callInfo.function?.arguments || '{}')); }
+            catch { result = {error: 'tool unavailable'}; }
+            messages.push({role:'tool', tool_call_id: callInfo.id, content: JSON.stringify(result).slice(0, 3000)});
+          }
+          continue;
+        }
+        try { return JSON.parse(message?.content) as AgentStep; } catch { return {}; }
+      }
+      return {};
     },
   };
 }
