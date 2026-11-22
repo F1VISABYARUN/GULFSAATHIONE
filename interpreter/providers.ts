@@ -15,6 +15,8 @@ async function checked(url: string, init: RequestInit) {
   return response;
 }
 
+// Words a Telugu worker in the Gulf mixes into Telugu; helps OpenAI hear them (Sarvam's REST API takes no vocabulary).
+const VOCAB = 'Telugu speaker in the Gulf mixing English words: fever, tablets, medicine, medical shop, pharmacy, police station, passport, visa, iqama, salary, ticket, bus, Dubai Mall, Burj Khalifa, Dubai, Riyadh, Doha, Kuwait, Muscat, embassy, agent.';
 export function services(config: Config, call: string, caseId?: string): Services {
   const headers = { 'x-saathi-secret': config.secret };
   return {
@@ -23,6 +25,7 @@ export function services(config: Config, call: string, caseId?: string): Service
       form.append('audio', new Blob([new Uint8Array(wavFromMulaw(audio))], {type:'audio/wav'}), 'turn.wav');
       form.append('language', language);
       form.append('model', process.env.INTERPRETER_STT_MODEL || 'gpt-4o-transcribe');
+      if (!language || language === 'te') form.append('prompt', VOCAB);
       const response = await checked(config.backend+'/api/saathi/stt', {method:'POST', headers, body:form});
       const result = await response.json();
       return result.status === 'transcribed' && typeof result.text === 'string' ? result.text : '';
@@ -82,6 +85,7 @@ const AGENT_PROMPT = (lang: string) => `${PERSONA}
 The worker (Telugu) and another person who speaks ${lang} are on one phone call; both hear you. The rules above (calm elder brother, simple spoken Telugu, short, listen first, never promise) govern what you say TO THE WORKER. What you say to the other person is in ${lang}, in the first person AS the worker.
 You receive the conversation so far as WORKER (Telugu), OTHER (${lang}) and AGENT (your earlier words). Reply with JSON {"say_to_other": string, "confirm_te": string, "say_to_worker": string, "done": boolean}.
 - NOTHING you put in say_to_other is spoken until the worker says yes. Whenever say_to_other is not empty, ALSO fill confirm_te: ONE Telugu sentence that tells the worker what you are about to say and asks permission, e.g. ఆయనకు 'నేను మెడికల్ షాప్ లో ఉన్నాను, నాకు సహాయం కావాలి' అని చెప్పమంటారా? Never speak to the other person before the worker has described what they want.
+- Two speech recognisers listen. Text in [second recogniser heard: ...] is the other one's guess. Telugu workers mix English words (fever, tablets, ticket, pharmacy); when the two disagree choose the sensible meaning, and if you are still not sure of a word, ask the worker to say it again instead of guessing (never turn a word into a brand or product name).
 - Natural and brief, like a person helping a friend. Never announce what you are doing ("I will translate"), never greet again, never explain who you are: the opening and the notice already did that.
 - say_to_other: in ${lang}, short, first person AS the worker. Empty if nothing should be said to them now.
 - say_to_worker: Telugu letters only, and ONLY when the worker needs to know or decide something, or asked YOU something. Empty when you simply spoke for them.
@@ -144,7 +148,11 @@ export function agentServices(config: Config, call: string, caseId?: string, fro
       const [heard, sv] = await Promise.all([base.stt(audio, language), sarvam()]);
       const telugu = /[\u0C00-\u0C7F]/, arabicScript = /[\u0600-\u06FF\u0750-\u077F]/;
       const svTelugu = sv.lang ? sv.lang.toLowerCase().startsWith('te') : telugu.test(sv.text);
-      if (telugu.test(heard) || svTelugu) return telugu.test(sv.text) ? sv.text : telugu.test(heard) ? heard : '';
+      if (telugu.test(heard) || svTelugu) {
+        const text = telugu.test(sv.text) ? sv.text : telugu.test(heard) ? heard : '';
+        const other = text === sv.text ? heard : sv.text;            // the other ear's guess helps the model when the two disagree
+        return other.trim() && other.trim() !== text ? {text, alt: other.trim()} : text;
+      }
       const relisten = async () => {
         if (!heard.trim() || !config.target) return heard;
         try { const hinted = (await base.stt(audio, config.target)).trim(); if (hinted) return hinted; } catch { /* keep the first result */ }
@@ -155,6 +163,16 @@ export function agentServices(config: Config, call: string, caseId?: string, fro
     },
     speak: (text, language) => base.speak(text, language),
     handoff: () => base.handoff(),
+    // Literal Telugu meaning of the message we are about to speak, so the worker can check what will actually be said.
+    async backTranslate(text, from) {
+      const response = await checked('https://api.openai.com/v1/chat/completions', {method:'POST',
+        headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
+        body:JSON.stringify({model: process.env.INTERPRETER_BACK_MODEL || 'gpt-4.1-mini', temperature: 0, messages:[
+          {role:'system',content:'Translate the user\'s '+from+' text into simple spoken Telugu, literally. Do not add, remove or improve anything. Keep brand names and English words as they are. Return only the Telugu.'},
+          {role:'user',content:text}]})});
+      const body = await response.json();
+      return String(body.choices?.[0]?.message?.content ?? '').trim();
+    },
     async report(text) {
       const result = await runTool('report_problem', {caller_said: text}) as {instruction?: string};
       return typeof result?.instruction === 'string' ? result.instruction : '';
@@ -172,7 +190,7 @@ export function agentServices(config: Config, call: string, caseId?: string, fro
     async think(history: Turn[], target: string): Promise<AgentStep> {
       const model = process.env.INTERPRETER_AGENT_MODEL || 'gpt-4.1';
       const messages: object[] = [{role:'system',content:AGENT_PROMPT(target)},
-        {role:'user',content:history.slice(-24).map(t=>t.who.toUpperCase()+': '+t.text).join('\n')}];
+        {role:'user',content:history.slice(-24).map(t=>t.who.toUpperCase()+': '+t.text+(t.alt ? '   [second recogniser heard: '+t.alt+']' : '')).join('\n')}];
       for (let round = 0; round < 3; round++) {
         const response = await checked('https://api.openai.com/v1/chat/completions', {method:'POST',
           headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
