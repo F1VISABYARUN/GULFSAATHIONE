@@ -4,8 +4,9 @@ import { createServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { PhoneSession, disclosure, type Services } from './session.ts';
-import { services, type Config } from './providers.ts';
+import { PhoneSession, disclosure, type Services, type Output } from './session.ts';
+import { services, agentServices, type Config } from './providers.ts';
+import { AgentSession, type AgentServices, type AgentOutput } from './agent.ts';
 
 // Plivo V3 GET canonicalization: URL-decoded, sorted first value of each query key.
 // Routes are fixed ASCII paths. Use the configured public origin behind a TLS proxy.
@@ -19,9 +20,10 @@ export function signed(req: IncomingMessage, url: URL, token: string) {
   return signature.split(',').some(s=>Buffer.byteLength(s) === expected.length && timingSafeEqual(Buffer.from(s), Buffer.from(expected)));
 }
 
-export function createInterpreter(config: Config, makeServices: (c:Config,call:string,caseId?:string)=>Services = services) {
+export function createInterpreter(config: Config, makeServices: (c:Config,call:string,caseId?:string)=>Services = services,
+  makeAgent: (c:Config,call:string,caseId?:string)=>AgentServices = agentServices) {
   if (!Object.hasOwn(disclosure,config.target) || !/^\+[1-9]\d{6,14}$/.test(config.human)) throw Error('Invalid interpreter destination');
-  const tickets = new Map<string,{call:string;caseId?:string;expires:number}>();
+  const tickets = new Map<string,{call:string;caseId?:string;mode:string;expires:number}>();
   const used = new Map<string,number>();
   const ws = new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false});
   const server = createServer((req,res)=>{
@@ -51,7 +53,9 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     const ticket = randomBytes(24).toString('hex');
     const caseId = url.searchParams.get('case_id') ?? undefined;
     if (caseId !== undefined && !/^GS-[a-zA-Z0-9-]{1,48}$/.test(caseId)) { res.writeHead(400).end(); return; }
-    tickets.set(ticket,{call,caseId,expires:now+60000});
+    const mode = url.searchParams.get('mode') ?? config.mode ?? 'agent';
+    if (!['agent','keypad'].includes(mode)) { res.writeHead(400).end(); return; }
+    tickets.set(ticket,{call,caseId,mode,expires:now+60000});
     const address = config.origin.replace(/^https:/,'wss:')+'/media/'+ticket;
     res.end('<Response><Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">'+address+'</Stream></Response>');
   });
@@ -64,7 +68,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     ws.handleUpgrade(req,socket,head,peer=>{
       let stream = '';
       const send = (message:object) => { if (peer.readyState === peer.OPEN) peer.send(JSON.stringify(message)); };
-      const session = new PhoneSession(config.target,makeServices(config,ticket.call,ticket.caseId),{
+      const output: AgentOutput & Output = {
         metric:(event,ms)=>console.info(JSON.stringify({component:'phone-interpreter',event,ms})),
         play:(bytes,name)=>{
           for (let offset = 0; offset < bytes.length; offset += 8000) {
@@ -74,7 +78,10 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
           send({event:'checkpoint',streamId:stream,name});
         },
         clear:()=>send({event:'clearAudio',streamId:stream}),close:()=>peer.close(),
-      });
+      };
+      const session = ticket.mode === 'agent'
+        ? new AgentSession(config.target,makeAgent(config,ticket.call,ticket.caseId),output)
+        : new PhoneSession(config.target,makeServices(config,ticket.call,ticket.caseId),output);
       const timeout = setTimeout(()=>peer.terminate(),30*60*1000).unref();
       const startup = setTimeout(()=>peer.terminate(),15000).unref();
       peer.on('close',()=>{ clearTimeout(timeout); clearTimeout(startup); session.close(); });
@@ -115,5 +122,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
   createInterpreter({origin:origin('INTERPRETER_ORIGIN'),backend:origin('SAATHI_URL'),secret:required('SAATHI_SECRET'),
     authId:required('PLIVO_AUTH_ID'),authToken:required('PLIVO_AUTH_TOKEN'),human:required('INTERPRETER_HUMAN_NUMBER'),
-    openai:required('OPENAI_API_KEY'),target:process.env.INTERPRETER_TARGET || 'ar'}).listen(Number(process.env.PORT || 8080));
+    openai:required('OPENAI_API_KEY'),target:process.env.INTERPRETER_TARGET || 'ar',mode:process.env.INTERPRETER_MODE === 'keypad' ? 'keypad' : 'agent'}).listen(Number(process.env.PORT || 8080));
 }

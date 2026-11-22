@@ -6,13 +6,13 @@ import { placeSms } from './family-sms.ts';
 import { store } from './store.ts';
 
 export function registerVoiceTools(app:Express,guard:RequestHandler) {
-  const paths=['/api/translate','/tools/translate','/tools/find-place','/tools/directions','/tools/send-place-sms'];
+  const paths=['/api/translate','/api/gate','/tools/translate','/tools/find-place','/tools/directions','/tools/send-place-sms'];
   app.post(paths,guard,async(req,res)=>{
     res.set('Cache-Control','no-store');
     if(!process.env.SAATHI_SECRET)return res.status(503).json({error:'Configure SAATHI_SECRET'});
     const b=req.body??{};
     const clean=(key:string)=>typeof b[key]==='string'?b[key].trim():'';
-    const api=req.path==='/api/translate';
+    const api=req.path==='/api/translate'||req.path==='/api/gate';
     const text=clean(api?'text':'caller_said'),other=req.path==='/tools/translate'?clean('other_said'):'';
     if((!text && !(req.path==='/tools/translate'&&other)) || text.length>4000 || other.length>4000)return res.status(400).json({error:'Supply exact utterance, maximum 4000 characters'});
     const worker=clean('case_id')?await store.worker(clean('case_id')):undefined;
@@ -31,6 +31,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
         return res.json({status:'emergency',escalate:true,...(gate.slots.codePhrase?{covert:true}:{}),sayTe,say_to_worker:sayTe,say_to_other:'',locked_ok:false});
       }
     }
+    if(req.path==='/api/gate')return res.json({status:'ok'});
     if(api||req.path==='/tools/translate'){
       const from=api?clean('from'):other?clean('target_lang'):'te';
       const to=api?clean('to'):other?'te':clean('target_lang');
