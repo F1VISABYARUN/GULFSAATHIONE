@@ -7,9 +7,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import express from 'express';
-import { familyProvider } from '../server/family-sms.ts';
 import { backend, store } from '../server/store.ts';
-import { applyToWorker, isOverdue, registerSaathi } from '../server/saathi.ts';
+import { isOverdue, registerSaathi } from '../server/saathi.ts';
 
 test('shared-phone call review requires authentication for HTML, recordings, writes and results', async t => {
   process.env.VERCEL = '1'; // import the app without opening the production listener
@@ -66,7 +65,12 @@ test('an alert survives restart with one accepted SMS, a real desk acknowledgeme
     assert.deepEqual(JSON.parse(String(init?.body)),{template_id:'template',recipients:[{mobiles:'919000000000',case_id:'GS-OPS'}]});
     return Response.json({type:'success',message:'request_123'});
   });
-  await Promise.all([1,2].map(()=>applyToWorker('GS-OPS',{passportHeld:true},'checkin',undefined,familyProvider(),false,undefined,'execution-1')));
+  const event={id:'execution-1',status:'completed',transcript:'user: passport teeskunnaru',
+    context_details:{recipient_data:{case_id:'GS-OPS',call_kind:'checkin'}}};
+  const deliveries=await Promise.all([1,2].map(()=>fetch(new URL('/webhooks/saathi',url),{
+    method:'POST',headers:{'content-type':'application/json','x-saathi-secret':'fixture'},body:JSON.stringify(event)
+  })));
+  for(const delivery of deliveries) assert.equal((await delivery.json()).level,'high');
   assert.equal((await store.calls('GS-OPS')).length,1);
   assert.equal(sends,1);
   const pending=await store.worker('GS-OPS');
