@@ -263,3 +263,20 @@ test('non-Telugu speech is heard again with the target-language hint and Sarvam 
   assert.equal(await svc.stt(Buffer.alloc(80,0),''),'مرحبا كيف حالك');
   assert.ok(langs.includes('gpt-4o-transcribe:ar'));
 });
+
+test('Telugu speech that OpenAI labels as another language is taken from Sarvam; Arabic script stays the other speaker',async t=>{
+  const original=globalThis.fetch; let openai='Görüşürüz.';
+  t.after(()=>{globalThis.fetch=original;});
+  globalThis.fetch=(async(_input:RequestInfo|URL,init?:RequestInit)=>{
+    const form=init?.body as FormData; const model=String(form.get('model'));
+    if(model==='saaras:v3') return Response.json({status:'transcribed',text:'నా పేరు సురేష్'});
+    return Response.json({status:'transcribed',text:openai});
+  }) as typeof fetch;
+  const {agentServices}=await import('../interpreter/providers.ts');
+  const svc=agentServices(cfg,'call');
+  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');          // Turkish guess -> Telugu worker
+  openai='Hello'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');
+  openai='مرحبا كيف حالك'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'مرحبا كيف حالك'); // Arabic script -> other speaker
+  globalThis.fetch=(async(_i:RequestInfo|URL,init?:RequestInit)=>Response.json({status:'transcribed',text:String((init?.body as FormData).get('model'))==='saaras:v3'?'':'Hello'})) as typeof fetch;
+  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'');                          // nothing usable -> ignore
+});
