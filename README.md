@@ -11,6 +11,12 @@ Getting those right means the risk checks run on the truth instead of a broken t
 
 See `docs/HARNESS_EXPLAINED.md` (how it works, how it is evaluated) and `docs/GOAT_LIFE_PROBLEM_MAP.md` (the problem).
 
+## Phone interpreter and call evaluation
+
+The [phone interpreter](interpreter/README.md) accepts a shared-phone call on a dedicated Plivo application. Each speaker selects their turn, hears the read-back and confirms before Saathi speaks the translation. The [transcriber instructions](docs/INTERPRETER_PLAN.md#run-the-transcriber) also cover recordings and a local microphone.
+
+Use the [paired audio benchmark](eval/reliability/README.md) to compare the same calls across providers and review what the listener heard. The [release check](docs/RELEASE_SMOKE.md) verifies the deployed backend revision and access controls without sending a recording.
+
 ## Layers
 
 | Layer | What | Where |
