@@ -46,6 +46,9 @@ export const numbersIn = (t: string) => [...new Set([...numberValues(tokenize(t)
 const BARGE_BYTES = 2400;   // 0.3 s of voice interrupts our speech
 // Confirmation: nothing is said to the other person until the worker says yes to that exact message.
 const YES = /^[\s.,!?'"-]*((అవును|సరే|సరేనండి|చెప్పండి|చెప్పు|ఓకే|అలాగే|హా|ఆ|ఎస్|యెస్|కరెక్ట్|సరైనది)[\s.,!?'"-]*)+$/u;
+// A yes can come with other small words ("యా చెప్పండి", "అవును అవును", "okay say it"), so a short reply containing a yes word counts.
+const YES_WORD = /^(అవును|అవునండి|ఔను|సరే|సరేనండి|చెప్పండి|చెప్పు|చెప్పవచ్చు|ఓకే|అలాగే|హా|హాన్|ఆ|ఊ|ఎస్|యెస్|యా|యాహ్|యప్|కరెక్ట్|సరైనది|అదే|yes|yeah|ya|yep|ok|okay|haan|sure|correct)$/iu;
+export const isYes = (text: string) => { const words = text.toLowerCase().split(/[\s.,!?'"।-]+/u).filter(Boolean); return words.length > 0 && words.length <= 5 && words.some(w => YES_WORD.test(w)) && !NO.test(text) && !/ఏమి|ఏం|ఎవరు|ఎవరికి|ఎందుకు|ఎలా|ఎక్కడ|ఎంత/u.test(text); };
 const NO = /వద్దు|కాదు|ఆగండి|ఆపండి|లేదు|వద్దండి|నో\b/u;
 const LANG_TE: Record<string, string> = { ar: 'అరబిక్', hi: 'హిందీ', ur: 'ఉర్దూ', en: 'ఇంగ్లీష్', ml: 'మలయాళం' };
 // "say it again": re-sending a message the worker already approved needs no new yes.
@@ -54,6 +57,7 @@ const BYE = /(^|\s)(బై|గుడ్ బై|గుడ్‌బై|సెల�
 const isRepeat = (t: string) => t.trim().split(/\s+/).length <= 6 && /మళ్ళీ|మళ్లీ|మరోసారి|ఇంకోసారి|ఇంకొక్కసారి|సేమ్|అదే/.test(t) && /చెప్పండి|చెప్పు|మళ్ళీ|మళ్లీ|మరోసారి|ఇంకోసారి/.test(t);
 const askWhat = 'సరే. ఏం చెప్పమంటారు?';
 const confirmFallback = 'ఆయనకు ఇది చెప్పమంటారా?';
+const MIN_VOICED_ANSWER = 960;   // while waiting for a yes, a short "సరే" (about 0.1 s of speech) must still count; the transcript filters decide if it is noise
 const MIN_VOICED = 2400;   // 0.3 s of speech at 8 kHz (same as the interruption threshold); shorter sounds are line noise
 const JUNK = /^[\s.,!?'"-]*(thank you|thanks|thank you for watching|you|bye|okay|ok|hello|hi|yeah|uh|um|hmm)?[\s.,!?'"-]*$/i;
 // Telugu acknowledgements and greetings are talk to the agent, never something to say to the other person.
@@ -154,7 +158,7 @@ export class AgentSession {
     this.phase = 'busy';
     const audio = Buffer.concat(this.frames); const voicedBytes = this.voicedBytes; this.clearAudio();
     try {
-      if (voicedBytes < MIN_VOICED) { this.out.metric?.('ignored_short_bytes', voicedBytes); this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
+      if (voicedBytes < (this.pendingOut ? MIN_VOICED_ANSWER : MIN_VOICED)) { this.out.metric?.('ignored_short_bytes', voicedBytes); this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
       const began = Date.now();
       const heardRaw = await this.service.stt(audio, '');
       const text = (typeof heardRaw === 'string' ? heardRaw : heardRaw.text).trim();
@@ -166,7 +170,7 @@ export class AgentSession {
       const who = telugu(text) ? 'worker' : 'other';
       if (this.pendingOut && who === 'worker') {
         const pending = this.pendingOut;
-        if (YES.test(text) && !NO.test(text)) { this.pendingOut = undefined; this.log('confirmed', {}); await this.speakToOther(id, pending.toOther, pending.step); return; }
+        if ((YES.test(text) || isYes(text)) && !NO.test(text)) { this.pendingOut = undefined; this.log('confirmed', {}); await this.speakToOther(id, pending.toOther, pending.step); return; }
         if (NO.test(text)) { this.pendingOut = undefined; this.log('cancelled', {}); this.history.push({ who: 'agent', text: '[the worker said no to that message]' }); await this.say([[askWhat, 'te']], () => this.listen()); return; }
         this.pendingOut = undefined; this.history.push({ who: 'agent', text: '[the worker changed what to say: reconsider]' });   // a new instruction replaces the old message
       } else if (this.pendingOut && who === 'other') { this.pendingOut = undefined; }

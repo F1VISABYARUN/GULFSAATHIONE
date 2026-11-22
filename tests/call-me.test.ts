@@ -150,3 +150,9 @@ test('the home page keeps the earlier site\'s sections and assets, leaves out th
   assert.ok(!/aadujeevitham/i.test(home) && !/repeat scam agent/i.test(home));
   for (const ref of home.match(/\/site\/[\w.-]+/g) ?? []) assert.ok(existsSync('public' + ref), ref);
 });
+
+test('a short or mixed yes confirms the message to the other person; questions and noes do not', async () => {
+  const { isYes } = await import('../interpreter/agent.ts');
+  for (const yes of ['యా చెప్పండి.', 'అవును', 'సరే చెప్పు', 'okay', 'యా, యా', 'ఆ, సరే.']) assert.equal(isYes(yes), true, yes);
+  for (const no of ['చెప్తున్నావా?', 'వద్దు చెప్పొద్దు', 'ఎవరికి చెప్పండి?', 'ఏం చెప్పండి', 'నాకు అరబిక్ రాదు, నువ్వు మాట్లాడతావా ఇప్పుడు చెప్పండి అని']) assert.equal(isYes(no), false, no);
+});
