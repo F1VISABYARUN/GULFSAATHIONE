@@ -4,7 +4,7 @@ import { numberValues } from '../server/harness/numbers.ts';
 import { tokenize } from '../server/harness/tokens.ts';
 
 export interface Turn { who: 'worker' | 'other' | 'agent'; text: string }
-export interface AgentStep { say_to_other?: string; say_to_worker?: string; done?: boolean }
+export interface AgentStep { say_to_other?: string; confirm_te?: string; say_to_worker?: string; done?: boolean }
 export interface AgentServices {
   stt(audio: Buffer, language: string): Promise<string>;
   think(history: Turn[], target: string): Promise<AgentStep>;
@@ -41,6 +41,11 @@ const digits = (t: string) => (t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0)
   .match(/\d+(?:[.,]\d+)*/g) ?? []).map(v => Number(v.replace(/,/g, ''))).filter(n => n >= 10);
 export const numbersIn = (t: string) => [...new Set([...numberValues(tokenize(t)), ...digits(t)])];
 const BARGE_BYTES = 2400;   // 0.3 s of voice interrupts our speech
+// Confirmation: nothing is said to the other person until the worker says yes to that exact message.
+const YES = /^[\s.,!?'"-]*((అవును|సరే|సరేనండి|చెప్పండి|చెప్పు|ఓకే|అలాగే|హా|ఆ|ఎస్|యెస్|కరెక్ట్|సరైనది)[\s.,!?'"-]*)+$/u;
+const NO = /వద్దు|కాదు|ఆగండి|ఆపండి|లేదు|వద్దండి|నో\b/u;
+const askWhat = 'సరే. ఏం చెప్పమంటారు?';
+const confirmFallback = 'ఆయనకు ఇది చెప్పమంటారా?';
 const MIN_VOICED = 2400;   // 0.3 s of speech at 8 kHz (same as the interruption threshold); shorter sounds are line noise
 const JUNK = /^[\s.,!?'"-]*(thank you|thanks|thank you for watching|you|bye|okay|ok|hello|hi|yeah|uh|um|hmm)?[\s.,!?'"-]*$/i;
 // Telugu acknowledgements and greetings are talk to the agent, never something to say to the other person.
@@ -63,6 +68,7 @@ export class AgentSession {
   private frames: Buffer[] = [];
   private length = 0; private voiced = false; private silence = 0;
   private history: Turn[] = [];
+  private pendingOut?: { toOther: string; step: AgentStep };   // waiting for the worker's yes
   private disclosed = false;       // the other person has been told once that we are an AI speaking for the worker
   private goalSet = false;            // the worker has said what they need; before that nothing is said to the other person
   private lastSpoken = '';
@@ -132,6 +138,12 @@ export class AgentSession {
       if (id !== this.generation) return;
       if (!text || text.length > 2000) { this.listen(); return; }
       const who = telugu(text) ? 'worker' : 'other';
+      if (this.pendingOut && who === 'worker') {
+        const pending = this.pendingOut;
+        if (YES.test(text) && !NO.test(text)) { this.pendingOut = undefined; this.log('confirmed', {}); await this.speakToOther(id, pending.toOther, pending.step); return; }
+        if (NO.test(text)) { this.pendingOut = undefined; this.log('cancelled', {}); this.history.push({ who: 'agent', text: '[the worker said no to that message]' }); await this.say([[askWhat, 'te']], () => this.listen()); return; }
+        this.pendingOut = undefined; this.history.push({ who: 'agent', text: '[the worker changed what to say: reconsider]' });   // a new instruction replaces the old message
+      } else if (this.pendingOut && who === 'other') { this.pendingOut = undefined; }
       const why = junk(text) ? (FILLER.test(text) ? 'filler' : 'noise') : sameAs(text, this.lastSpoken) ? 'echo' : who === 'other' && !this.goalSet ? 'no goal yet' : '';
       this.log('heard', { who, text, ignored: why || undefined });
       if (why) { this.listen(); return; }
@@ -158,7 +170,7 @@ export class AgentSession {
     }
   }
   private async speakStep(id: number, who: 'worker' | 'other', text: string, step: AgentStep) {
-    let markDisclosed = false;
+    let repeatRequest = '';                                             // the one thing we may say to the other person without asking: a fixed "please say that again"
     let toOther = (step.say_to_other ?? '').trim(), toWorker = (step.say_to_worker ?? '').trim();
     if (toWorker && !telugu(toWorker)) toWorker = '';                  // the report to the worker must be in Telugu letters
     const heard = new Set(this.history.filter(t => t.who !== 'agent').flatMap(t => numbersIn(t.text)));
@@ -166,18 +178,36 @@ export class AgentSession {
       const said = numbersIn(text);
       if (said.length) toOther = '';                                   // the worker decides before anything is answered
       if (said.some(n => !numbersIn(toWorker).includes(n)) || !toWorker) {
-        toOther = askAgain[this.target] ?? askAgain.en; toWorker = cannotTranslate;
+        repeatRequest = askAgain[this.target] ?? askAgain.en; toWorker = cannotTranslate; toOther = '';
       }
     } else if (numbersIn(toOther).some(n => !heard.has(n))) {
       toOther = ''; toWorker = needNumber;                             // never invent an amount, date or number
     }
-    if (!toOther && !toWorker) { this.listen(); return; }
-    if (toOther) this.history.push({ who: 'agent', text: toOther });
+    if (toOther && AGREEMENT.test(toOther) && !this.history.some(t => t.who === 'other')) { toOther = ''; this.log('blocked', { why: 'agreement before any proposal' }); }
+    if (toOther && who === 'worker') {
+      // Never speak to the other person on our own: ask the worker first, in Telugu, and wait for a yes.
+      this.pendingOut = { toOther, step };
+      const ask = (step.confirm_te && telugu(step.confirm_te) ? step.confirm_te.trim() : toWorker) || confirmFallback;
+      this.history.push({ who: 'agent', text: '[asked the worker to confirm saying to the other person: ' + toOther + ']' });
+      this.lastSpoken = ask;
+      this.log('confirm_ask', { to_other: toOther, ask });
+      await this.say([[ask, 'te']], () => this.listen());
+      return;
+    }
+    if (!repeatRequest && !toWorker) { this.listen(); return; }
     if (toWorker) this.history.push({ who: 'agent', text: toWorker });
-    if (toOther && AGREEMENT.test(toOther) && !this.history.some(t => t.who === 'other')) { toOther = ''; toWorker = ''; this.log('blocked', { why: 'agreement before any proposal' }); }
-    if (toOther && !this.disclosed) { toOther = (agentDisclosure[this.target] ?? agentDisclosure.en) + ' ' + toOther; markDisclosed = true; }
-    this.lastSpoken = [toOther, toWorker].filter(Boolean).join(' ');
-    this.log('say', { to_other: toOther, to_worker: toWorker });
-    await this.say([[toOther, this.target], [toWorker, 'te']], () => { if (markDisclosed) this.disclosed = true; if (step.done) { this.close(); this.out.close(); } else this.listen(); });
+    this.lastSpoken = [repeatRequest, toWorker].filter(Boolean).join(' ');
+    this.log('say', { to_worker: toWorker, repeat_request: repeatRequest || undefined });
+    await this.say([[repeatRequest, this.target], [toWorker, 'te']], () => { if (step.done) { this.close(); this.out.close(); } else this.listen(); });
+  }
+  // Called only after the worker said yes to this exact message.
+  private async speakToOther(id: number, toOther: string, step: AgentStep) {
+    if (id !== this.generation) return;
+    let markDisclosed = false;
+    this.history.push({ who: 'agent', text: toOther });
+    if (!this.disclosed) { toOther = (agentDisclosure[this.target] ?? agentDisclosure.en) + ' ' + toOther; markDisclosed = true; }
+    this.lastSpoken = toOther;
+    this.log('say', { to_other: toOther });
+    await this.say([[toOther, this.target]], () => { if (markDisclosed) this.disclosed = true; if (step.done) { this.close(); this.out.close(); } else this.listen(); });
   }
 }
