@@ -81,6 +81,7 @@ How to sound: natural and brief, like a person helping a friend. Never announce 
 - When OTHER speaks: say_to_worker reports faithfully what they said (every number, name, time, and any "not"/"no") in one or two short Telugu sentences, then at most one short question if a decision is needed. say_to_other stays empty unless a harmless clarifying question is needed.
 - When WORKER states a goal or decision, speak for them in ${lang}. Do not invent facts, names, amounts, dates or documents about the worker.
 - Never agree to a price, payment, contract, handing over a passport or ID, or signing: ask the worker in Telugu first and wait for a clear yes or no.
+- Do not offer help, ask "what do you need" or add pleasantries after the opening. Say nothing unless there is something to say to the other person or something the worker must know or decide.
 - If the worker has not yet said what they need, say nothing to the other person and ask the worker in Telugu. Never speak to the other person first.
 - If you did not understand, ask for repetition in the right language. done=true only when the worker's goal is finished or they say goodbye.
 Example. WORKER: "నాకు హైదరాబాద్ టికెట్ కావాలి" -> {"say_to_other":"I would like a ticket to Hyderabad, please.","say_to_worker":"","done":false}. OTHER: "It is 200 dirhams" -> {"say_to_other":"","say_to_worker":"వాళ్ళు 200 దిర్హామ్స్ అంటున్నారు. సరేనా?","done":false}.`;
@@ -89,19 +90,27 @@ export function agentServices(config: Config, call: string, caseId?: string): Ag
   const base = services(config, call, caseId);
   const headers = { 'x-saathi-secret': config.secret, 'content-type': 'application/json' };
   return {
-    // Hear with OpenAI (auto language). If it heard Telugu, also ask Sarvam (the Bolna Helpline's ear) and prefer its text.
+    // Hear with OpenAI (auto language) and Sarvam at the same time. Sarvam's text is used only when OpenAI also heard Telugu
+    // (Sarvam is forced to Telugu and would turn other languages into Telugu-looking nonsense).
     async stt(audio, language) {
-      const heard = await base.stt(audio, language);
-      if (!/[\u0C00-\u0C7F]/.test(heard) || process.env.INTERPRETER_SARVAM === 'off') return heard;
-      try {
-        const form = new FormData();
-        form.append('audio', new Blob([new Uint8Array(wavFromMulaw(audio))], {type:'audio/wav'}), 'turn.wav');
-        form.append('language', 'te'); form.append('model', 'saaras:v3');
-        const response = await checked(config.backend+'/api/saathi/stt', {method:'POST', headers:{'x-saathi-secret':config.secret}, body:form});
-        const result = await response.json();
-        const text = result.status === 'transcribed' && typeof result.text === 'string' ? result.text.trim() : '';
-        return /[\u0C00-\u0C7F]/.test(text) ? text : heard;
-      } catch { return heard; }
+      const sarvam = async () => {
+        if (process.env.INTERPRETER_SARVAM === 'off') return '';
+        try {
+          const form = new FormData();
+          form.append('audio', new Blob([new Uint8Array(wavFromMulaw(audio))], {type:'audio/wav'}), 'turn.wav');
+          form.append('language', 'te'); form.append('model', 'saaras:v3');
+          const response = await checked(config.backend+'/api/saathi/stt', {method:'POST', headers:{'x-saathi-secret':config.secret}, body:form});
+          const result = await response.json();
+          return result.status === 'transcribed' && typeof result.text === 'string' ? result.text.trim() : '';
+        } catch { return ''; }
+      };
+      const [heard, fromSarvam] = await Promise.all([base.stt(audio, language), sarvam()]);
+      if (/[\u0C00-\u0C7F]/.test(heard)) return /[\u0C00-\u0C7F]/.test(fromSarvam) ? fromSarvam : heard;
+      // OpenAI heard something that is not Telugu (it guessed Urdu for Arabic): listen again with the target language as a hint.
+      if (heard.trim() && config.target) {
+        try { const hinted = (await base.stt(audio, config.target)).trim(); if (hinted) return hinted; } catch { /* keep the first result */ }
+      }
+      return heard;
     },
     speak: (text, language) => base.speak(text, language),
     handoff: () => base.handoff(),
