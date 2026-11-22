@@ -22,9 +22,9 @@ export function signed(req: IncomingMessage, url: URL, token: string) {
 
 const trace = (event:string,data:object={}) => console.info(JSON.stringify({component:'phone-interpreter',event,...data}));
 export function createInterpreter(config: Config, makeServices: (c:Config,call:string,caseId?:string)=>Services = services,
-  makeAgent: (c:Config,call:string,caseId?:string)=>AgentServices = agentServices) {
+  makeAgent: (c:Config,call:string,caseId?:string,from?:string)=>AgentServices = agentServices) {
   if (!Object.hasOwn(disclosure,config.target) || !/^\+[1-9]\d{6,14}$/.test(config.human)) throw Error('Invalid interpreter destination');
-  const tickets = new Map<string,{call:string;caseId?:string;mode:string;expires:number}>();
+  const tickets = new Map<string,{call:string;caseId?:string;from?:string;mode:string;expires:number}>();
   const used = new Map<string,number>();
   const ws = new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false});
   const server = createServer((req,res)=>{
@@ -56,7 +56,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     if (caseId !== undefined && !/^GS-[a-zA-Z0-9-]{1,48}$/.test(caseId)) { res.writeHead(400).end(); return; }
     const mode = url.searchParams.get('mode') ?? config.mode ?? 'agent';
     if (!['agent','keypad'].includes(mode)) { res.writeHead(400).end(); return; }
-    tickets.set(ticket,{call,caseId,mode,expires:now+60000});
+    tickets.set(ticket,{call,caseId,from:url.searchParams.get('From') ?? undefined,mode,expires:now+60000});
     trace('answer',{mode,bound:Boolean(caseId)});
     const address = config.origin.replace(/^https:/,'wss:')+'/media/'+ticket;
     res.end('<Response><Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">'+address+'</Stream></Response>');
@@ -84,7 +84,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
         clear:()=>send({event:'clearAudio',streamId:stream}),close:()=>peer.close(),
       };
       const session = ticket.mode === 'agent'
-        ? new AgentSession(config.target,makeAgent(config,ticket.call,ticket.caseId),output)
+        ? new AgentSession(config.target,makeAgent(config,ticket.call,ticket.caseId,ticket.from),output)
         : new PhoneSession(config.target,makeServices(config,ticket.call,ticket.caseId),output);
       const timeout = setTimeout(()=>peer.terminate(),30*60*1000).unref();
       const startup = setTimeout(()=>peer.terminate(),15000).unref();

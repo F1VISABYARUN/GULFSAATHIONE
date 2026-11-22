@@ -43,7 +43,11 @@ export const numbersIn = (t: string) => [...new Set([...numberValues(tokenize(t)
 const BARGE_BYTES = 2400;   // 0.3 s of voice interrupts our speech
 const MIN_VOICED = 2400;   // 0.3 s of speech at 8 kHz (same as the interruption threshold); shorter sounds are line noise
 const JUNK = /^[\s.,!?'"-]*(thank you|thanks|thank you for watching|you|bye|okay|ok|hello|hi|yeah|uh|um|hmm)?[\s.,!?'"-]*$/i;
-const junk = (t: string) => JUNK.test(t) || t.replace(/[^\p{L}\p{N}]/gu, '').length < 2;
+// Telugu acknowledgements and greetings are talk to the agent, never something to say to the other person.
+const FILLER = /^[\s.,!?'"-]*((సరే|సరేనండి|అలాగే|ఓకే|అవును|హా|ఆ|హలో|నమస్తే|నమస్కారం|థాంక్యూ|థాంక్స్|ధన్యవాదాలు|ఊ|ఊఁ|హమ్|ఎస్)[\s.,!?'"-]*)+$/u;
+// An agreement in Arabic/English before the other person has proposed anything is an invention.
+const AGREEMENT = /موافق|أوافق|اتفقنا|\b(agree|agreed|deal|accept)\b/i;
+const junk = (t: string) => FILLER.test(t) || JUNK.test(t) || t.replace(/[^\p{L}\p{N}]/gu, '').length < 2;
 const flat = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 const sameAs = (a: string, b: string) => { const x = flat(a), y = flat(b); return x.length > 8 && y.length > 8 && (y.includes(x) || x.includes(y)); };
 const telugu = (t: string) => /[ఀ-౿]/.test(t);
@@ -128,7 +132,7 @@ export class AgentSession {
       if (id !== this.generation) return;
       if (!text || text.length > 2000) { this.listen(); return; }
       const who = telugu(text) ? 'worker' : 'other';
-      const why = junk(text) ? 'noise' : sameAs(text, this.lastSpoken) ? 'echo' : who === 'other' && !this.goalSet ? 'no goal yet' : '';
+      const why = junk(text) ? (FILLER.test(text) ? 'filler' : 'noise') : sameAs(text, this.lastSpoken) ? 'echo' : who === 'other' && !this.goalSet ? 'no goal yet' : '';
       this.log('heard', { who, text, ignored: why || undefined });
       if (why) { this.listen(); return; }
       if (who === 'worker') this.goalSet = true;
@@ -154,6 +158,7 @@ export class AgentSession {
     }
   }
   private async speakStep(id: number, who: 'worker' | 'other', text: string, step: AgentStep) {
+    let markDisclosed = false;
     let toOther = (step.say_to_other ?? '').trim(), toWorker = (step.say_to_worker ?? '').trim();
     if (toWorker && !telugu(toWorker)) toWorker = '';                  // the report to the worker must be in Telugu letters
     const heard = new Set(this.history.filter(t => t.who !== 'agent').flatMap(t => numbersIn(t.text)));
@@ -169,9 +174,10 @@ export class AgentSession {
     if (!toOther && !toWorker) { this.listen(); return; }
     if (toOther) this.history.push({ who: 'agent', text: toOther });
     if (toWorker) this.history.push({ who: 'agent', text: toWorker });
-    if (toOther && !this.disclosed) { toOther = (agentDisclosure[this.target] ?? agentDisclosure.en) + ' ' + toOther; this.disclosed = true; }
+    if (toOther && AGREEMENT.test(toOther) && !this.history.some(t => t.who === 'other')) { toOther = ''; toWorker = ''; this.log('blocked', { why: 'agreement before any proposal' }); }
+    if (toOther && !this.disclosed) { toOther = (agentDisclosure[this.target] ?? agentDisclosure.en) + ' ' + toOther; markDisclosed = true; }
     this.lastSpoken = [toOther, toWorker].filter(Boolean).join(' ');
     this.log('say', { to_other: toOther, to_worker: toWorker });
-    await this.say([[toOther, this.target], [toWorker, 'te']], () => { if (step.done) { this.close(); this.out.close(); } else this.listen(); });
+    await this.say([[toOther, this.target], [toWorker, 'te']], () => { if (markDisclosed) this.disclosed = true; if (step.done) { this.close(); this.out.close(); } else this.listen(); });
   }
 }
