@@ -203,7 +203,7 @@ test('Telugu speech uses Cartesia when a key is set and falls back to OpenAI; Te
 
 test('agent mode opening has no keypad instructions and speaks both languages',async()=>{
   const f=agentFixture([],[]); await f.begin();
-  assert.ok(f.spoken[0].startsWith('te నేను సాథి')); assert.ok(f.spoken[1].startsWith('ar أنا مترجم'));
+  assert.ok(f.spoken[0].startsWith('te నేను సాథి')); assert.ok(f.spoken[1].startsWith('ar أنا مساعد'));
   assert.ok(!f.spoken.some(x=>/اثنين|ثلاثة|مربع|హాష్|ఒకటి నొక్కి/.test(x)));
 });
 
@@ -220,4 +220,25 @@ test('agent: short sound is ignored and a non-Telugu report to the worker is dro
   await f.begin(); const before=f.spoken.length;
   await f.session.media(Buffer.alloc(800,0)); await f.session.media(Buffer.alloc(6000,255)); assert.equal(f.spoken.length,before);
   await f.turn(); assert.ok(!f.spoken.some(x=>x.includes('I told them')));
+});
+
+test('caller can interrupt the opening: sustained voice clears our audio and is heard',async()=>{
+  const said=['టికెట్ కావాలి']; const cleared:string[]=[]; const marks:string[]=[]; const spoken:string[]=[];
+  const service:AgentServices={stt:async()=>said.shift()??'',think:async()=>({say_to_other:'AR hi',say_to_worker:''}),check:async()=>'ok',
+    speak:async(t,l)=>{spoken.push(l+' '+t);return Buffer.from([255]);},handoff:async()=>{}};
+  const session=new AgentSession('ar',service,{play:(_b,m)=>marks.push(m),clear:()=>cleared.push('clear'),close:()=>{}},0);
+  await session.start();                                   // opening is playing; no played() ack yet
+  for(let i=0;i<30;i++) await session.media(Buffer.alloc(160,0));   // 0.6 s of voice over our speech
+  assert.equal(cleared.length,1);
+  await session.media(Buffer.alloc(6000,255));            // silence ends the turn
+  assert.ok(spoken.includes('ar AR hi'));
+});
+test('if Plivo never confirms playback the agent still starts listening',async()=>{
+  const said=['టికెట్ కావాలి']; const marks:string[]=[]; const spoken:string[]=[];
+  const service:AgentServices={stt:async()=>said.shift()??'',think:async()=>({say_to_other:'AR hi',say_to_worker:''}),check:async()=>'ok',
+    speak:async(t,l)=>{spoken.push(l+' '+t);return Buffer.alloc(0);},handoff:async()=>{}};
+  const session=new AgentSession('ar',service,{play:(_b,m)=>marks.push(m),clear:()=>{},close:()=>{}},0);
+  await session.start(); await new Promise(r=>setTimeout(r,3100));       // empty audio: fallback fires after 3 s
+  await session.media(Buffer.alloc(4000,0)); await session.media(Buffer.alloc(6000,255));
+  assert.ok(spoken.includes('ar AR hi'));
 });

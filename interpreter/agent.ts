@@ -23,14 +23,14 @@ export interface AgentOutput {
 // First-pass wording by the author, not reviewed by native speakers.
 // Spoken once at the start. First-pass wording by the author, not reviewed by native speakers. No keypad instructions: agent mode is voice-driven.
 export const agentDisclosure: Record<string, string> = {
-  te: 'నేను సాథి ఏఐ అనువాదకుడిని. తెలుగు మాట్లాడే వారి తరఫున మాట్లాడతాను. మీ మాటలు అనువాద సేవలకు పంపబడతాయి. ఆపడానికి సున్నా నొక్కండి.',
-  ar: 'أنا مترجم آلي بالذكاء الاصطناعي، أتحدث نيابة عن المتحدث بالتيلوغو. يُرسل الصوت إلى خدمات الترجمة. للإيقاف اضغط صفراً.',
-  en: 'I am an AI interpreter speaking on behalf of the Telugu speaker. The audio is sent to translation services. Press zero to stop.',
-  hi: 'मैं एआई अनुवादक हूँ और तेलुगु बोलने वाले की ओर से बोल रहा हूँ। आवाज़ अनुवाद सेवाओं को भेजी जाती है। रोकने के लिए शून्य दबाएँ।',
-  ur: 'میں مصنوعی ذہانت کا ترجمان ہوں اور تیلگو بولنے والے کی طرف سے بات کر رہا ہوں۔ آواز ترجمے کی خدمات کو بھیجی جاتی ہے۔ روکنے کے لیے صفر دبائیں۔',
-  ml: 'ഞാൻ ഒരു എ ഐ പരിഭാഷകനാണ്, തെലുങ്ക് സംസാരിക്കുന്നയാളുടെ പേരിൽ സംസാരിക്കുന്നു. ശബ്ദം പരിഭാഷാ സേവനങ്ങളിലേക്ക് അയയ്ക്കും. നിർത്താൻ പൂജ്യം അമർത്തുക.',
+  te: 'నేను సాథి ఏఐ. మీ తరఫున మాట్లాడతాను. మీ మాటలు అనువాద సేవలకు వెళ్తాయి. ఆపడానికి సున్నా నొక్కండి.',
+  ar: 'أنا مساعد ذكاء اصطناعي، أتحدث نيابة عن المتحدث بالتيلوغو. يُرسل الصوت إلى خدمات الترجمة. للإيقاف اضغط صفراً.',
+  en: 'I am an AI assistant speaking on behalf of the Telugu speaker. Audio goes to translation services. Press zero to stop.',
+  hi: 'मैं एआई सहायक हूँ और तेलुगु बोलने वाले की ओर से बोल रहा हूँ। आवाज़ अनुवाद सेवाओं को जाती है। रोकने के लिए शून्य दबाएँ।',
+  ur: 'میں مصنوعی ذہانت کا معاون ہوں اور تیلگو بولنے والے کی طرف سے بات کر رہا ہوں۔ آواز ترجمے کی خدمات کو جاتی ہے۔ روکنے کے لیے صفر دبائیں۔',
+  ml: 'ഞാൻ ഒരു എ ഐ സഹായിയാണ്, തെലുങ്ക് സംസാരിക്കുന്നയാളുടെ പേരിൽ സംസാരിക്കുന്നു. ശബ്ദം പരിഭാഷാ സേവനങ്ങളിലേക്ക് പോകും. നിർത്താൻ പൂജ്യം അമർത്തുക.',
 };
-const intro = 'చెప్పండి, నేను మీ తరఫున మాట్లాడతాను. మీకు ఏం కావాలి?';
+const intro = 'చెప్పండి, ఏం కావాలి?';
 const askAgain: Record<string, string> = { ar: 'من فضلك أعد الكلام.', en: 'Please say that again.', hi: 'कृपया फिर से कहिए।', ur: 'براہ کرم دوبارہ کہیں۔', ml: 'ദയവായി ഒന്നുകൂടി പറയൂ.' };
 const cannotTranslate = 'వాళ్ళు చెప్పింది సరిగా చెప్పలేకపోయాను. మళ్ళీ చెప్పమని అడుగుతున్నాను.';
 const needNumber = 'ఈ సంఖ్య మీరు చెప్పలేదు. మీరే చెప్పండి.';
@@ -39,6 +39,7 @@ const transferFailed = 'మనిషికి కలపలేకపోయాన�
 const digits = (t: string) => (t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x660)).replace(/[౦-౯]/g, d => String(d.charCodeAt(0) - 0xc66))
   .match(/\d+(?:[.,]\d+)*/g) ?? []).map(v => Number(v.replace(/,/g, ''))).filter(n => n >= 10);
 export const numbersIn = (t: string) => [...new Set([...numberValues(tokenize(t)), ...digits(t)])];
+const BARGE_BYTES = 2400;   // 0.3 s of voice interrupts our speech
 const MIN_VOICED = 3200;   // 0.4 s of speech at 8 kHz; shorter sounds are line noise
 const JUNK = /^[\s.,!?'"-]*(thank you|thanks|thank you for watching|you|bye|okay|ok|hello|hi|yeah|uh|um|hmm)?[\s.,!?'"-]*$/i;
 const junk = (t: string) => JUNK.test(t) || t.replace(/[^\p{L}\p{N}]/gu, '').length < 2;
@@ -53,7 +54,7 @@ export class AgentSession {
   private checkpoint = '';
   private afterPlay = () => {};
   private marker = 0;
-  private phase: 'opening' | 'listen' | 'busy' | 'handoff' | 'closed' = 'opening';
+  private phase: 'opening' | 'speaking' | 'listen' | 'busy' | 'handoff' | 'closed' = 'opening';
   private frames: Buffer[] = [];
   private length = 0; private voiced = false; private silence = 0;
   private history: Turn[] = [];
@@ -61,6 +62,8 @@ export class AgentSession {
   private lastSpoken = '';
   private deafUntil = 0;              // ignore the line briefly after our own speech so we do not hear ourselves
   private voicedBytes = 0;
+  private pre: Buffer[] = [];          // recent audio while we speak, kept so an interruption is not cut off at the start
+  private bargeBytes = 0;
   private debug = process.env.INTERPRETER_DEBUG === '1';
 
   constructor(private target: string, private service: AgentServices, private out: AgentOutput, private graceMs = 700) {
@@ -74,16 +77,36 @@ export class AgentSession {
     try {
       const audio = await Promise.all(lines.filter(([t]) => t).map(([t, l]) => this.service.speak(t, l)));
       if (id !== this.generation) return;
-      this.checkpoint = id + '-' + (++this.marker);
+      const bytes = Buffer.concat(audio);
+      const mark = this.checkpoint = id + '-' + (++this.marker);
       this.afterPlay = next;
-      this.out.play(Buffer.concat(audio), this.checkpoint);
+      this.phase = 'speaking'; this.pre = []; this.bargeBytes = 0;
+      this.out.play(bytes, mark);
+      // If Plivo never confirms playback (its event contract is unverified), do not stay deaf: carry on after the audio length plus 3 s.
+      setTimeout(() => {
+        if (this.checkpoint === mark && id === this.generation) { this.checkpoint = ''; this.out.metric?.('played_timeout', 0); this.deafUntil = Date.now() + this.graceMs; this.afterPlay(); }
+      }, bytes.length / 8 + 3000).unref();
     } catch { if (id === this.generation) { this.close(); this.out.close(); } }
   }
-  private listen() { this.clearAudio(); this.phase = 'listen'; }
+  private listen() { this.clearAudio(); this.phase = 'listen'; this.out.metric?.('listening', 0); }
   async start() { await this.say([[agentDisclosure.te, 'te'], [agentDisclosure[this.target], this.target], [intro, 'te']], () => this.listen()); }
   played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.deafUntil = Date.now() + this.graceMs; this.afterPlay(); } }
   async digit(key: string) { if (key === '0' && this.phase !== 'closed') { this.close(); this.out.close(); } }
+  // The caller can interrupt us: sustained voice while we speak stops our audio and starts listening, like Bolna.
+  private bargeIn(frame: Buffer) {
+    if (!frame.length || process.env.INTERPRETER_BARGE_IN === 'off') return;
+    this.pre.push(frame);
+    while (this.pre.reduce((n, f) => n + f.length, 0) > 8000) this.pre.shift();
+    if (hasVoice(frame)) this.bargeBytes += frame.length; else this.bargeBytes = Math.max(0, this.bargeBytes - frame.length);
+    if (this.bargeBytes < BARGE_BYTES) return;
+    this.out.clear(); this.checkpoint = ''; this.afterPlay = () => {};
+    this.clearAudio();
+    this.frames = [...this.pre]; this.length = this.frames.reduce((n, f) => n + f.length, 0);
+    this.voiced = true; this.voicedBytes = this.bargeBytes; this.phase = 'listen';
+    this.out.metric?.('barge_in', 0);
+  }
   async media(frame: Buffer) {
+    if (this.phase === 'speaking') { this.bargeIn(frame); return; }
     if (this.phase !== 'listen' || !frame.length || Date.now() < this.deafUntil) return;
     this.length += frame.length;
     if (this.length > 30 * 8000) { this.clearAudio(); return; }
@@ -96,7 +119,7 @@ export class AgentSession {
     this.phase = 'busy';
     const audio = Buffer.concat(this.frames); const voicedBytes = this.voicedBytes; this.clearAudio();
     try {
-      if (voicedBytes < MIN_VOICED) { this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
+      if (voicedBytes < MIN_VOICED) { this.out.metric?.('ignored_short_bytes', voicedBytes); this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
       const began = Date.now();
       const text = (await this.service.stt(audio, '')).trim();
       this.out.metric?.('asr', Date.now() - began);

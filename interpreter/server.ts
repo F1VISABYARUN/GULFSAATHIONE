@@ -20,6 +20,7 @@ export function signed(req: IncomingMessage, url: URL, token: string) {
   return signature.split(',').some(s=>Buffer.byteLength(s) === expected.length && timingSafeEqual(Buffer.from(s), Buffer.from(expected)));
 }
 
+const trace = (event:string,data:object={}) => console.info(JSON.stringify({component:'phone-interpreter',event,...data}));
 export function createInterpreter(config: Config, makeServices: (c:Config,call:string,caseId?:string)=>Services = services,
   makeAgent: (c:Config,call:string,caseId?:string)=>AgentServices = agentServices) {
   if (!Object.hasOwn(disclosure,config.target) || !/^\+[1-9]\d{6,14}$/.test(config.human)) throw Error('Invalid interpreter destination');
@@ -56,6 +57,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     const mode = url.searchParams.get('mode') ?? config.mode ?? 'agent';
     if (!['agent','keypad'].includes(mode)) { res.writeHead(400).end(); return; }
     tickets.set(ticket,{call,caseId,mode,expires:now+60000});
+    trace('answer',{mode,bound:Boolean(caseId)});
     const address = config.origin.replace(/^https:/,'wss:')+'/media/'+ticket;
     res.end('<Response><Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">'+address+'</Stream></Response>');
   });
@@ -66,6 +68,8 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     tickets.delete(key);
     if (!ticket || ticket.expires <= Date.now()) {socket.destroy(); return;}
     ws.handleUpgrade(req,socket,head,peer=>{
+      const counts: Record<string,number> = {};
+      trace('stream_connected',{mode:ticket.mode});
       let stream = '';
       const send = (message:object) => { if (peer.readyState === peer.OPEN) peer.send(JSON.stringify(message)); };
       const output: AgentOutput & Output = {
@@ -84,18 +88,22 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
         : new PhoneSession(config.target,makeServices(config,ticket.call,ticket.caseId),output);
       const timeout = setTimeout(()=>peer.terminate(),30*60*1000).unref();
       const startup = setTimeout(()=>peer.terminate(),15000).unref();
-      peer.on('close',()=>{ clearTimeout(timeout); clearTimeout(startup); session.close(); });
+      peer.on('close',(code)=>{ clearTimeout(timeout); clearTimeout(startup); session.close(); trace('stream_closed',{code,counts}); });
       peer.on('error',()=>peer.terminate());
       peer.on('message',async(raw,binary)=>{
         try {
           if (binary) throw Error();
           const event = JSON.parse(raw.toString());
+          const kind = String(event.event) + (event.event === 'media' ? ':' + String(event.media?.track ?? 'notrack') : '');
+          counts[kind] = (counts[kind] ?? 0) + 1;
+          if (event.event !== 'media' && event.event !== 'start') trace('plivo_event',{kind,name:event.name ?? event.playedStream?.name,digit:event.dtmf?.digit});
           if (event.event === 'start') {
             const id = event.start?.streamId ?? event.streamId;
             if (stream || event.start?.callId !== ticket.call || typeof id !== 'string' || !id) throw Error();
             const format = event.start.mediaFormat;
             if (format?.encoding !== 'audio/x-mulaw' || Number(format.sampleRate)!==8000) throw Error();
             stream = id;
+            trace('stream_start',{encoding:format.encoding,rate:format.sampleRate});
             clearTimeout(startup); await session.start();
           } else if (stream) {
             if (event.streamId && event.streamId !== stream) throw Error();
