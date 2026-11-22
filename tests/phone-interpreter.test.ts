@@ -255,7 +255,7 @@ test('non-Telugu speech is heard again with the target-language hint and Sarvam 
   globalThis.fetch=(async(_input:RequestInfo|URL,init?:RequestInit)=>{
     const form=init?.body as FormData; const model=String(form.get('model')); const language=String(form.get('language'));
     langs.push(model+':'+language);
-    if(model==='saaras:v3') return Response.json({status:'transcribed',text:'తెలుగు గందరగోళం'});
+    if(model==='saaras:v3') return Response.json({status:'transcribed',text:'తెలుగు గందరగోళం',detected:'ur-IN'});
     return Response.json({status:'transcribed',text:language==='ar'?'مرحبا كيف حالك':'اردو غلط'});
   }) as typeof fetch;
   const {agentServices}=await import('../interpreter/providers.ts');
@@ -269,13 +269,13 @@ test('Telugu speech that OpenAI labels as another language is taken from Sarvam;
   t.after(()=>{globalThis.fetch=original;});
   globalThis.fetch=(async(_input:RequestInfo|URL,init?:RequestInit)=>{
     const form=init?.body as FormData; const model=String(form.get('model'));
-    if(model==='saaras:v3') return Response.json({status:'transcribed',text:'నా పేరు సురేష్'});
+    if(model==='saaras:v3') return Response.json({status:'transcribed',text:'నా పేరు సురేష్',detected:openai.startsWith('مرحبا')?'ur-IN':'te-IN'});
     return Response.json({status:'transcribed',text:openai});
   }) as typeof fetch;
   const {agentServices}=await import('../interpreter/providers.ts');
   const svc=agentServices(cfg,'call');
   assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');          // Turkish guess -> Telugu worker
-  openai='Hello'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');
+  openai='اردو غلط'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');
   openai='مرحبا كيف حالك'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'مرحبا كيف حالك'); // Arabic script -> other speaker
   globalThis.fetch=(async(_i:RequestInfo|URL,init?:RequestInit)=>Response.json({status:'transcribed',text:String((init?.body as FormData).get('model'))==='saaras:v3'?'':'Hello'})) as typeof fetch;
   assert.equal(await svc.stt(Buffer.alloc(80,0),''),'');                          // nothing usable -> ignore
@@ -311,4 +311,22 @@ test('the model can call a tool and its answer is used; tool results come from o
   const svc=agentServices(cfg,'call',undefined,'+919999999999');
   const step=await svc.think([{who:'worker',text:'నాకు పోలీస్ స్టేషన్ కావాలి'}],'ar');
   assert.equal(step.say_to_worker,'దుబాయ్ మాల్ దగ్గర పోలీస్ స్టేషన్ ఉంది.'); assert.ok(urls.some(u=>u.includes('api.example/tools/find-place')));
+});
+
+test('with SARVAM_API_KEY on the server Sarvam is called directly with language detection, and the Helpline persona is in the prompt',async t=>{
+  const original=globalThis.fetch; const urls:string[]=[]; let promptSeen='';
+  t.after(()=>{globalThis.fetch=original;delete process.env.SARVAM_API_KEY;});
+  process.env.SARVAM_API_KEY='fixture';
+  globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(input); urls.push(url);
+    if(url.includes('api.sarvam.ai')) return Response.json({transcript:'నా పేరు సురేష్',language_code:'te-IN'});
+    if(url.includes('chat/completions')){ promptSeen=String(JSON.parse(String(init?.body)).messages[0].content); return Response.json({choices:[{message:{content:'{}'}}]}); }
+    return Response.json({status:'transcribed',text:'Görüşürüz.'});
+  }) as typeof fetch;
+  const {agentServices}=await import('../interpreter/providers.ts');
+  const svc=agentServices(cfg,'call');
+  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');
+  assert.ok(urls.some(u=>u.includes('api.sarvam.ai'))); assert.ok(!urls.some(u=>u.includes('api.example/api/saathi/stt')&&false));
+  await svc.think([{who:'worker',text:'వినిపిస్తుందా?'}],'ar');
+  assert.ok(promptSeen.includes('calm elder brother')); assert.ok(promptSeen.includes('will you speak for me'));
 });

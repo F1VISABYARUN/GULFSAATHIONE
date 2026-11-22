@@ -2,6 +2,7 @@ import { gateDecision } from '../server/live.ts';
 import { wavFromMulaw, mulawFromPcm24k } from './media.ts';
 import type { Result, Services } from './session.ts';
 import type { AgentServices, AgentStep, Turn } from './agent.ts';
+import { PERSONA } from '../bolna/agents.ts';
 
 export interface Config {
   origin: string; backend: string; secret: string; authId: string; authToken: string;
@@ -74,19 +75,22 @@ export function services(config: Config, call: string, caseId?: string): Service
   };
 }
 
-const AGENT_PROMPT = (lang: string) => `You are Saathi, speaking ON BEHALF of a Telugu-speaking migrant worker to another person who speaks ${lang}, on one phone call. Both hear you. You receive the conversation so far as WORKER (Telugu), OTHER (${lang}) and AGENT (your own earlier words). Reply with JSON {"say_to_other": string, "say_to_worker": string, "done": boolean}.
-How to sound: natural and brief, like a person helping a friend. Never announce what you are doing ("I will translate", "I will tell them in Arabic"), never greet again, never explain who you are: the opening already did that. One short sentence at a time.
-- say_to_other: in ${lang}, first person AS the worker ("I would like a ticket to Hyderabad"). Empty if nothing should be said to them now.
-- say_to_worker: simple spoken Telugu letters only, and ONLY when the worker needs to know or decide something. Empty when you simply spoke for them. Do not repeat what the worker said back to them.
+const AGENT_PROMPT = (lang: string) => `${PERSONA}
+
+# This line: you speak ON BEHALF of the worker
+The worker (Telugu) and another person who speaks ${lang} are on one phone call; both hear you. The rules above (calm elder brother, simple spoken Telugu, short, listen first, never promise) govern what you say TO THE WORKER. What you say to the other person is in ${lang}, in the first person AS the worker.
+You receive the conversation so far as WORKER (Telugu), OTHER (${lang}) and AGENT (your earlier words). Reply with JSON {"say_to_other": string, "say_to_worker": string, "done": boolean}.
+- Natural and brief, like a person helping a friend. Never announce what you are doing ("I will translate"), never greet again, never explain who you are: the opening and the notice already did that.
+- say_to_other: in ${lang}, short, first person AS the worker. Empty if nothing should be said to them now.
+- say_to_worker: Telugu letters only, and ONLY when the worker needs to know or decide something, or asked YOU something. Empty when you simply spoke for them.
 - When OTHER speaks: say_to_worker reports faithfully what they said (every number, name, time, and any "not"/"no") in one or two short Telugu sentences, then at most one short question if a decision is needed. say_to_other stays empty unless a harmless clarifying question is needed.
-- When WORKER states a goal or decision, speak for them in ${lang}. Do not invent facts, names, amounts, dates or documents about the worker.
-- Never agree to a price, payment, contract, handing over a passport or ID, or signing: ask the worker in Telugu first and wait for a clear yes or no.
-- Tools: when the worker asks YOU for help (find a place, directions, visa ending or expired, check an agent or a fee, trouble), call the matching tool, then put its returned Telugu (sayTe or instruction) in say_to_worker, word for word, and say nothing to the other person. Never invent a place, fee, fine or date that a tool did not return.
-- The worker may also talk to YOU (greetings, "can you hear me?", "do you speak Telugu?", questions about what you will do): answer those in Telugu only, in a few words, and say nothing to the other person. Speak to the other person only for what the worker wants told or asked.
-- Do not offer help, ask "what do you need" or add pleasantries after the opening. Say nothing unless there is something to say to the other person or something the worker must know or decide.
-- If the worker has not yet said what they need, say nothing to the other person and ask the worker in Telugu. Never speak to the other person first.
-- If you did not understand, ask for repetition in the right language. done=true only when the worker's goal is finished or they say goodbye.
-Example. WORKER: "నాకు హైదరాబాద్ టికెట్ కావాలి" -> {"say_to_other":"I would like a ticket to Hyderabad, please.","say_to_worker":"","done":false}. OTHER: "It is 200 dirhams" -> {"say_to_other":"","say_to_worker":"వాళ్ళు 200 దిర్హామ్స్ అంటున్నారు. సరేనా?","done":false}. WORKER: "వినిపిస్తుందా?" -> {"say_to_other":"","say_to_worker":"వినిపిస్తోంది.","done":false}. WORKER: "సరే" with nothing proposed yet -> {"say_to_other":"","say_to_worker":"","done":false}.`;
+- Talking to you vs talking to the other person: greetings, "can you hear me?", "do you speak Telugu?", "will you speak for me?" are questions to YOU. Answer the worker in Telugu in a few words ("అవును, నేను మాట్లాడతాను. ఏం చెప్పాలి?") and say NOTHING to the other person yet. Speak to the other person only after the worker tells you what to say or ask, or clearly states what they want from them.
+- Tools: when the worker asks YOU for help (find a place, directions, visa ending or expired, check an agent or a fee, trouble), call the matching tool, then put its returned Telugu (sayTe or instruction) in say_to_worker, word for word, and say nothing to the other person. Never invent a place, fee, fine or date that a tool did not return. If the worker is in danger or trouble, call report_problem at once.
+- Do not offer help, ask "what do you need" or add pleasantries after the opening.
+- Never agree to a price, payment, contract, handing over a passport or ID, or signing: ask the worker in Telugu first and wait for a clear yes or no. A bare "okay" from the worker is not an agreement and is not something to say to the other person.
+- Do not invent facts, names, amounts, dates or documents about the worker. If you did not catch an important word, ask the worker to repeat it.
+- done=true only when the worker's goal is finished or they say goodbye.
+Examples. WORKER: "నాకు హైదరాబాద్ టికెట్ కావాలి, ఆయనకు చెప్పండి" -> {"say_to_other":"I would like a ticket to Hyderabad, please.","say_to_worker":"","done":false}. OTHER: "It is 200 dirhams" -> {"say_to_other":"","say_to_worker":"వాళ్ళు 200 దిర్హామ్స్ అంటున్నారు. సరేనా?","done":false}. WORKER: "వినిపిస్తుందా?" -> {"say_to_other":"","say_to_worker":"వినిపిస్తోంది.","done":false}. WORKER: "నా బదులు నువ్వు మాట్లాడతావా?" -> {"say_to_other":"","say_to_worker":"అవును, మాట్లాడతాను. ఏం చెప్పమంటారు?","done":false}. WORKER: "సరే" with nothing proposed yet -> {"say_to_other":"","say_to_worker":"","done":false}.`;
 
 const TOOL_PATHS: Record<string,string> = { find_place:'/tools/find-place', directions:'/tools/directions', exit_path:'/tools/exit-path',
   check_agent:'/tools/check-agent', check_fee:'/tools/check-fee', report_problem:'/tools/report-problem' };
@@ -115,38 +119,37 @@ export function agentServices(config: Config, call: string, caseId?: string, fro
     return response.json();
   }
   return {
-    // Hear with OpenAI (auto language) and Sarvam at the same time. Sarvam's text is used only when OpenAI also heard Telugu
-    // (Sarvam is forced to Telugu and would turn other languages into Telugu-looking nonsense).
+    // Who spoke is decided from two ears at once: OpenAI (auto language) and Sarvam (language detection, strong on Telugu). OpenAI's own
+    // language guess on phone-quality Telugu is unreliable (it returned Turkish, Tamil and Urdu script for Telugu), so Telugu wins if
+    // EITHER ear says Telugu. Only when neither does and OpenAI wrote Arabic script is it the other person.
     async stt(audio, language) {
-      const sarvam = async () => {
-        if (process.env.INTERPRETER_SARVAM === 'off') return '';
+      const sarvam = async (): Promise<{text: string; lang: string}> => {
+        if (process.env.INTERPRETER_SARVAM === 'off') return {text: '', lang: ''};
         try {
           const form = new FormData();
-          form.append('audio', new Blob([new Uint8Array(wavFromMulaw(audio))], {type:'audio/wav'}), 'turn.wav');
-          form.append('language', 'te'); form.append('model', 'saaras:v3');
-          const response = await checked(config.backend+'/api/saathi/stt', {method:'POST', headers:{'x-saathi-secret':config.secret}, body:form});
-          const result = await response.json();
-          return result.status === 'transcribed' && typeof result.text === 'string' ? result.text.trim() : '';
-        } catch { return ''; }
+          const wav = new Blob([new Uint8Array(wavFromMulaw(audio))], {type:'audio/wav'});
+          const key = process.env.SARVAM_API_KEY;
+          if (key) {   // straight to Sarvam when the key is on this server: one network hop fewer than going through the Vercel app
+            form.append('file', wav, 'turn.wav'); form.append('model', 'saaras:v3'); form.append('language_code', 'unknown'); form.append('mode', 'transcribe');
+            const j = await (await checked('https://api.sarvam.ai/speech-to-text', {method:'POST', headers:{'api-subscription-key':key}, body:form})).json();
+            return {text: String(j.transcript ?? '').trim(), lang: String(j.language_code ?? '')};
+          }
+          form.append('audio', wav, 'turn.wav'); form.append('language', ''); form.append('model', 'saaras:v3');
+          const j = await (await checked(config.backend+'/api/saathi/stt', {method:'POST', headers:{'x-saathi-secret':config.secret}, body:form})).json();
+          return {text: j.status === 'transcribed' && typeof j.text === 'string' ? j.text.trim() : '', lang: typeof j.detected === 'string' ? j.detected : ''};
+        } catch { return {text: '', lang: ''}; }
       };
-      const [heard, fromSarvam] = await Promise.all([base.stt(audio, language), sarvam()]);
-      const telugu = /[\u0C00-\u0C7F]/;
-      const arabicScript = /[\u0600-\u06FF\u0750-\u077F]/;
-      const sarvamTelugu = telugu.test(fromSarvam) ? fromSarvam : '';
-      // For an Arabic- or Urdu-speaking other person the script decides who spoke: OpenAI's own language guess on phone-quality
-      // Telugu is unreliable (it returned Turkish, Tamil and "Hello"), so anything that is not Arabic script is the Telugu speaker.
-      if (config.target === 'ar' || config.target === 'ur') {
-        if (arabicScript.test(heard)) {
-          try { const hinted = (await base.stt(audio, config.target)).trim(); if (arabicScript.test(hinted)) return hinted; } catch { /* keep the first result */ }
-          return heard;
-        }
-        return sarvamTelugu || (telugu.test(heard) ? heard : '');
-      }
-      if (telugu.test(heard)) return sarvamTelugu || heard;
-      if (heard.trim() && config.target) {
+      const [heard, sv] = await Promise.all([base.stt(audio, language), sarvam()]);
+      const telugu = /[\u0C00-\u0C7F]/, arabicScript = /[\u0600-\u06FF\u0750-\u077F]/;
+      const svTelugu = sv.lang ? sv.lang.toLowerCase().startsWith('te') : telugu.test(sv.text);
+      if (telugu.test(heard) || svTelugu) return telugu.test(sv.text) ? sv.text : telugu.test(heard) ? heard : '';
+      const relisten = async () => {
+        if (!heard.trim() || !config.target) return heard;
         try { const hinted = (await base.stt(audio, config.target)).trim(); if (hinted) return hinted; } catch { /* keep the first result */ }
-      }
-      return heard;
+        return heard;
+      };
+      if (config.target === 'ar' || config.target === 'ur') return arabicScript.test(heard) ? relisten() : '';
+      return relisten();
     },
     speak: (text, language) => base.speak(text, language),
     handoff: () => base.handoff(),

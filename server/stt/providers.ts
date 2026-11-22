@@ -72,6 +72,7 @@ export async function transcribeRecording(file: Express.Multer.File, model: stri
     .map((p: {text?: string}) => p.text ?? '').join('') : sarvam ? result.transcript : result.text;
   if (typeof raw !== 'string') throw new SpeechError(502, provider + ' returned no transcript');
   const text = raw.trim();
-  return { text, model, provider, language: language || null, ms: Date.now() - start,
+  const detected = sarvam && typeof result.language_code === 'string' ? result.language_code : null;
+  return { text, model, provider, language: language || null, detected, ms: Date.now() - start,
     status: text ? 'transcribed' : 'needs_confirm' };
 }
