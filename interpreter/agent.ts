@@ -23,7 +23,7 @@ export interface AgentOutput {
 // First-pass wording by the author, not reviewed by native speakers.
 // Spoken once at the start. First-pass wording by the author, not reviewed by native speakers. No keypad instructions: agent mode is voice-driven.
 export const agentDisclosure: Record<string, string> = {
-  te: 'నేను సాథి ఏఐ. మీ తరఫున మాట్లాడతాను. మీ మాటలు అనువాద సేవలకు వెళ్తాయి. ఆపడానికి సున్నా నొక్కండి.',
+  te: 'నేను సాథి ఏఐ. మీ తరపున మాట్లాడతాను. మీ మాటలు అనువాద సేవలకు వెళ్తాయి. ఆపడానికి సున్నా నొక్కండి.',
   ar: 'أنا مساعد ذكاء اصطناعي، أتحدث نيابة عن المتحدث بالتيلوغو. يُرسل الصوت إلى خدمات الترجمة. للإيقاف اضغط صفراً.',
   en: 'I am an AI assistant speaking on behalf of the Telugu speaker. Audio goes to translation services. Press zero to stop.',
   hi: 'मैं एआई सहायक हूँ और तेलुगु बोलने वाले की ओर से बोल रहा हूँ। आवाज़ अनुवाद सेवाओं को जाती है। रोकने के लिए शून्य दबाएँ।',
@@ -40,7 +40,7 @@ const digits = (t: string) => (t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0)
   .match(/\d+(?:[.,]\d+)*/g) ?? []).map(v => Number(v.replace(/,/g, ''))).filter(n => n >= 10);
 export const numbersIn = (t: string) => [...new Set([...numberValues(tokenize(t)), ...digits(t)])];
 const BARGE_BYTES = 2400;   // 0.3 s of voice interrupts our speech
-const MIN_VOICED = 3200;   // 0.4 s of speech at 8 kHz; shorter sounds are line noise
+const MIN_VOICED = 2400;   // 0.3 s of speech at 8 kHz (same as the interruption threshold); shorter sounds are line noise
 const JUNK = /^[\s.,!?'"-]*(thank you|thanks|thank you for watching|you|bye|okay|ok|hello|hi|yeah|uh|um|hmm)?[\s.,!?'"-]*$/i;
 const junk = (t: string) => JUNK.test(t) || t.replace(/[^\p{L}\p{N}]/gu, '').length < 2;
 const flat = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
@@ -112,7 +112,7 @@ export class AgentSession {
     if (this.length > 30 * 8000) { this.clearAudio(); return; }
     this.frames.push(frame);
     if (hasVoice(frame)) { this.voiced = true; this.voicedBytes += frame.length; this.silence = 0; } else this.silence += frame.length;
-    if (this.voiced && this.silence >= 6000) await this.finish();
+    if (this.voiced && this.silence >= 5000) await this.finish();
   }
   private async finish() {
     const id = this.generation;

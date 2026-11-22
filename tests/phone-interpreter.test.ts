@@ -242,3 +242,18 @@ test('if Plivo never confirms playback the agent still starts listening',async()
   await session.media(Buffer.alloc(4000,0)); await session.media(Buffer.alloc(6000,255));
   assert.ok(spoken.includes('ar AR hi'));
 });
+
+test('non-Telugu speech is heard again with the target-language hint and Sarvam text is not used for it',async t=>{
+  const original=globalThis.fetch; const langs:string[]=[];
+  t.after(()=>{globalThis.fetch=original;});
+  globalThis.fetch=(async(_input:RequestInfo|URL,init?:RequestInit)=>{
+    const form=init?.body as FormData; const model=String(form.get('model')); const language=String(form.get('language'));
+    langs.push(model+':'+language);
+    if(model==='saaras:v3') return Response.json({status:'transcribed',text:'తెలుగు గందరగోళం'});
+    return Response.json({status:'transcribed',text:language==='ar'?'مرحبا كيف حالك':'اردو غلط'});
+  }) as typeof fetch;
+  const {agentServices}=await import('../interpreter/providers.ts');
+  const svc=agentServices(cfg,'call');
+  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'مرحبا كيف حالك');
+  assert.ok(langs.includes('gpt-4o-transcribe:ar'));
+});
