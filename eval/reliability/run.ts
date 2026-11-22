@@ -1,12 +1,12 @@
 // Paired evaluation. Reference labels never enter the transcript extractor.
 import { readFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { runHarness, ALL_ON, ALL_OFF } from '../../server/harness/index.ts';
+import { runHarness, ALL_ON } from '../../server/harness/index.ts';
 import { prepare, readCatalog } from './review.ts';
 import { assessRisks } from '../../server/risk/engine.ts';
 import { wer } from '../scorer.ts';
 import { normalizeText } from '../../server/harness/tokens.ts';
-import { withQuestionContext } from '../../server/harness/qa.ts';
+import { extractTurn } from './extract.ts';
 
 type Label = {state:'reported'|'unclear'|'absent';value?:unknown};
 type Fact = {state:'value'|'unknown';value?:unknown;p?:number};
@@ -50,8 +50,7 @@ if (!selected.length) {
 function extract(row:Turn, saathi:boolean):Output {
   const turn=catalog.get(row.call)?.turns[row.turn-1];
   if (!turn) throw Error('Missing transcript in catalog: '+row.call+' turn '+row.turn);
-  const text=saathi?withQuestionContext([turn]):turn.text;
-  const {slots} = runHarness(text, {}, saathi ? ALL_ON : ALL_OFF);
+  const {slots} = extractTurn(turn, saathi);
   return {transcript:saathi?runHarness(turn.text,{},ALL_ON).corrected:turn.text,
     risks:assessRisks(slots).filter(r=>!r.id.startsWith('AGENT_')).map(r=>r.id),
     facts:Object.fromEntries(Object.entries(slots).map(([key,value])=>[key,{state:'value',value}])),asked:[]};
