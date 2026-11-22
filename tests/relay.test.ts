@@ -39,3 +39,22 @@ test('passport spelling variants in the Telugu back-translation are accepted',as
   });
   assert.equal((await relay('నా పాస్పోర్ట్ తిరిగి ఇవ్వండి','te','ar')).status,'translated');
 });
+
+test('withhold dropped, duplicated or reordered numeric facts before speaking either direction',async t=>{
+  process.env.OPENAI_API_KEY='fixture'; t.after(()=>{delete process.env.OPENAI_API_KEY;});
+  let output = '';
+  t.mock.method(globalThis,'fetch',async()=>Response.json({choices:[{message:{
+    content:JSON.stringify({text:output,safety:'ordinary',confidence:'high',pronounce_te:'డోలో'})
+  }}]}));
+  for(const [source,target] of [
+    ['دولو ١٦٠','డోలో'], ['100 ثم 200','200 తర్వాత 100'], ['100','100 నుండి 100'],
+    ['١٫٥','15'], ['50000','500000'],
+  ]){
+    output=target;
+    const r=await relay(source,'ar','te');
+    assert.equal(r.status,'needs_confirm');
+    assert.equal(r.say_to_other,'');
+  }
+  output='డోలో 160';
+  assert.equal((await relay('دولو ١٦٠','ar','te')).status,'translated');
+});
