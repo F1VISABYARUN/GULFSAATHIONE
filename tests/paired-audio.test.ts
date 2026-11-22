@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { pairedAudio, type Clip, type Trial } from '../eval/reliability/paired-audio.ts';
 import { replayRecording } from '../eval/e2e/replay-client.ts';
 
-const c:Clip={id:'c1',call:'call1',dataset:'family',direction:'te-ar',speaker:'s1',status:'verified',split:'dev',
+const c:Clip={id:'c1',call:'call1',dataset:'family',direction:'te-ar',speaker:'s1',speakerVerified:true,status:'verified',split:'dev',
   question:'మీ పాస్‌పోర్ట్ మీ దగ్గర ఉందా?',truth:{passportHeld:{state:'reported',value:true}}};
 const t:Trial={clip:'c1',model:'a',run:1,text:'లేదు',ms:10};
 const listener={reviewer:'r',audioId:'blind-1',direction:'te-ar',facts:{},warned:[],firstAudioDelayMs:620};
@@ -12,7 +12,7 @@ test('paired verified cohorts; repeated speech does not increase primary counts;
   const trials=[{...t,listener},{...t,model:'b',ms:50},{...t,text:'changed',run:2},{...t,clip:'c2'},
     {clip:'c2',run:1,model:'b',error:'upstream timeout'},{...t,run:3,text:undefined,error:'timeout'}];
   const g=pairedAudio([c,other],trials,['a','b'],'dev').groups[0];
-  assert.equal(g.eligibleClips,2);assert.equal(g.pairedClips,1);assert.equal(g.pairedSpeakers,1);
+  assert.equal(g.eligibleClips,2);assert.equal(g.pairedClips,1);assert.equal(g.verifiedPairedSpeakers,1);
   assert.equal(g.systems[1].failed,1);
   const a=g.systems[0];
   assert.equal(a.base.criticalFacts.count,0);assert.equal(a.saathi.criticalFacts.count,1);
@@ -31,6 +31,7 @@ test('refuses split leakage, duplicate observations, stale directions and invali
   assert.throws(()=>pairedAudio([c],[{...t,listener:{...listener,direction:'ar-te'}}],['a'],'dev'),/review/);
   assert.throws(()=>pairedAudio([c],[{...t,ms:-1}],['a'],'dev'),/timing/);
   assert.equal(pairedAudio([c],[],['a'],'heldout').verified,0);
+  assert.throws(()=>pairedAudio([{...c,split:'heldout',speakerVerified:false}],[],['a'],'heldout'),/identity/);
 });
 test('replay sends source language only, rejects incomplete transcription responses',async t=>{
   const url=new URL('http://localhost/api/saathi/stt');

@@ -3,7 +3,7 @@ import { extractTurn } from './extract.ts';
 
 interface Truth {state:'reported'|'unclear'|'absent'; value?:unknown}
 export interface Clip {
-  id:string; call:string; speaker:string; split:'dev'|'heldout'; status:'pending'|'verified'|'skip';
+  id:string; call:string; speaker:string; speakerVerified?:boolean; split:'dev'|'heldout'; status:'pending'|'verified'|'skip';
   dataset:string; direction:string; question?:string; truth:Record<string,Truth>;
 }
 export interface Trial {
@@ -27,6 +27,7 @@ function validate(clips:Clip[], trials:Trial[], models:string[]) {
         !['verified','pending','skip'].includes(c.status) || !/^[a-z]{2}-[a-z]{2}$/.test(c.direction)) throw Error('Invalid or duplicate clip');
     ids.set(c.id,c);
     if (c.status==='verified' && (!c.speaker?.trim() || !c.truth || !Object.keys(c.truth).length)) throw Error('Verified clip needs speaker and truth');
+    if (c.status==='verified' && c.split==='heldout' && c.speakerVerified!==true) throw Error('Held-out speaker identity must be verified');
     for (const [field,t] of Object.entries(c.truth??{})) {
       if (!field || !['reported','unclear','absent'].includes(t.state) || (t.state==='reported')!==(t.value!=null)) throw Error('Invalid truth field');
     }
@@ -105,7 +106,8 @@ export function pairedAudio(clips:Clip[], trials:Trial[], models:string[], split
         reviewedPlayback:{criticalFacts:frac(heard,reported),silentMiss:frac(silent,reported),unsupportedOnLabeledFields:invented,
           endOfSpeechToFirstAudioMs:latency(delays)}};
     });
-    return {dataset,direction,eligibleClips:eligible.length,pairedClips:paired.length,pairedSpeakers:new Set(paired.map(c=>c.speaker)).size,
+    return {dataset,direction,eligibleClips:eligible.length,pairedClips:paired.length,verifiedPairedSpeakers:new Set(paired.filter(c=>c.speakerVerified).map(c=>c.speaker)).size,
+      pairedClipsWithUnverifiedSpeaker:paired.filter(c=>!c.speakerVerified).length,
       pairedCalls:new Set(paired.map(c=>c.call)).size,pairedPlaybackReviews:reviewed.length,systems};
   })};
 }

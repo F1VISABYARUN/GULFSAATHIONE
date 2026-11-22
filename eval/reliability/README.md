@@ -32,9 +32,9 @@ Silent critical miss rate = reported facts wrong or missing with neither explici
 
 ## Replay the same audio through multiple models
 
-Keep clips, labels, playback recordings and predictions in a private directory outside git. Cut each caller turn to a mono clip. Preserve the final utterance and store the preceding question separately. Freeze one manifest, including development and held-out data, before inspecting results. A stable speaker pseudonym must identify the same person across calls. Record the SHA-256 digest of each exact input file. One manifest row looks like this:
+Keep clips, labels, playback recordings and predictions in a private directory outside git. Cut each caller turn to a mono clip. Preserve the final utterance and store the preceding question separately. Freeze one manifest, including development and held-out data, before inspecting results. A stable speaker pseudonym must identify the same person across calls. Set speakerVerified to true only after confirming that grouping. Held-out scoring requires this flag. Record the SHA-256 digest of each exact input file. One manifest row looks like this:
 
-    {"id":"c1-t3","call":"c1","speaker":"worker-a","dataset":"consented-calls","direction":"te-ar","split":"heldout","status":"verified","audio":"c1-t3.wav","sha256":"<64 hex characters>","question":"Is your passport with you?","truth":{"passportHeld":{"state":"reported","value":true}}}
+    {"id":"c1-t3","call":"c1","speaker":"worker-a","speakerVerified":true,"dataset":"consented-calls","direction":"te-ar","split":"heldout","status":"verified","audio":"c1-t3.wav","sha256":"<64 hex characters>","question":"Is your passport with you?","truth":{"passportHeld":{"state":"reported","value":true}}}
 
 Use a private server URL and its SAATHI_SECRET. This command uploads each verified clip in the chosen split to each chosen provider through the backend. Choose only providers permitted to process those calls. For Arabic use models supporting Arabic. Errors remain in the observation file and give the command a nonzero exit. The collector refuses to overwrite the output.
 
