@@ -21,16 +21,17 @@ export interface AgentOutput {
 }
 
 // First-pass wording by the author, not reviewed by native speakers.
-// Spoken once at the start. First-pass wording by the author, not reviewed by native speakers. No keypad instructions: agent mode is voice-driven.
+// Said to the OTHER person once, in front of the first thing we say to them (never as a phone menu at the start of the call).
+// First-pass wording by the author, not reviewed by native speakers.
 export const agentDisclosure: Record<string, string> = {
-  te: 'నేను సాథి ఏఐ. మీ తరపున మాట్లాడతాను. మీ మాటలు అనువాద సేవలకు వెళ్తాయి. ఆపడానికి సున్నా నొక్కండి.',
-  ar: 'أنا مساعد ذكاء اصطناعي، أتحدث نيابة عن المتحدث بالتيلوغو. يُرسل الصوت إلى خدمات الترجمة. للإيقاف اضغط صفراً.',
-  en: 'I am an AI assistant speaking on behalf of the Telugu speaker. Audio goes to translation services. Press zero to stop.',
-  hi: 'मैं एआई सहायक हूँ और तेलुगु बोलने वाले की ओर से बोल रहा हूँ। आवाज़ अनुवाद सेवाओं को जाती है। रोकने के लिए शून्य दबाएँ।',
-  ur: 'میں مصنوعی ذہانت کا معاون ہوں اور تیلگو بولنے والے کی طرف سے بات کر رہا ہوں۔ آواز ترجمے کی خدمات کو جاتی ہے۔ روکنے کے لیے صفر دبائیں۔',
-  ml: 'ഞാൻ ഒരു എ ഐ സഹായിയാണ്, തെലുങ്ക് സംസാരിക്കുന്നയാളുടെ പേരിൽ സംസാരിക്കുന്നു. ശബ്ദം പരിഭാഷാ സേവനങ്ങളിലേക്ക് പോകും. നിർത്താൻ പൂജ്യം അമർത്തുക.',
+  te: 'నేను సాథి ఏఐని, తెలుగు మాట్లాడే వారి తరపున మాట్లాడుతున్నాను.',
+  ar: 'أنا مساعد ذكاء اصطناعي، أتحدث نيابة عن المتحدث بالتيلوغو، والصوت يُعالج بخدمات الترجمة.',
+  en: 'I am an AI assistant speaking on behalf of the Telugu speaker; the audio is processed by translation services.',
+  hi: 'मैं एआई सहायक हूँ और तेलुगु बोलने वाले की ओर से बोल रहा हूँ; आवाज़ अनुवाद सेवाओं से प्रोसेस होती है।',
+  ur: 'میں مصنوعی ذہانت کا معاون ہوں اور تیلگو بولنے والے کی طرف سے بات کر رہا ہوں؛ آواز ترجمے کی خدمات سے پروسیس ہوتی ہے۔',
+  ml: 'ഞാൻ ഒരു എ ഐ സഹായിയാണ്, തെലുങ്ക് സംസാരിക്കുന്നയാളുടെ പേരിൽ സംസാരിക്കുന്നു; ശബ്ദം പരിഭാഷാ സേവനങ്ങൾ പ്രോസസ് ചെയ്യും.',
 };
-const intro = 'చెప్పండి, ఏం కావాలి?';
+const greeting = 'నమస్కారం, నేను సాథి. చెప్పండి, ఏం కావాలి?';
 const askAgain: Record<string, string> = { ar: 'من فضلك أعد الكلام.', en: 'Please say that again.', hi: 'कृपया फिर से कहिए।', ur: 'براہ کرم دوبارہ کہیں۔', ml: 'ദയവായി ഒന്നുകൂടി പറയൂ.' };
 const cannotTranslate = 'వాళ్ళు చెప్పింది సరిగా చెప్పలేకపోయాను. మళ్ళీ చెప్పమని అడుగుతున్నాను.';
 const needNumber = 'ఈ సంఖ్య మీరు చెప్పలేదు. మీరే చెప్పండి.';
@@ -58,6 +59,7 @@ export class AgentSession {
   private frames: Buffer[] = [];
   private length = 0; private voiced = false; private silence = 0;
   private history: Turn[] = [];
+  private disclosed = false;       // the other person has been told once that we are an AI speaking for the worker
   private goalSet = false;            // the worker has said what they need; before that nothing is said to the other person
   private lastSpoken = '';
   private deafUntil = 0;              // ignore the line briefly after our own speech so we do not hear ourselves
@@ -89,7 +91,7 @@ export class AgentSession {
     } catch { if (id === this.generation) { this.close(); this.out.close(); } }
   }
   private listen() { this.clearAudio(); this.phase = 'listen'; this.out.metric?.('listening', 0); }
-  async start() { await this.say([[agentDisclosure.te, 'te'], [agentDisclosure[this.target], this.target], [intro, 'te']], () => this.listen()); }
+  async start() { await this.say([[greeting, 'te']], () => this.listen()); }
   played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.deafUntil = Date.now() + this.graceMs; this.afterPlay(); } }
   async digit(key: string) { if (key === '0' && this.phase !== 'closed') { this.close(); this.out.close(); } }
   // The caller can interrupt us: sustained voice while we speak stops our audio and starts listening, like Bolna.
@@ -167,6 +169,7 @@ export class AgentSession {
     if (!toOther && !toWorker) { this.listen(); return; }
     if (toOther) this.history.push({ who: 'agent', text: toOther });
     if (toWorker) this.history.push({ who: 'agent', text: toWorker });
+    if (toOther && !this.disclosed) { toOther = (agentDisclosure[this.target] ?? agentDisclosure.en) + ' ' + toOther; this.disclosed = true; }
     this.lastSpoken = [toOther, toWorker].filter(Boolean).join(' ');
     this.log('say', { to_other: toOther, to_worker: toWorker });
     await this.say([[toOther, this.target], [toWorker, 'te']], () => { if (step.done) { this.close(); this.out.close(); } else this.listen(); });
