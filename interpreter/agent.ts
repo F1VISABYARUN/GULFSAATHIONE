@@ -39,6 +39,11 @@ const transferFailed = 'మనిషికి కలపలేకపోయాన�
 const digits = (t: string) => (t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x660)).replace(/[౦-౯]/g, d => String(d.charCodeAt(0) - 0xc66))
   .match(/\d+(?:[.,]\d+)*/g) ?? []).map(v => Number(v.replace(/,/g, ''))).filter(n => n >= 10);
 export const numbersIn = (t: string) => [...new Set([...numberValues(tokenize(t)), ...digits(t)])];
+const MIN_VOICED = 3200;   // 0.4 s of speech at 8 kHz; shorter sounds are line noise
+const JUNK = /^[\s.,!?'"-]*(thank you|thanks|thank you for watching|you|bye|okay|ok|hello|hi|yeah|uh|um|hmm)?[\s.,!?'"-]*$/i;
+const junk = (t: string) => JUNK.test(t) || t.replace(/[^\p{L}\p{N}]/gu, '').length < 2;
+const flat = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+const sameAs = (a: string, b: string) => { const x = flat(a), y = flat(b); return x.length > 8 && y.length > 8 && (y.includes(x) || x.includes(y)); };
 const telugu = (t: string) => /[ఀ-౿]/.test(t);
 
 // The agent speaks for the worker on a shared (speaker) phone. Code, not the model, enforces: no number the
@@ -52,11 +57,17 @@ export class AgentSession {
   private frames: Buffer[] = [];
   private length = 0; private voiced = false; private silence = 0;
   private history: Turn[] = [];
+  private goalSet = false;            // the worker has said what they need; before that nothing is said to the other person
+  private lastSpoken = '';
+  private deafUntil = 0;              // ignore the line briefly after our own speech so we do not hear ourselves
+  private voicedBytes = 0;
+  private debug = process.env.INTERPRETER_DEBUG === '1';
 
-  constructor(private target: string, private service: AgentServices, private out: AgentOutput) {
+  constructor(private target: string, private service: AgentServices, private out: AgentOutput, private graceMs = 700) {
     if (!Object.hasOwn(disclosure, target)) throw Error('Unsupported language');
   }
-  private clearAudio() { this.frames = []; this.length = 0; this.silence = 0; this.voiced = false; }
+  private clearAudio() { this.frames = []; this.length = 0; this.silence = 0; this.voiced = false; this.voicedBytes = 0; }
+  private log(event: string, data: object = {}) { if (this.debug) console.info(JSON.stringify({ component: 'phone-interpreter', event, ...data })); }
   close() { this.generation++; this.clearAudio(); this.phase = 'closed'; }
   private async say(lines: [string, string][], next: () => void) {
     const id = this.generation;
@@ -70,27 +81,32 @@ export class AgentSession {
   }
   private listen() { this.clearAudio(); this.phase = 'listen'; }
   async start() { await this.say([[agentDisclosure.te, 'te'], [agentDisclosure[this.target], this.target], [intro, 'te']], () => this.listen()); }
-  played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.afterPlay(); } }
+  played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.deafUntil = Date.now() + this.graceMs; this.afterPlay(); } }
   async digit(key: string) { if (key === '0' && this.phase !== 'closed') { this.close(); this.out.close(); } }
   async media(frame: Buffer) {
-    if (this.phase !== 'listen' || !frame.length) return;
+    if (this.phase !== 'listen' || !frame.length || Date.now() < this.deafUntil) return;
     this.length += frame.length;
     if (this.length > 30 * 8000) { this.clearAudio(); return; }
     this.frames.push(frame);
-    if (hasVoice(frame)) { this.voiced = true; this.silence = 0; } else this.silence += frame.length;
+    if (hasVoice(frame)) { this.voiced = true; this.voicedBytes += frame.length; this.silence = 0; } else this.silence += frame.length;
     if (this.voiced && this.silence >= 6000) await this.finish();
   }
   private async finish() {
     const id = this.generation;
     this.phase = 'busy';
-    const audio = Buffer.concat(this.frames); this.clearAudio();
+    const audio = Buffer.concat(this.frames); const voicedBytes = this.voicedBytes; this.clearAudio();
     try {
+      if (voicedBytes < MIN_VOICED) { this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
       const began = Date.now();
       const text = (await this.service.stt(audio, '')).trim();
       this.out.metric?.('asr', Date.now() - began);
       if (id !== this.generation) return;
       if (!text || text.length > 2000) { this.listen(); return; }
       const who = telugu(text) ? 'worker' : 'other';
+      const why = junk(text) ? 'noise' : sameAs(text, this.lastSpoken) ? 'echo' : who === 'other' && !this.goalSet ? 'no goal yet' : '';
+      this.log('heard', { who, text, ignored: why || undefined });
+      if (why) { this.listen(); return; }
+      if (who === 'worker') this.goalSet = true;
       const verdict = await this.service.check(text);
       if (id !== this.generation) return;
       if (verdict === 'covert') { this.service.alert?.(text).catch(() => {}); this.listen(); return; }
@@ -100,7 +116,7 @@ export class AgentSession {
       if (id !== this.generation) return;
       this.out.metric?.('think', Date.now() - began);
       await this.speakStep(id, who, text, step);
-    } catch { if (id === this.generation) this.listen(); }
+    } catch (e) { this.log('error', { message: String((e as Error)?.message ?? e).slice(0, 200) }); if (id === this.generation) this.listen(); }
   }
   private async transfer(id: number, text: string) {
     this.phase = 'handoff';
@@ -114,6 +130,7 @@ export class AgentSession {
   }
   private async speakStep(id: number, who: 'worker' | 'other', text: string, step: AgentStep) {
     let toOther = (step.say_to_other ?? '').trim(), toWorker = (step.say_to_worker ?? '').trim();
+    if (toWorker && !telugu(toWorker)) toWorker = '';                  // the report to the worker must be in Telugu letters
     const heard = new Set(this.history.filter(t => t.who !== 'agent').flatMap(t => numbersIn(t.text)));
     if (who === 'other') {
       const said = numbersIn(text);
@@ -127,6 +144,8 @@ export class AgentSession {
     if (!toOther && !toWorker) { this.listen(); return; }
     if (toOther) this.history.push({ who: 'agent', text: toOther });
     if (toWorker) this.history.push({ who: 'agent', text: toWorker });
+    this.lastSpoken = [toOther, toWorker].filter(Boolean).join(' ');
+    this.log('say', { to_other: toOther, to_worker: toWorker });
     await this.say([[toOther, this.target], [toWorker, 'te']], () => { if (step.done) { this.close(); this.out.close(); } else this.listen(); });
   }
 }
