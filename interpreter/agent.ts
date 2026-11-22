@@ -79,7 +79,7 @@ export class AgentSession {
       this.out.play(Buffer.concat(audio), this.checkpoint);
     } catch { if (id === this.generation) { this.close(); this.out.close(); } }
   }
-  private listen() { this.clearAudio(); this.phase = 'listen'; }
+  private listen() { this.clearAudio(); this.phase = 'listen'; this.out.metric?.('listening', 0); }
   async start() { await this.say([[agentDisclosure.te, 'te'], [agentDisclosure[this.target], this.target], [intro, 'te']], () => this.listen()); }
   played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.deafUntil = Date.now() + this.graceMs; this.afterPlay(); } }
   async digit(key: string) { if (key === '0' && this.phase !== 'closed') { this.close(); this.out.close(); } }
@@ -96,7 +96,7 @@ export class AgentSession {
     this.phase = 'busy';
     const audio = Buffer.concat(this.frames); const voicedBytes = this.voicedBytes; this.clearAudio();
     try {
-      if (voicedBytes < MIN_VOICED) { this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
+      if (voicedBytes < MIN_VOICED) { this.out.metric?.('ignored_short_bytes', voicedBytes); this.log('ignored', { why: 'too short', voicedBytes }); this.listen(); return; }
       const began = Date.now();
       const text = (await this.service.stt(audio, '')).trim();
       this.out.metric?.('asr', Date.now() - began);
