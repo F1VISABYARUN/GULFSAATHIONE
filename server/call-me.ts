@@ -83,13 +83,15 @@ export function registerCallMe(app: Express) {
       const mode = callMeMode();
       if (mode === 'closed') return say(res, 503, 'closed');
       if (mode === 'approved' && !allowlist().has(phone)) return say(res, 403, 'not_approved');
-      if (!(await store.allow('net:' + clientKey(req), HOUR, 10))) return say(res, 429, 'slow_down');
-      if (!(await store.allow('calls:' + hash(phone), DAY, 2))) return say(res, 429, 'too_many_calls');
-      if (!(await store.allow('calls:global', DAY, Number(process.env.CALL_ME_DAILY_MAX || 50)))) return say(res, 429, 'daily_limit');
+      const keys = ['net:' + clientKey(req), 'calls:' + hash(phone), 'calls:global'], taken: string[] = [];
+      const take = async (key: string, windowMs: number, max: number) => { const ok = await store.allow(key, windowMs, max); if (ok) taken.push(key); return ok; };
+      const refuse = async (code: number, status: string) => { await Promise.all(taken.map(k => store.refund(k))); return say(res, code, status); };   // a refused request must not use up the other limits
+      if (!(await take(keys[0], HOUR, 10))) return refuse(429, 'slow_down');
+      if (!(await take(keys[1], DAY, 2))) return refuse(429, 'too_many_calls');
+      if (!(await take(keys[2], DAY, Number(process.env.CALL_ME_DAILY_MAX || 50)))) return refuse(429, 'daily_limit');
       const placed = await placeCall(phone);
       if (!placed.ok) {                                   // nothing was queued: give the allowance back
-        await Promise.all([store.refund('net:' + clientKey(req)), store.refund('calls:' + hash(phone)), store.refund('calls:global')]);
-        return say(res, 502, 'call_failed');
+        return refuse(502, 'call_failed');
       }
       return res.status(200).json({ status: 'requested', ref: placed.uuid });
     } catch (error) { console.error(error); return say(res, 503, 'unavailable'); }
