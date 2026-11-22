@@ -178,7 +178,7 @@ test('agent: private phrase is silent, emergency transfers, failed transfer keep
   const phrase='ఈ రోజు నేను మాట్లాడలేను';
   const c=agentFixture([],[phrase],{check:async()=>'covert',alert:async t=>{alerts.push(t);}});
   await c.begin(); await c.turn(); assert.deepEqual(alerts,[phrase]); assert.deepEqual(c.stops,[]); assert.equal(c.spoken.length,1);
-  const e=agentFixture([],[phrase],{check:async()=>'emergency'}); await e.begin(); await e.turn(); assert.deepEqual(e.stops,['handoff']);
+  const e=agentFixture([],[phrase],{check:async()=>'emergency'}); await e.begin(); await e.turn(); assert.deepEqual(e.stops,['handoff']); assert.ok(e.spoken.some(l=>l.startsWith('te సరే, అర్థమైంది')));
   const g=agentFixture([],[phrase],{check:async()=>'emergency',handoff:async()=>{throw Error('x');}}); await g.begin(); await g.turn();
   assert.ok(g.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.ok(!g.stops.includes('close'));
 });
@@ -346,4 +346,25 @@ test('nothing is said to the other person without a yes: no cancels, a new instr
   await f.turn(); assert.ok(f.spoken.includes('te రెండు చెప్పమంటారా?'));                              // a new instruction -> new question
   await f.turn(); assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x.endsWith('AR two')));              // yes -> only the confirmed message
   assert.ok(!f.spoken.some(x=>x.endsWith('AR one')));
+});
+
+test('danger: the case is recorded, the Telugu line is said, and the person is called only after the line finished playing',async()=>{
+  const reported:string[]=[]; const order:string[]=[];
+  const f=agentFixture([],['నన్ను ఎయిర్పోర్ట్ లో వేరే వాళ్ళు తీసుకెళ్ళారు'],{check:async()=>'emergency',
+    report:async t=>{reported.push(t);order.push('report');return 'మీరు ఒంటరి కాదు. మీ కేసు నమోదైంది.';},
+    handoff:async()=>{order.push('handoff');}});
+  await f.begin();
+  await f.session.media(Buffer.alloc(4000,0)); await f.session.media(Buffer.alloc(5000,255));       // danger heard, line queued but not acknowledged yet
+  assert.deepEqual(reported,['నన్ను ఎయిర్పోర్ట్ లో వేరే వాళ్ళు తీసుకెళ్ళారు']);
+  assert.ok(f.spoken.includes('te మీరు ఒంటరి కాదు. మీ కేసు నమోదైంది.'));
+  assert.deepEqual(order,['report']);                                                                  // no transfer while the line is still playing
+  f.session.played(f.marks.at(-1)!); await new Promise(r=>setTimeout(r,5));
+  assert.deepEqual(order,['report','handoff']);
+});
+test('danger with transfer switched off: says the line, then tells the worker the team was informed and keeps listening',async()=>{
+  const alerts:string[]=[];
+  const f=agentFixture([],['నన్ను ఎయిర్పోర్ట్ లో వేరే వాళ్ళు తీసుకెళ్ళారు'],{check:async()=>'emergency',report:async()=>'మీ కేసు నమోదైంది.',
+    handoff:async()=>{throw Error('transfer disabled');},alert:async t=>{alerts.push(t);}});
+  await f.begin(); await f.turn(); await new Promise(r=>setTimeout(r,5));
+  assert.ok(f.spoken.some(l=>l.includes('కలపలేకపోయాను'))); assert.equal(alerts.length,1); assert.ok(!f.stops.includes('close'));
 });

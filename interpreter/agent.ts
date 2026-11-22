@@ -12,6 +12,7 @@ export interface AgentServices {
   speak(text: string, language: string): Promise<Buffer>;
   handoff(): Promise<void>;
   alert?(text: string): Promise<void>;
+  report?(text: string): Promise<string>;   // records the case like the Helpline's report_problem; returns the Telugu line to say
 }
 export interface AgentOutput {
   metric?(event: string, ms: number): void;
@@ -35,6 +36,7 @@ const greeting = 'నమస్కారం, నేను సాథి. చెప
 const askAgain: Record<string, string> = { ar: 'من فضلك أعد الكلام.', en: 'Please say that again.', hi: 'कृपया फिर से कहिए।', ur: 'براہ کرم دوبارہ کہیں۔', ml: 'ദയവായി ഒന്നുകൂടി പറയൂ.' };
 const cannotTranslate = 'వాళ్ళు చెప్పింది సరిగా చెప్పలేకపోయాను. మళ్ళీ చెప్పమని అడుగుతున్నాను.';
 const needNumber = 'ఈ సంఖ్య మీరు చెప్పలేదు. మీరే చెప్పండి.';
+const emergencyLine = 'సరే, అర్థమైంది. మీరు ఒంటరి కాదు. లైన్ లోనే ఉండండి.';
 const transferFailed = 'మనిషికి కలపలేకపోయాను. మన టీమ్‌కు తెలియజేశాను. మీరు చెప్పండి.';
 
 const digits = (t: string) => (t.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x660)).replace(/[౦-౯]/g, d => String(d.charCodeAt(0) - 0xc66))
@@ -159,15 +161,22 @@ export class AgentSession {
       await this.speakStep(id, who, text, step);
     } catch (e) { this.log('error', { message: String((e as Error)?.message ?? e).slice(0, 200) }); if (id === this.generation) this.listen(); }
   }
+  // Danger: record the case (same tool as the Helpline), say its Telugu line, and only after that line has played ask for a person.
   private async transfer(id: number, text: string) {
     this.phase = 'handoff';
-    try { await this.service.handoff(); }
-    catch {
-      if (id !== this.generation) return;
-      this.service.alert?.(text).catch(() => {});
-      this.phase = 'busy';
-      await this.say([[transferFailed, 'te']], () => this.listen());
-    }
+    let line = emergencyLine;
+    try { const said = await this.service.report?.(text); if (said) line = said; } catch (e) { this.log('error', { where: 'report', message: String((e as Error)?.message ?? e).slice(0, 120) }); }
+    if (id !== this.generation) return;
+    this.out.metric?.('emergency', 0);
+    this.phase = 'busy';
+    await this.say([[line, 'te']], async () => {
+      try { await this.service.handoff(); this.phase = 'handoff'; this.out.metric?.('handoff_requested', 0); }
+      catch {
+        this.out.metric?.('handoff_failed', 0);
+        this.service.alert?.(text).catch(() => {});
+        await this.say([[transferFailed, 'te']], () => this.listen());
+      }
+    });
   }
   private async speakStep(id: number, who: 'worker' | 'other', text: string, step: AgentStep) {
     let repeatRequest = '';                                             // the one thing we may say to the other person without asking: a fixed "please say that again"
