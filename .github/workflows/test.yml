@@ -20,4 +20,5 @@ jobs:
       - run: npm run -s export:python && git diff --exit-code python/gulf_saathi_harness/lexicon.json
       - run: pip install fastapi httpx
       - run: python python/test_harness.py
+      - run: python python/test_transcribe_call.py
       - run: npx tsx scripts/parity.ts
