@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
+import { nextStep } from '../server/checkin-flow.ts';
 import { gateDecision } from '../server/live.ts';
 import { salaryReceipt, CONFIRM_SALARY } from '../server/harness/qa.ts';
 import { registerSaathi } from '../server/saathi.ts';
@@ -17,6 +18,11 @@ test('receipt requires one unambiguous salary question and a clear answer', () =
     {q, text: 'అదలక'}, {q, text: 'లేదు, బస్సు లేదు'}, {q: "Didn't you receive salary?", text: 'no'},
     {q:'మీ జీతం రాలేదా?', text: 'అవును'},
   ]) assert.equal(salaryReceipt(turn), 'unknown');
+  const turn = {qid: 'salary', q, a: 'అదలక'};
+  const weekly = nextStep({kind:'weekly', turns:[turn]});
+  assert.equal(weekly.action, 'CONFIRM');
+  assert.equal(weekly.qid, 'salary');
+  assert.equal(nextStep({kind:'weekly', turns:[turn, {...turn,a:'అవును'}]}).qid, 'passport');
   const gate = gateDecision([{q,text:'అదలక'}], {});
   assert.equal(gate.action, 'CONFIRM');
   assert.equal(gate.sayTe, CONFIRM_SALARY);
