@@ -52,7 +52,7 @@ export function services(config: Config, call: string, caseId?: string): Service
               voice:{mode:'id',id:process.env.CARTESIA_VOICE_ID || '563850d9-0517-4797-ba75-b00d3934813a'},
               output_format:{container:'raw',encoding:'pcm_s16le',sample_rate:24000}})});
           return mulawFromPcm24k(Buffer.from(await response.arrayBuffer()));
-        } catch { /* fall back to OpenAI speech below */ }
+        } catch (e) { if (process.env.INTERPRETER_DEBUG === '1') console.info(JSON.stringify({component:'phone-interpreter',event:'cartesia_failed_using_openai',message:String((e as Error)?.message ?? e).slice(0,120)})); }
       }
       const response = await checked('https://api.openai.com/v1/audio/speech', {method:'POST',
         headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
@@ -79,6 +79,7 @@ const AGENT_PROMPT = (lang: string) => `You are Saathi, acting ON BEHALF of a Te
 - say_to_worker: simple spoken Telugu letters only. When OTHER speaks, report faithfully what they said: every number, name, time and any "not"/"no". Then, if a decision is needed, ask the worker one short question.
 - When WORKER states a goal or decision, speak for them. Do not invent facts, names, amounts, dates or documents about the worker.
 - Never agree to a price, payment, contract, handing over a passport or ID, or signing: ask the worker in Telugu first and wait for a clear yes or no.
+- If the worker has not yet said what they need, say nothing to the other person: ask the worker in Telugu what they need. Never speak to the other person first, and never greet them on your own.
 - If you did not understand, ask for repetition in the right language. done=true only when the worker's goal is finished or they say goodbye.`;
 
 export function agentServices(config: Config, call: string, caseId?: string): AgentServices {

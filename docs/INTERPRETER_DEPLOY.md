@@ -34,3 +34,6 @@ Plivo's real `dtmf` / `playedStream` / `clearAudio` events, `DialStatus` paramet
 - `CARTESIA_API_KEY` (server env): Telugu speech uses the same Cartesia voice as the Bolna Helpline (`CARTESIA_VOICE_ID`, `CARTESIA_MODEL` default `sonic-3.5`, `CARTESIA_VERSION` default `2025-04-16`). Any failure falls back to OpenAI speech. Request shape written from memory and **unverified against Cartesia's API**.
 - `SARVAM_API_KEY` goes on the **Vercel app** (it serves `/api/saathi/stt`). When OpenAI hears Telugu, Sarvam `saaras:v3` also transcribes and its text is preferred; any failure falls back to OpenAI. `INTERPRETER_SARVAM=off` disables it.
 - Arabic and other languages always use OpenAI for hearing and speaking.
+
+## Debugging a call
+Set `INTERPRETER_DEBUG=1` in the server env file to log, per turn, what was heard (who, text, why it was ignored), what was said, errors, and Cartesia fallbacks. **This logs speech text: use it only for tests with your own voice, never with real worker calls.** Then read it with `docker logs interpreter | tail -40`.

@@ -151,32 +151,33 @@ function agentFixture(steps:AgentStep[],said:string[],over:Partial<AgentServices
   const spoken:string[]=[],marks:string[]=[],stops:string[]=[];
   const service:AgentServices={stt:async()=>said.shift()??'',think:async()=>steps.shift()??{},check:async()=>'ok',
     speak:async(t,l)=>{spoken.push(l+' '+t);return Buffer.from([255]);},handoff:async()=>{stops.push('handoff');},...over};
-  const session=new AgentSession('ar',service,{play:(_b,m)=>marks.push(m),clear:()=>{},close:()=>stops.push('close')});
-  const turn=async()=>{await session.media(Buffer.alloc(80,0));await session.media(Buffer.alloc(6000,255));session.played(marks.at(-1)!);};
+  const session=new AgentSession('ar',service,{play:(_b,m)=>marks.push(m),clear:()=>{},close:()=>stops.push('close')},0);
+  const turn=async()=>{await session.media(Buffer.alloc(4000,0));await session.media(Buffer.alloc(6000,255));session.played(marks.at(-1)!);};
   const begin=async()=>{await session.start();session.played(marks.at(-1)!);};
   return {session,spoken,marks,stops,turn,begin};
 }
 test('agent speaks for the worker, answers in the other language and reports back in Telugu',async()=>{
-  const f=agentFixture([{say_to_other:'AR hello',say_to_worker:'TE ok'}],['టికెట్ కావాలి']);
+  const f=agentFixture([{say_to_other:'AR hello',say_to_worker:'సరే చెప్పాను'}],['టికెట్ కావాలి']);
   await f.begin(); assert.ok(f.spoken.some(x=>x.startsWith('te చెప్పండి'))); await f.turn();
-  assert.ok(f.spoken.includes('ar AR hello')); assert.ok(f.spoken.includes('te TE ok'));
+  assert.ok(f.spoken.includes('ar AR hello')); assert.ok(f.spoken.includes('te సరే చెప్పాను'));
 });
 test('agent never says a number nobody said and never answers an amount before the worker decides',async()=>{
-  const f=agentFixture([{say_to_other:'I pay 500',say_to_worker:'TE'},{say_to_other:'OK',say_to_worker:'వాళ్ళు 300 అన్నారు'}],['టికెట్ కావాలి','سعر التذكرة 300']);
+  const f=agentFixture([{say_to_other:'I pay 500',say_to_worker:'సరే'},{say_to_other:'OK',say_to_worker:'వాళ్ళు 300 అన్నారు'}],['టికెట్ కావాలి','سعر التذكرة 300']);
   await f.begin(); await f.turn();
   assert.ok(!f.spoken.some(x=>x.includes('500'))); assert.ok(f.spoken.some(x=>x.startsWith('te ఈ సంఖ్య')));
   await f.turn(); assert.ok(!f.spoken.includes('ar OK')); assert.ok(f.spoken.includes('te వాళ్ళు 300 అన్నారు'));
 });
 test('agent refuses a Telugu report that drops the other speaker number and asks them to repeat',async()=>{
-  const f=agentFixture([{say_to_other:'',say_to_worker:'ఎక్కువ ధర'}],['سعر التذكرة 300']);
-  await f.begin(); await f.turn(); assert.ok(f.spoken.some(x=>x.startsWith('te వాళ్ళు చెప్పింది'))); assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x!=='ar OK'));
+  const f=agentFixture([{say_to_other:'AR hi',say_to_worker:'సరే'},{say_to_other:'',say_to_worker:'ఎక్కువ ధర'}],['టికెట్ కావాలి','سعر التذكرة 300']);
+  await f.begin(); await f.turn(); await f.turn(); assert.ok(f.spoken.some(x=>x.startsWith('te వాళ్ళు చెప్పింది'))); assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x!=='ar OK'));
 });
 test('agent: private phrase is silent, emergency transfers, failed transfer keeps the line',async()=>{
   const alerts:string[]=[];
-  const c=agentFixture([],['x'],{check:async()=>'covert',alert:async t=>{alerts.push(t);}});
-  await c.begin(); await c.turn(); assert.deepEqual(alerts,['x']); assert.deepEqual(c.stops,[]); assert.equal(c.spoken.length,3);
-  const e=agentFixture([],['x'],{check:async()=>'emergency'}); await e.begin(); await e.turn(); assert.deepEqual(e.stops,['handoff']);
-  const g=agentFixture([],['x'],{check:async()=>'emergency',handoff:async()=>{throw Error('x');}}); await g.begin(); await g.turn();
+  const phrase='ఈ రోజు నేను మాట్లాడలేను';
+  const c=agentFixture([],[phrase],{check:async()=>'covert',alert:async t=>{alerts.push(t);}});
+  await c.begin(); await c.turn(); assert.deepEqual(alerts,[phrase]); assert.deepEqual(c.stops,[]); assert.equal(c.spoken.length,3);
+  const e=agentFixture([],[phrase],{check:async()=>'emergency'}); await e.begin(); await e.turn(); assert.deepEqual(e.stops,['handoff']);
+  const g=agentFixture([],[phrase],{check:async()=>'emergency',handoff:async()=>{throw Error('x');}}); await g.begin(); await g.turn();
   assert.ok(g.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.ok(!g.stops.includes('close'));
 });
 
@@ -198,4 +199,25 @@ test('Telugu speech uses Cartesia when a key is set and falls back to OpenAI; Te
   assert.equal(await svc.stt(Buffer.alloc(80,0),''),'సారం టెక్స్ట్');
   globalThis.fetch=(async(input:RequestInfo|URL)=>String(input).includes('cartesia')?new Response('x',{status:500}):new Response(Buffer.alloc(600),{status:200})) as typeof fetch;
   assert.equal((await svc.speak('నమస్కారం','te')).length,100);   // Cartesia failed, OpenAI answered
+});
+
+test('agent mode opening has no keypad instructions and speaks both languages',async()=>{
+  const f=agentFixture([],[]); await f.begin();
+  assert.ok(f.spoken[0].startsWith('te నేను సాథి')); assert.ok(f.spoken[1].startsWith('ar أنا مترجم'));
+  assert.ok(!f.spoken.some(x=>/اثنين|ثلاثة|مربع|హాష్|ఒకటి నొక్కి/.test(x)));
+});
+
+test('agent ignores noise, its own voice and speech from the other person before the worker has stated a goal',async()=>{
+  const steps=[{say_to_other:'AR hello',say_to_worker:'వాళ్ళకు చెప్పాను'}];
+  const f=agentFixture(steps,['Thank you.','سلام عليكم','టికెట్ కావాలి']);
+  await f.begin(); const before=f.spoken.length;
+  await f.turn(); await f.turn();                 // junk, then Arabic before any goal
+  assert.equal(f.spoken.length,before); assert.equal(steps.length,1);
+  await f.turn(); assert.ok(f.spoken.includes('ar AR hello'));    // the worker's Telugu goal starts the conversation
+});
+test('agent: short sound is ignored and a non-Telugu report to the worker is dropped',async()=>{
+  const f=agentFixture([{say_to_other:'',say_to_worker:'I told them'}],['టికెట్ కావాలి']);
+  await f.begin(); const before=f.spoken.length;
+  await f.session.media(Buffer.alloc(800,0)); await f.session.media(Buffer.alloc(6000,255)); assert.equal(f.spoken.length,before);
+  await f.turn(); assert.ok(!f.spoken.some(x=>x.includes('I told them')));
 });
