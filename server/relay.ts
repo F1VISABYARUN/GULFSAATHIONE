@@ -51,6 +51,18 @@ function hasLocks(text:string,locks:string[]) {
     return new RegExp('(?<![\\p{L}\\p{M}\\p{N}])'+escaped+'(?![\\p{L}\\p{M}\\p{N}])','u').test(padded);
   });
 }
+// Compare dictated digits in order; swapping two amounts can reverse a correction.
+function digitValues(text: string): string[] {
+  const western = text.replace(/[٠-٩۰-۹౦-౯०-९൦-൯]/gu, digit => {
+    const code = digit.charCodeAt(0);
+    const zero = [0x660, 0x6f0, 0xc66, 0x966, 0xd66].find(base => code >= base && code < base + 10)!;
+    return String(code - zero);
+  }).replace(/٫/g, '.').replace(/٬/g, ',');
+  return (western.match(/[0-9]+(?:[.,][0-9]+)*/g) ?? []).map(value =>
+    /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$|^\d{1,2}(?:,\d{2})+,\d{3}(?:\.\d+)?$/.test(value)
+      ? value.replace(/,/g, '') : value);
+}
+
 export async function relay(text:string,from:string,to:string,ctx:CallContext={},opts:{model?:string}={}) {
   const m=opts.model&&TEST_MODELS.includes(opts.model)?opts.model:defaultModel();
   const blocked=(legal=false)=>({status:legal?'escalate_human':'needs_confirm',say_to_other:'',say_to_worker:legal?human:confirm,back_translation:'',confidence:'low',locked_ok:false});
@@ -68,11 +80,17 @@ export async function relay(text:string,from:string,to:string,ctx:CallContext={}
   if(!process.env.OPENAI_API_KEY) return fallback();
   try {
     const input=h?.corrected||text;
-    const allowedNumbers=new Set((text+' '+input+' '+locks.join(' ')).match(/\p{Nd}+(?:[.,]\p{Nd}+)*/gu)??[]);
+    const sourceDigits = digitValues(text);
+    const allowedNumbers = new Set(digitValues(text+' '+input+' '+locks.join(' ')));
     // Words like జీతం/passport can't survive verbatim in Arabic, so the forward text only has to keep Latin-script locks and
     // numbers; the Telugu back-translation must then contain every original locked term.
     const asciiLocks=locks.filter(l=>/^[\x20-\x7e]+$/.test(l));
-    const intact=(s:string,all=true)=>hasLocks(s,all?locks:asciiLocks) && (s.match(/\p{Nd}+(?:[.,]\p{Nd}+)*/gu)??[]).every(n=>allowedNumbers.has(n));
+    const intact=(s:string,all=true)=>{
+      const digits = digitValues(s);
+      if (sourceDigits.length && (sourceDigits.length !== digits.length ||
+          sourceDigits.some((value,index) => value !== digits[index]))) return false;
+      return hasLocks(s,all?locks:asciiLocks) && digits.every(n=>allowedNumbers.has(n));
+    };
     const forward=await model(input,from,to,from==='te'&&to!=='te'?asciiLocks:locks,m);
     if(forward.safety==='human')return blocked(true);
     if(forward.safety!=='ordinary'||forward.confidence!=='high'||typeof forward.text!=='string'||!forward.text.trim())return fallback();

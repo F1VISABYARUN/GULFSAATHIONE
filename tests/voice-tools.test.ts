@@ -77,7 +77,7 @@ test('Telugu-script landmarks and loose place kinds from real Bolna calls are un
   const {normalizeKind,bareLandmark}=await import('../server/voice-maps.ts');
   assert.equal(extractAnchor('అవునండి. దుబాయ్ మాల్.').anchor,'Dubai Mall');
   assert.equal(extractAnchor('బుర్జ్ ఖాలీఫా').anchor,'Burj Khalifa');
-  assert.equal(extractAnchor('దుబాయ్ మోల్').anchor,'Dubai Mall');assert.equal(extractAnchor('బుర్చ్').anchor,'Burj Khalifa');
+  assert.equal(extractAnchor('దుబాయ్ మోల్').anchor,'Dubai Mall');assert.equal(extractAnchor('బుర్చ్').needsRepeat,true);
   assert.equal(normalizeKind('Pharmacy'),'pharmacy');
   assert.equal(normalizeKind('మందుల షాపు'),'pharmacy');
   assert.equal(normalizeKind('xyz'),undefined);

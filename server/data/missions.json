@@ -12,6 +12,7 @@
   {
     "country": "UAE",
     "city": "Dubai",
+    "also_serves": ["Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"],
     "name": "Consulate General of India, Dubai",
     "address": "",
     "phone": "800 46342 (800INDIA), 24x7, from within UAE",

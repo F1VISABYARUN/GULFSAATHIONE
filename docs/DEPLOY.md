@@ -38,8 +38,7 @@ docker run -d -p 80:8080 --env-file .env gulf-saathi
 Put HTTPS in front (Caddy or a load balancer), because browsers only allow the microphone on HTTPS.
 
 ## Before making it public
-- `/facts.html` and `/api/bolna/*` expose your test-call transcripts. They contain no phone numbers, but either remove them or put basic auth in front.
-- `/webhooks/bolna` and `/api/gate` have no authentication yet. Add a shared secret header before real callers use it.
+Set `SAATHI_SECRET` for review and live agent requests. On HTTPS, open `/facts.html` and enter username `review` and the secret as the password. Recordings, Bolna fact edits, case files and Bolna benchmark results require the same credentials. API clients can use the existing `x-saathi-secret` header. The UI and API disable caching for these resources. Configure the secret on Bolna tools and webhooks.
 
 ## Vercel and the Dockerfile
 Vercel treats this project as a **container build**: the root `Dockerfile` is its entrypoint, and every deployment pushes an image to the project's container registry. The registry has a maximum number of images; when it is full every build fails with "denied: repository has reached the maximum allowed number of images". Fix: delete old images (project, Sandboxes, Container Registry) and redeploy.

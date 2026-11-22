@@ -16,6 +16,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
     const text=clean(api?'text':'caller_said'),other=req.path==='/tools/translate'?clean('other_said'):'';
     if((!text && !(req.path==='/tools/translate'&&other)) || text.length>4000 || other.length>4000)return res.status(400).json({error:'Supply exact utterance, maximum 4000 characters'});
     const worker=clean('case_id')?await store.worker(clean('case_id')):undefined;
+    if (api && clean('case_id') && (!worker || !worker.consent)) return res.status(409).json({error:'Case unavailable for translation'});
     const ctx=contextFromRecipient(b.recipient_data);
     if(worker){
       ctx.codePhrase=worker.codePhrase||ctx.codePhrase;

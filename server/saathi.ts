@@ -2,10 +2,12 @@
 // Every tool takes the caller's own words (caller_said) and runs them through the harness, so the
 // LLM's guesses never decide risk on their own.
 
+import { SpeechError, transcribeRecording } from './stt/providers.ts';
+import { randomUUID } from 'node:crypto';
 import multer from 'multer';
 import type { Express, Request, Response } from 'express';
 import { runHarness, ALL_ON } from './harness/index.ts';
-import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
+import { withQuestionContext, parseBolnaTranscript, salaryReceipt, CONFIRM_SALARY } from './harness/qa.ts';
 import { assessRisks, type Risk } from './risk/engine.ts';
 import { checkAgent } from './risk/agents.ts';
 import { store, newCaseId, type WorkerRec } from './store.ts';
@@ -27,19 +29,18 @@ function levelOf(risks: Risk[]): WorkerRec['riskLevel'] {
 export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolean): string {
   if (codePhrase) return 'సరే, అర్థమైంది. మామూలుగా మాట్లాడండి.';
   return {
-    critical: 'మీరు ఒంటరి కాదు. మీ కేసు అత్యవసరం అని నమోదైంది, మా మనిషి ఇప్పుడే చూస్తారు. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పండి.',
-    high: 'మీ సమస్య నమోదైంది. మా మనిషి ఎంబసీతో మాట్లాడటానికి దీన్ని తీసుకుంటారు. జీతం లేదా పాస్‌పోర్ట్ తిరిగి వస్తుందని మేము హామీ ఇవ్వలేము.',
+    critical: 'మీరు ఒంటరి కాదు. మీ కేసు అత్యవసరం అని నమోదైంది, సాథి బృందం పరిశీలించాల్సి ఉంది. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పండి.',
+    high: 'మీ సమస్య నమోదైంది. సాథి బృందం పరిశీలించాల్సి ఉంది. జీతం లేదా పాస్‌పోర్ట్ తిరిగి వస్తుందని మేము హామీ ఇవ్వలేము.',
     medium: 'నమోదు చేశాను. సాథి మళ్ళీ మిమ్మల్ని కాల్ చేస్తుంది.',
     ok: 'మంచిది, బాగున్నారని నమోదు చేశాను. వచ్చే వారం మళ్ళీ కాల్ చేస్తాం.',
   }[level];
 }
 
-export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider()) {
+export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider(), confirmSalary = false, salaryExchange?: { q: string; text: string }, executionId?: string) {
   const w = await store.worker(caseId);
   const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
   const level = levelOf(risks);
-  await store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id) });
-  const target = await store.change(caseId, worker => {
+  const target = await store.recordAlertCall({ id: executionId || randomUUID(), caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id), salaryExchange, ...(confirmSalary ? { needsConfirmation: ['salary_received' as const] } : {}) }, worker => {
     const alert = level === 'critical' || level === 'high';
     const crossing = LEVEL[worker.riskLevel] < LEVEL.high && alert;
     if (LEVEL[level] > LEVEL[worker.riskLevel]) worker.riskLevel = level;
@@ -57,9 +58,10 @@ export async function applyToWorker(caseId: string, slots: CaseSlots, kind: stri
   });
   let smsStatus: SmsStatus | undefined;
   if (target) {
-    try { smsStatus = await sms.send(target, caseId); } catch { smsStatus = 'failed'; }
+    let providerId: string | undefined;
+    try { smsStatus = await sms.send(target, caseId, id => { providerId = id; }); } catch { smsStatus = 'failed'; }
     const status = smsStatus;
-    await store.change(caseId, worker => { if (worker.familySms) worker.familySms.status = status; });
+    await store.change(caseId, worker => { if (worker.familySms) Object.assign(worker.familySms, { status, providerId }); });
   }
   return { risks, level, smsStatus };
 }
@@ -68,11 +70,16 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
 export function isOverdue(w: WorkerRec, now = Date.now()) {
   if (w.status === 'closed' || LEVEL[w.riskLevel] < LEVEL.high) return false;
-  const since = Math.max(Date.parse(w.alertSince ?? w.createdAt), Date.parse(w.notes?.at(-1)?.at ?? w.alertSince ?? w.createdAt));
+  let since = Date.parse(w.alertSince ?? w.createdAt);
+  for (const note of w.notes ?? []) {
+    // Older generated exit-path notes predate the source field.
+    if (note.source === 'system' || (!note.source && note.text.startsWith('Exit path: '))) continue;
+    since = Math.max(since, Date.parse(note.at));
+  }
   return now - since >= 24 * 3600_000;
 }
 
-export const STT_MODELS = ['gpt-4o-transcribe', 'gpt-4o-mini-transcribe', 'whisper-1'];
+export { STT_MODELS } from './stt/providers.ts';
 
 export function registerSaathi(app: Express, guard: (req: Request, res: Response, next: () => void) => void) {
   app.use('/api/saathi/cases', (_req,res,next)=>{
@@ -87,25 +94,14 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
   app.post('/api/saathi/stt', guard, sttUpload.single('audio'), async (req, res) => {
     res.set('Cache-Control', 'no-store');
     if (!process.env.SAATHI_SECRET) return res.status(503).json({ error: 'Set SAATHI_SECRET' });
-    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY not set' });
-    const model = String(req.body?.model ?? 'gpt-4o-transcribe');
-    if (!STT_MODELS.includes(model)) return res.status(400).json({ error: 'model must be one of ' + STT_MODELS.join(', ') });
     if (!req.file) return res.status(400).json({ error: 'audio file required' });
-    const language = String(req.body?.language ?? '').trim();
-    if (language && !/^[a-z]{2}$/.test(language)) return res.status(400).json({ error: 'language must be a 2-letter code' });
     try {
-      const form = new FormData();
-      form.append('file', new Blob([new Uint8Array(req.file.buffer)]), req.file.originalname || 'audio.wav');
-      form.append('model', model);
-      form.append('response_format', 'json');
-      if (language) form.append('language', language);
-      if (req.body?.prompt) form.append('prompt', String(req.body.prompt).slice(0, 800));
-      const t0 = Date.now();
-      const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body: form, signal: AbortSignal.timeout(55000) });
-      const j: any = await r.json().catch(() => ({}));
-      if (!r.ok) return res.status(502).json({ error: 'OpenAI returned ' + r.status, detail: String(j?.error?.message ?? '').slice(0, 200) });
-      res.json({ text: String(j.text ?? ''), model, language: language || null, ms: Date.now() - t0 });
-    } catch { res.status(502).json({ error: 'OpenAI unreachable or timed out' }); }
+      res.json(await transcribeRecording(req.file, String(req.body?.model ?? 'gpt-4o-transcribe'),
+        String(req.body?.language ?? '').trim(), String(req.body?.prompt ?? '').slice(0, 800)));
+    } catch (error) {
+      if (error instanceof SpeechError) return res.status(error.status).json({ error: error.message });
+      res.status(502).json({ error: 'Speech provider unreachable or invalid response' });
+    }
   });
   // Which OpenAI models can this server's key use? Returns model ids only, never the key.
   app.get('/api/saathi/models', guard, async (_req, res) => {
@@ -148,7 +144,38 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     }
     const workers = (await store.workers()).filter(w => (!level || w.riskLevel === level) && (!status || w.status === status));
     res.json(workers.map(w => ({ caseId: w.caseId, name: w.name, riskLevel: w.riskLevel, status: w.status,
-      overdue: isOverdue(w), notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+      acknowledged: w.acknowledged, familySms: w.familySms, overdue: isOverdue(w), notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+  });
+  app.post('/api/saathi/cases/:id/acknowledge', guard, async (req, res) => {
+    const by = str(req.body?.caseworker).trim();
+    if (!by || by.length > 100) return res.status(400).json({ error: 'caseworker name required' });
+    const receipt = await store.change(String(req.params.id), w => {
+      if (w.acknowledged) return w.acknowledged.by === by ? w.acknowledged : null;
+      if (w.status !== 'alert') return null;
+      return (w.acknowledged = { by, at: new Date().toISOString() });
+    });
+    if (receipt === undefined) return res.sendStatus(404);
+    if (!receipt) return res.sendStatus(409);
+    res.json(receipt);
+  });
+  // Trusted desk operator checks the delivery report for this exact MSG91 request.
+  app.post('/api/saathi/cases/:id/family-sms/delivery', guard, async (req, res) => {
+    const by = str(req.body?.caseworker).trim();
+    const id = str(req.body?.providerId);
+    const status = req.body?.status;
+    if (!by || by.length > 100 || !id || !['delivered','failed'].includes(status)) return res.sendStatus(400);
+    const sms = await store.change(String(req.params.id), w => {
+      const record = w.familySms;
+      if (!record || record.providerId !== id) return null;
+      if (record.deliveryCheck) return record.status === status ? record : null;
+      if (record.status !== 'accepted') return null;
+      record.status = status;
+      record.deliveryCheck = { by, at: new Date().toISOString() };
+      return record;
+    });
+    if (sms === undefined) return res.sendStatus(404);
+    if (!sms) return res.sendStatus(409);
+    res.json(sms);
   });
   app.get('/api/saathi/cases/:id/file', guard, async (req, res) => {
     const w = await store.worker(String(req.params.id));
@@ -156,7 +183,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const calls = (await store.calls(w.caseId)).sort((a,b) => a.at.localeCompare(b.at)).map(c => {
       const transcript = c.transcript ?? '';
       const text = /^(assistant|user):/m.test(transcript) ? withQuestionContext(parseBolnaTranscript(transcript)) : transcript;
-      return { id: c.id, kind: c.kind, date: c.at, text };
+      return { id: c.id, kind: c.kind, date: c.at, text: c.salaryExchange ? text + ' . ' + withQuestionContext([c.salaryExchange]) : text };
     });
     res.json(buildCaseFile(calls, { promise: w.promise, codePhrase: w.codePhrase, places: w.destCity ? [w.destCity] : [] },
       { id: w.caseId, workerName: w.name }));
@@ -166,7 +193,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (!text || text.length > 4000) return res.status(400).json({ error: 'note must be 1–4000 characters' });
     const note = await store.change(String(req.params.id), w => {
       if (w.status === 'closed') return null;
-      const item = { at: new Date().toISOString(), text };
+      const item = { at: new Date().toISOString(), text, source: 'caseworker' as const };
       (w.notes ??= []).push(item);
       return item;
     });
@@ -199,7 +226,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       not_found: 'ఈ పేరు ప్రభుత్వ లైసెన్స్ జాబితాలో దొరకలేదు. డబ్బు ఇచ్చే ముందు లైసెన్స్ నంబర్ అడగండి.',
       flagged: 'ఈ పేరు మీద ఫిర్యాదులు ఉన్నాయి. ఇంకా డబ్బు ఇవ్వకండి.',
     }[r.status];
-    res.json({ status: r.status, match: r.match ? { raId: r.match.raId, name: r.match.name, district: r.match.district, rc: r.match.rc } : null, instruction: say, source: r.source });
+    res.json({ status: r.status, match: r.match ? { raId: r.match.raId, name: r.match.name, district: r.match.district, rc: r.match.rc } : null, instruction: say, source: r.source, notified_register: r.notifiedRegister });
   });
 
   // check_fee: { payments: "10000; 25000", caller_said }
@@ -208,7 +235,11 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const llm = str(b.payments).split(/[;,]/).map(x => Number(x.replace(/[^\d.]/g, ''))).filter(n => n > 0);
     const llmTotal = llm.reduce((a, n) => a + n, 0);
     const heard = b.caller_said ? runHarness(str(b.caller_said), {}, ALL_ON).slots.feeINR : undefined;
-    const total = heard ?? llmTotal;
+    if (heard === undefined) return res.json({
+      status: 'needs_confirm', total: null, over_cap: null,
+      instruction: 'ఏజెంట్ ఫీజు ఎంత అన్నారు? రూపాయల్లో మళ్లీ చెప్పండి.',
+    });
+    const total = heard;
     const over = Math.max(0, total - FEE_CAP);
     const mismatch = heard !== undefined && llmTotal > 0 && Math.abs(heard - llmTotal) > 1;
     res.json({
@@ -233,10 +264,30 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (b.threatened === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'violence'])];
     if (b.passport_with_worker === 'no') slots.passportHeld = true;
     if (b.taken_by_stranger === 'yes' || ['other_person', 'nobody'].includes(str(b.pickup_status))) slots.takenByStranger = true;
-    if (b.salary_received === 'no') slots.salaryPaid = false;
+    // The agent's salary_received and notes may be summaries. Only caller speech
+    // and a receipt question paired with its verbatim answer support this field.
+    const caller = str(b.caller_said).trim();
+    const answer = str(b.salary_answer).trim();
+    const normalizeAnswer = (value: string) => value.trim().toLowerCase().replace(/[.!?।]+$/u, '').trim();
+    const quoted = !!answer && caller.split(/[.!?।\n]+/u).some(line => normalizeAnswer(line) === normalizeAnswer(answer));
+    const paired = salaryReceipt({ q: str(b.salary_question), text: quoted ? answer : '' });
+    const directSlots = runHarness(caller, {}, ALL_ON).slots;
+    slots.salary = directSlots.salary;
+    slots.feeINR = directSlots.feeINR;
+    const direct = directSlots.salaryPaid;
+    const conflict = typeof paired === 'boolean' && direct !== undefined && paired !== direct;
+    const salaryPaid = conflict ? undefined : typeof paired === 'boolean' ? paired : direct;
+    if (salaryPaid === undefined) delete slots.salaryPaid;
+    else slots.salaryPaid = salaryPaid;
+    const confirmSalary = salaryPaid === undefined &&
+      (conflict || paired === 'unknown' || ['yes','no'].includes(str(b.salary_received)) || !!str(b.salary_question) || str(b.call_kind) === 'weekly');
     if (b.code_phrase_used === 'yes') slots.codePhrase = true;
     if (b.movement_restricted === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'confinement'])];
-    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
+    const salaryExchange = typeof paired === 'boolean' && !conflict ? { q: str(b.salary_question), text: answer } : undefined;
+    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', caller, undefined, confirmSalary, salaryExchange);
+    if (confirmSalary && !slots.codePhrase && level === 'ok') {
+      return res.json({ case_id: caseId, level, status: 'needs_confirm', field: 'salary_received', reasons: risks.map(r => r.id), instruction: CONFIRM_SALARY });
+    }
     res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) + (smsStatus === 'delivered' && !slots.codePhrase ? ' మీ కుటుంబానికి సమాచారం అందింది.' : '') });
   };
   app.post('/tools/report-problem', guard, record);
@@ -266,7 +317,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       if (/^(no|n|ledu|లేదు)/i.test(str(b.passport_with_worker).trim())) slots.passportHeld = true;
       await applyToWorker(caseId, slots, 'exit_path', said);
       const note = `Exit path: ${plan.country ?? '?'}, ${plan.visa ?? '?'} visa, expiry ${plan.expiryISO ?? '?'} (${plan.daysLeft ?? '?'} days), urgency ${plan.urgency}, flags ${plan.flags.join(',') || 'none'}`;
-      await store.change(caseId, wk => { (wk.notes ??= []).push({ at: new Date().toISOString(), text: note }); });
+      await store.change(caseId, wk => { (wk.notes ??= []).push({ at: new Date().toISOString(), text: note, source: 'system' }); });
     }
     res.json({ ...plan, case_id: caseId || undefined, instruction: plan.sayTe });
   });
@@ -285,9 +336,11 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       await store.addCall({ id: String(e.id ?? Date.now()), caseId, kind: str(rd.call_kind) || 'call', at: new Date().toISOString(), status: String(e.status ?? 'missed'), reasons: ['missed'] });
       return res.json({ ok: true, missed: true });
     }
-    const slots = runHarness(withQuestionContext(parseBolnaTranscript(e.transcript)), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
-    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript);
-    res.json({ ok: true, level, reasons: risks.map(r => r.id) });
+    const turns = parseBolnaTranscript(e.transcript);
+    const slots = runHarness(withQuestionContext(turns), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
+    const needsConfirmation = slots.salaryPaid === undefined && turns.some(turn => salaryReceipt(turn) === 'unknown');
+    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript, undefined, needsConfirmation, undefined, str(e.id));
+    res.json({ ok: true, level, reasons: risks.map(r => r.id), ...(needsConfirmation ? { needs_confirmation: ['salary_received'] } : {}) });
   });
 
   // ---- scheduler: which calls are due now; places them through Bolna when configured -------

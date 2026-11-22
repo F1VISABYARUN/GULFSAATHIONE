@@ -12,7 +12,7 @@ All code here is new. Nothing is reused from the earlier gulf-saathi repo or web
 | `POST /webhooks/saathi` | Bolna (post-call) | Safety net on the full transcript, with questions as context. Records missed calls. |
 | `POST /api/saathi/scheduler/tick` | cron (every 15–60 min) | Books calls: arrival (6 h after the flight), a retry after a miss (3 h before the first answer, 24 h after), and weekly. It places the call through Bolna when `BOLNA_API_KEY` and `BOLNA_CHECKIN_AGENT_ID` are set; otherwise it's a dry run. |
 
-Storage is a JSON file by default. Use `STORE=memory` on Vercel, where the disk is read-only, until a database is added.
+Storage is a JSON file by default. Vercel requires a configured Upstash/Vercel KV database for case operations.
 
 **To verify:**
 - **Tool parameter:** add `caller_said` ("the caller's exact words") to each Bolna tool.
@@ -42,15 +42,15 @@ The old "Gulf Saathi" and "Saathi Check-in agent" were not changed.
 ## Storage and cron (added)
 - **Storage picks itself:**
   - Upstash Redis if `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set (Vercel KV's `KV_REST_API_URL` and `KV_REST_API_TOKEN` also work).
-  - Otherwise memory on Vercel, or a JSON file locally.
+  - On Vercel, case requests return HTTP 503 until Redis is configured. Locally a single-process JSON store persists cases. Set `SAATHI_CASE_FILE` to select its location.
   - Add Upstash from Vercel → Storage → Marketplace; it fills the variables.
 - **Cron:** `vercel.json` runs `GET /api/saathi/cron` **once a day** (03:30 UTC), because Vercel's Hobby plan allows only daily crons; an hourly schedule failed the deploy. For arrival calls within hours, point a free external cron (e.g. cron-job.org) at `/api/saathi/cron` every 15–60 minutes with header `Authorization: Bearer $CRON_SECRET`.
 
 ### Family SMS
-On first entry into high/critical risk, reserve one notification for the family phone. Configure MSG91_AUTH_KEY and MSG91_TEMPLATE_ID with an approved Telugu template matching familyMessage and a single case_id variable. Family phone numbers must include their country code. The worker record holds familySms.sentAt (attempt time) and status. Missing settings produce dry-run. Provider acceptance is not delivery confirmation. Pending/failed attempts require operator reconciliation before any manual resend. Run a single process for file storage or use Redis for shared workers.
+On first entry into high/critical risk, reserve one notification for the family phone. Configure MSG91_AUTH_KEY and MSG91_TEMPLATE_ID with an approved Telugu template matching familyMessage and a single case_id variable. Family phone numbers must include their country code. The worker record holds familySms.sentAt (attempt time) and status. Missing settings produce dry-run. Provider acceptance is not delivery confirmation. When MSG91 supplies a request ID, the desk displays it with the attempt. A caseworker can check that request in MSG91's delivery report and submit the matching ID, status and their name through the desk or `POST /api/saathi/cases/:id/family-sms/delivery` with `{providerId,status,caseworker}`. Repeating the same outcome is idempotent. Pending, failed or uncorrelated attempts require operator reconciliation before any manual resend. Run a single process for file storage or use Redis for shared workers.
 
 ### Caseworker JSON API
-Use the existing SAATHI_SECRET header (x-saathi-secret). GET /api/saathi/cases supports optional level and status filters. POST /api/saathi/cases/:id/note takes {"note":"..."}. POST /api/saathi/cases/:id/close takes {"outcome":"solved"}; partly, not and withdrawn are also valid. Closing again with the same outcome returns the original closure.
+Use the existing SAATHI_SECRET header (x-saathi-secret). GET /api/saathi/cases supports optional level and status filters. POST /api/saathi/cases/:id/note takes {"note":"..."}. POST /api/saathi/cases/:id/close takes {"outcome":"solved"}; partly, not and withdrawn are also valid. Closing again with the same outcome returns the original closure. For an alert, the desk's Acknowledge action calls `POST /api/saathi/cases/:id/acknowledge` with `{caseworker}` and records the first operator's self-reported name and server timestamp. This confirms a desk acknowledgement. Actual telephone contact still needs a caseworker note.
 
 ### Escalation clock
 The case list computes overdue for open high/critical cases at 24 hours since escalation or the latest caseworker note, whichever is later. For historical workers without an escalation timestamp, creation time is the fallback.

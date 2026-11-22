@@ -29,3 +29,37 @@ Trace uses actual outputs from two systems processing the same audio. Attach bas
 When scoring optional human risks or referenceText, supply risks or transcript in both outputs. Supply p only for an actual probability of a value being correct. Bin counts, mean predicted confidence and observed accuracy are reported together. Timing stays null unless measured for all included turns. Questions per call covers reviewed turns; fully label calls before interpreting it as whole-call cost.
 
 Silent critical miss rate = reported facts wrong or missing with neither explicit uncertainty nor a field-specific question, divided by all reported critical facts. A clarification can avert a silent miss but does not earn accuracy credit. Read flaggedUnresolved, exact accuracy, unknown precision/recall, and unsupported inventions alongside it. The report includes per-field denominators and missed turn IDs. These are turn-level measures; successful caseworker delivery is evaluated separately.
+
+## Replay the same audio through multiple models
+
+Keep clips, labels, playback recordings and predictions in a private directory outside git. Cut each caller turn to a mono clip. Preserve the final utterance and store the preceding question separately. Freeze one manifest, including development and held-out data, before inspecting results. A stable speaker pseudonym must identify the same person across calls. Set speakerVerified to true only after confirming that grouping. Held-out scoring requires this flag. Record the SHA-256 digest of each exact input file. One manifest row looks like this:
+
+    {"id":"c1-t3","call":"c1","speaker":"worker-a","speakerVerified":true,"dataset":"consented-calls","direction":"te-ar","split":"heldout","status":"verified","audio":"c1-t3.wav","sha256":"<64 hex characters>","question":"Is your passport with you?","truth":{"passportHeld":{"state":"reported","value":true}}}
+
+Use a private server URL and its SAATHI_SECRET. This command uploads each verified clip in the chosen split to each chosen provider through the backend. Choose only providers permitted to process those calls. For Arabic use models supporting Arabic. Errors remain in the observation file and give the command a nonzero exit. The collector refuses to overwrite the output.
+
+    STT_RUNS=2 npx tsx eval/reliability/replay-audio.ts clips.json trials.jsonl heldout gpt-4o-transcribe gemini-2.5-flash
+    npx tsx eval/reliability/score-audio.ts clips.json trials.jsonl heldout gpt-4o-transcribe gemini-2.5-flash
+
+The scorer also accepts privately captured local runs using JSONL rows with clip, model, one-based run and text or error. Optional ms measures provider transcription time. The first run supplies each model's primary score. Missing and failed first runs appear in coverage counts. Only clips with successful first runs from every named model enter the paired comparison. Repeat disagreement counts how often any successful rerun changed the exact transcript; individual retries never increase the independent clip count. Read each dataset and language direction separately. Time percentiles use nearest ranks and show the observed sample size.
+
+### Review what a listener heard
+
+Attach the actual target-language recording to a successful trial with a private `playback` file path relative to trials.jsonl. Collect consent from both speakers. Create an anonymized, shuffled packet for a bilingual reviewer:
+
+    npx tsx eval/reliability/listener-review.ts init clips.json trials.jsonl new-review-dir
+    npx tsx eval/reliability/listener-review.ts join clips.json trials.jsonl new-review-dir reviewed-trials.jsonl
+    npx tsx eval/reliability/score-audio.ts clips.json reviewed-trials.jsonl heldout gpt-4o-transcribe gemini-2.5-flash
+
+Give the reviewer only the reviewer subdirectory. They listen to the source and the spoken output, enter the canonical facts actually heard, the fields with audible clarification or warning, a reviewer pseudonym and verified status in worksheet.json. Omit unheard facts. Supply firstAudioDelayMs only when call timing measures the interval from the end of the source utterance to the first audible output. Keep the private key file and the original observation files unchanged for joining. Audible critical misses and output latency remain unmeasured without eligible evidence. The final-audio rates require reviewed output from every compared system for the same clip. An absent or unclear truth labeled as a definite value counts as unsupported on the labeled fields.
+
+### Local caller-channel replay, 22 November 2026
+
+Three previously reviewed Bolna family-test turns from three calls had six audio-labeled facts in the private worksheet. Both local models received the same caller (left) channel, Telugu language hint, Silero segmentation and archived preceding question for the enhanced extractor. Each clip was decoded twice using the local CPU transcriber. Scoring used the first decode for each model. The speaker labels in this development worksheet are call-local placeholders, so the number of distinct people is unverified.
+
+| Local model | Independent turns | Base facts | Saathi facts | Clips whose transcript changed on repeat |
+|---|---:|---:|---:|---:|
+| Whisper small, quantized ONNX | 3 | 0/6 | 0/6 | 0/3 |
+| Whisper large-v3-turbo, quantized ONNX | 3 | 0/6 | 0/6 | 0/3 |
+
+Each model produced words on all three clips. The combination of caller-channel transcription and extraction recovered none of the six labeled values. These clips measure development replay of an amount/payment turn, passport custody/attribution and arrival/pickup. The earlier archived Bolna text evaluation used a different input. Playback, a held-out speaker population, and cloud model comparisons were unmeasured in this run.

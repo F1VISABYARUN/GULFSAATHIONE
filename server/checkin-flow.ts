@@ -2,7 +2,7 @@
 // The LLM only has to speak the line; the order, the meaning of "లేదు", and escalation are decided here.
 
 import { runHarness, ALL_ON } from './harness/index.ts';
-import { withQuestionContext, type Turn } from './harness/qa.ts';
+import { withQuestionContext, CONFIRM_SALARY, type Turn } from './harness/qa.ts';
 import { assessRisks } from './risk/engine.ts';
 import type { CallContext, CaseSlots } from './harness/types.ts';
 
@@ -26,7 +26,7 @@ const FLOWS: Record<Kind, Q[]> = {
     { id: 'job', te: 'అక్కడ ఏ పని చెప్పారు?', done: s => s.job !== undefined },
   ],
   weekly: [
-    { id: 'salary', te: 'ఈ నెల జీతం వచ్చిందా?', done: (s, a) => s.salaryPaid !== undefined || a.has('salary') },
+    { id: 'salary', te: 'ఈ నెల జీతం వచ్చిందా?', done: s => s.salaryPaid !== undefined },
     { id: 'passport', te: 'మీ పాస్‌పోర్ట్ మీ దగ్గరే ఉందా?', done: (s, a) => s.passportHeld !== undefined || a.has('passport') },
     { id: 'hours', te: 'రోజుకు ఎన్ని గంటలు పని చేస్తున్నారు?', done: s => s.hoursPerDay !== undefined },
     { id: 'safe', te: 'మీరు క్షేమంగా ఉన్నారా? ఏమైనా ఇబ్బంది ఉందా?', done: ASKED('safe') },
@@ -50,6 +50,9 @@ export function nextStep(state: FlowState, ctx: CallContext = {}) {
   }
   if (h.readBacks.length) return { action: 'CONFIRM' as const, sayTe: h.readBacks[0].te, slots, risks };
   const q = FLOWS[state.kind].find(x => !x.done(slots, answered));
+  if (q?.id === 'salary' && answered.has('salary')) {
+    return { action: 'CONFIRM' as const, qid: q.id, sayTe: CONFIRM_SALARY, slots, risks };
+  }
   if (q) return { action: 'ASK' as const, qid: q.id, sayTe: q.te, slots, risks };
   return { action: risks.length ? 'NOTE' as const : 'DONE' as const, sayTe: risks.length ? 'మీరు చెప్పింది నమోదు చేశాను. మా మనిషి త్వరలో మీకు కాల్ చేస్తారు.' : 'ధన్యవాదాలు. జాగ్రత్తగా ఉండండి, మళ్ళీ కాల్ చేస్తాం.', slots, risks };
 }

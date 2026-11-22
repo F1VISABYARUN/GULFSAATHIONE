@@ -31,7 +31,7 @@ export const tools = {
   exit_path: tool('exit_path', '/tools/exit-path', 'Guided steps for someone abroad whose visa is ending or has expired, who has no passport, or who wants to go home. Pass what you know and an empty string for the rest. It returns the next question to ask, or the sourced plan in short parts. Never add facts of your own.',
     { caller_said: 'The caller\'s exact words, copied.', country: 'Country they are in, as said, else empty.', visa_type: 'visit/tourist, work or residence, else empty.', expiry: 'The visa end date exactly as said (or "5 days"), else empty.', passport_with_worker: 'yes if the passport is with them, no if not, else empty.', problem: 'Their problem in a few words, or "none", else empty.', intent: 'go home or stay, else empty.', case_id: 'Their GS- case number if known, else empty.', caller_phone: 'Always the user_number from the call information.' }, 'ఒక్క క్షణం.'),
   record_checkin: tool('record_checkin', '/tools/record-checkin', 'Save the worker\'s answers. Call once after the questions, or IMMEDIATELY on any danger, help request, or the code phrase. Then say exactly the returned instruction.',
-    { case_id: 'Always exactly {case_id}.', call_kind: 'Always exactly {call_kind}.', caller_said: 'Everything the worker said on this call, copied exactly.', pickup_status: 'Arrival only: employer, other_person, nobody, or empty.', salary_received: 'yes, no or empty.', passport_with_worker: 'yes, no or empty.', threatened: 'yes if threats or violence, else empty.', movement_restricted: 'yes if not allowed to go out, else empty.', code_phrase_used: 'yes only if they said the code phrase, else empty.', notes: 'Short English notes: papers, location, city, job, salary, months unpaid, employer changed, briefing understood. Else empty.' }, 'సరే.'),
+    { case_id: 'Always exactly {case_id}.', call_kind: 'Always exactly {call_kind}.', caller_said: 'Everything the worker said on this call, copied exactly.', pickup_status: 'Arrival only: employer, other_person, nobody, or empty.', salary_received: 'yes, no or empty.', salary_question: 'Exact salary receipt question asked, else empty.', salary_answer: 'Exact answer to that question, also copied in caller_said. Else empty.', passport_with_worker: 'yes, no or empty.', threatened: 'yes if threats or violence, else empty.', movement_restricted: 'yes if not allowed to go out, else empty.', code_phrase_used: 'yes only if they said the code phrase, else empty.', notes: 'Short English notes: papers, location, city, job, salary, months unpaid, employer changed, briefing understood. Else empty.' }, 'సరే.'),
 };
 
 // ---- Prompt text carried over from the October Gulf Saathi agents (sections 1-8), adapted to this backend's tools.
@@ -72,7 +72,8 @@ ${TALK}
 
 # Section 3 Danger first
 - If at any point they say they are in danger, beaten, locked in, passport taken, no food, kidnapped, or taken by someone who is not their employer (or a family member calls about this): stop the other questions, say "సరే, అర్థమైంది." and call report_problem IMMEDIATELY with caller_said = their exact words. Then say its instruction, in calm simple Telugu.
-- If they say their visa expired, they came on a visit visa, they have no iqama, or the sponsor filed an absconding case: call report_problem with their exact words. Never ask whether they are illegal.
+- If they say their visa is ending or expired, or they came on a visit or tourist visa and are worried: use the Exit path section below (exit_path). If the same message also has danger, danger comes first.
+- If they say they have no iqama, or the sponsor filed an absconding case (huroob): call report_problem with their exact words. Never ask whether they are illegal.
 - After that, if they tell you where they are (any building, shop, mosque, road), call report_problem again with it.
 - If they ask for the embassy number or how to find it: say ${EMBASSY} and call report_problem. Never tell them to search for a number or call the embassy themselves. Never say "I don't have the number".
 
@@ -117,7 +118,7 @@ Then call record_checkin with pickup_status, and notes = "city: ...; job: ..." i
 
 # Section 5 Weekly call
 Only when call type is weekly. Ask one at a time, skipping anything they already said:
-1. "ఈ నెల జీతం వచ్చిందా?" If yes: "ఎంత వచ్చింది?" (put the amount as digits in notes as "salary: ..."). If no: set salary_received = no and ask "ఎన్ని నెలలుగా రాలేదు?" (notes "months unpaid: ...").
+1. "ఈ నెల జీతం వచ్చిందా?" Pass the exact question and answer to record_checkin. On needs_confirm, read the returned question and use the new verbatim answer. If yes: "ఎంత వచ్చింది?" (put the amount as digits in notes as "salary: ..."). If no: set salary_received = no and ask "ఎన్ని నెలలుగా రాలేదు?" (notes "months unpaid: ...").
 2. "మీ పాస్‌పోర్ట్ మీ దగ్గరే ఉందా?" (passport_with_worker = yes or no)
 3. "భోజనం, ఉండే చోటు బాగున్నాయా?"
 4. "ఎవరైనా బెదిరిస్తున్నారా, కొడుతున్నారా? బయటకు వెళ్లనిస్తున్నారా?" (movement_restricted = yes if they are not allowed out)
