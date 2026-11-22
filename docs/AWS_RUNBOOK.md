@@ -7,7 +7,7 @@ Only the interpreter goes on AWS. The main app stays on Vercel. Why EC2 + CloudF
 
 ## 0. Before you start
 - Pick **us-east-1** (one of the two allowed regions). Keep every resource in that region (CloudFront itself is global).
-- **Rotate `SAATHI_SECRET`** in Vercel first (it is still `12345678901`) and redeploy. Use the new value below.
+- **Rotate `SAATHI_SECRET`** in Vercel first (the value used during testing was weak) and redeploy. Use the new value below.
 - Have ready: `SAATHI_URL` (the Vercel app origin, e.g. `https://<app>.vercel.app`), `SAATHI_SECRET`, `PLIVO_AUTH_ID`, `PLIVO_AUTH_TOKEN`,
   `INTERPRETER_HUMAN_NUMBER` (E.164 desk phone), `OPENAI_API_KEY`.
 
