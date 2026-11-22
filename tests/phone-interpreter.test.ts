@@ -9,6 +9,7 @@ import { hasVoice, wavFromMulaw, mulawFromPcm24k } from '../interpreter/media.ts
 import { services } from '../interpreter/providers.ts';
 import { AgentSession, type AgentServices, type AgentStep } from '../interpreter/agent.ts';
 
+const textOf = (r: string | { text: string }) => typeof r === 'string' ? r : r.text;
 const cfg = {origin:'https://phone.example',backend:'https://api.example',secret:'fixture',authId:'fixture',
   authToken:'fixture',human:'+19999999999',openai:'fixture',target:'ar',mode:'keypad' as const};
 const ok:Result = { status:'translated',say_to_other:'AR translation',say_to_worker:'TE translation',back_translation:'TE check',locked_ok:true };
@@ -198,7 +199,7 @@ test('Telugu speech uses Cartesia when a key is set and falls back to OpenAI; Te
   const svc=agentServices(cfg,'call');
   assert.equal((await svc.speak('నమస్కారం','te')).length,100); assert.ok(calls.at(-1)!.includes('cartesia'));
   await svc.speak('hello','ar'); assert.ok(calls.at(-1)!.includes('openai.com'));
-  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'సారం టెక్స్ట్');
+  assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'సారం టెక్స్ట్');
   globalThis.fetch=(async(input:RequestInfo|URL)=>String(input).includes('cartesia')?new Response('x',{status:500}):new Response(Buffer.alloc(600),{status:200})) as typeof fetch;
   assert.equal((await svc.speak('నమస్కారం','te')).length,100);   // Cartesia failed, OpenAI answered
 });
@@ -262,7 +263,7 @@ test('non-Telugu speech is heard again with the target-language hint and Sarvam 
   }) as typeof fetch;
   const {agentServices}=await import('../interpreter/providers.ts');
   const svc=agentServices(cfg,'call');
-  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'مرحبا كيف حالك');
+  assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'مرحبا كيف حالك');
   assert.ok(langs.includes('gpt-4o-transcribe:ar'));
 });
 
@@ -276,11 +277,11 @@ test('Telugu speech that OpenAI labels as another language is taken from Sarvam;
   }) as typeof fetch;
   const {agentServices}=await import('../interpreter/providers.ts');
   const svc=agentServices(cfg,'call');
-  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');          // Turkish guess -> Telugu worker
-  openai='اردو غلط'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');
-  openai='مرحبا كيف حالك'; assert.equal(await svc.stt(Buffer.alloc(80,0),''),'مرحبا كيف حالك'); // Arabic script -> other speaker
+  assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'నా పేరు సురేష్');          // Turkish guess -> Telugu worker
+  openai='اردو غلط'; assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'నా పేరు సురేష్');
+  openai='مرحبا كيف حالك'; assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'مرحبا كيف حالك'); // Arabic script -> other speaker
   globalThis.fetch=(async(_i:RequestInfo|URL,init?:RequestInit)=>Response.json({status:'transcribed',text:String((init?.body as FormData).get('model'))==='saaras:v3'?'':'Hello'})) as typeof fetch;
-  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'');                          // nothing usable -> ignore
+  assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'');                          // nothing usable -> ignore
 });
 
 test('a bare "okay" is ignored, and an agreement before the other person proposed anything is blocked',async()=>{
@@ -330,7 +331,7 @@ test('with SARVAM_API_KEY on the server Sarvam is called directly with language 
   }) as typeof fetch;
   const {agentServices}=await import('../interpreter/providers.ts');
   const svc=agentServices(cfg,'call');
-  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'నా పేరు సురేష్');
+  assert.equal(textOf(await svc.stt(Buffer.alloc(80,0),'')),'నా పేరు సురేష్');
   assert.ok(urls.some(u=>u.includes('api.sarvam.ai'))); assert.ok(!urls.some(u=>u.includes('api.example/api/saathi/stt')&&false));
   await svc.think([{who:'worker',text:'వినిపిస్తుందా?'}],'ar');
   assert.ok(promptSeen.includes('calm elder brother')); assert.ok(promptSeen.includes('will you speak for me'));
@@ -367,4 +368,28 @@ test('danger with transfer switched off: says the line, then tells the worker th
     handoff:async()=>{throw Error('transfer disabled');},alert:async t=>{alerts.push(t);}});
   await f.begin(); await f.turn(); await new Promise(r=>setTimeout(r,5));
   assert.ok(f.spoken.some(l=>l.includes('కలపలేకపోయాను'))); assert.equal(alerts.length,1); assert.ok(!f.stops.includes('close'));
+});
+
+test('"say it again" re-sends the message the worker already approved, without a new question',async()=>{
+  const f=agentFixture([{say_to_other:'AR fever',confirm_te:'ఫీవర్ చెప్పమంటారా?',say_to_worker:''}],['నాకు ఫీవర్ టాబ్లెట్స్ కావాలి','అవును','మళ్ళీ చెప్పండి']);
+  await f.begin(); await f.turn(); await f.turn();
+  const first=f.spoken.filter(l=>l.startsWith('ar ')&&l.endsWith('AR fever')).length;
+  await f.turn();                                                                  // "మళ్ళీ చెప్పండి"
+  assert.equal(f.spoken.filter(l=>l.startsWith('ar ')&&l.endsWith('AR fever')).length,first+1);   // spoken again at once
+  assert.equal(f.spoken.filter(l=>l.startsWith('te ')&&l.includes('సరేనా')||l.includes('చెప్పమంటారా')).length,1);  // only the one original question
+});
+test('the confirmation question tells the worker, in Telugu, what the Arabic actually says',async()=>{
+  const f=agentFixture([{say_to_other:'AR fever',confirm_te:'ఫీవర్ చెప్పమంటారా?',say_to_worker:''}],['నాకు ఫీవర్ టాబ్లెట్స్ కావాలి'],
+    {backTranslate:async()=>'నాకు జ్వరం మందులు కావాలి'});
+  await f.begin(); await f.turn();
+  assert.ok(f.spoken.includes('te ఆయనకు అరబిక్ లో ఇలా చెబుతాను: నాకు జ్వరం మందులు కావాలి. సరేనా?'));
+  assert.ok(!f.spoken.some(l=>l.startsWith('ar ')));
+});
+test('the second recogniser\'s guess reaches the model when the two ears disagree',async t=>{
+  const original=globalThis.fetch; let user='';
+  t.after(()=>{globalThis.fetch=original;});
+  globalThis.fetch=(async(_i:RequestInfo|URL,init?:RequestInit)=>{ const b=JSON.parse(String(init?.body)); user=String(b.messages[1].content); return Response.json({choices:[{message:{content:'{}'}}]}); }) as typeof fetch;
+  const {agentServices}=await import('../interpreter/providers.ts');
+  await agentServices(cfg,'call').think([{who:'worker',text:'నాకు Vivo ట్యాబెట్ కావాలి',alt:'నాకు ఫీవర్ టాబ్లెట్స్ కావాలి'}],'ar');
+  assert.ok(user.includes('[second recogniser heard: నాకు ఫీవర్ టాబ్లెట్స్ కావాలి]'));
 });
