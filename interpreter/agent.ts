@@ -1,5 +1,5 @@
 import { hasVoice } from './media.ts';
-import { disclosure, teDisclosure } from './session.ts';
+import { disclosure } from './session.ts';
 import { numberValues } from '../server/harness/numbers.ts';
 import { tokenize } from '../server/harness/tokens.ts';
 
@@ -21,6 +21,15 @@ export interface AgentOutput {
 }
 
 // First-pass wording by the author, not reviewed by native speakers.
+// Spoken once at the start. First-pass wording by the author, not reviewed by native speakers. No keypad instructions: agent mode is voice-driven.
+export const agentDisclosure: Record<string, string> = {
+  te: 'నేను సాథి ఏఐ అనువాదకుడిని. తెలుగు మాట్లాడే వారి తరఫున మాట్లాడతాను. మీ మాటలు అనువాద సేవలకు పంపబడతాయి. ఆపడానికి సున్నా నొక్కండి.',
+  ar: 'أنا مترجم آلي بالذكاء الاصطناعي، أتحدث نيابة عن المتحدث بالتيلوغو. يُرسل الصوت إلى خدمات الترجمة. للإيقاف اضغط صفراً.',
+  en: 'I am an AI interpreter speaking on behalf of the Telugu speaker. The audio is sent to translation services. Press zero to stop.',
+  hi: 'मैं एआई अनुवादक हूँ और तेलुगु बोलने वाले की ओर से बोल रहा हूँ। आवाज़ अनुवाद सेवाओं को भेजी जाती है। रोकने के लिए शून्य दबाएँ।',
+  ur: 'میں مصنوعی ذہانت کا ترجمان ہوں اور تیلگو بولنے والے کی طرف سے بات کر رہا ہوں۔ آواز ترجمے کی خدمات کو بھیجی جاتی ہے۔ روکنے کے لیے صفر دبائیں۔',
+  ml: 'ഞാൻ ഒരു എ ഐ പരിഭാഷകനാണ്, തെലുങ്ക് സംസാരിക്കുന്നയാളുടെ പേരിൽ സംസാരിക്കുന്നു. ശബ്ദം പരിഭാഷാ സേവനങ്ങളിലേക്ക് അയയ്ക്കും. നിർത്താൻ പൂജ്യം അമർത്തുക.',
+};
 const intro = 'చెప్పండి, నేను మీ తరఫున మాట్లాడతాను. మీకు ఏం కావాలి?';
 const askAgain: Record<string, string> = { ar: 'من فضلك أعد الكلام.', en: 'Please say that again.', hi: 'कृपया फिर से कहिए।', ur: 'براہ کرم دوبارہ کہیں۔', ml: 'ദയവായി ഒന്നുകൂടി പറയൂ.' };
 const cannotTranslate = 'వాళ్ళు చెప్పింది సరిగా చెప్పలేకపోయాను. మళ్ళీ చెప్పమని అడుగుతున్నాను.';
@@ -60,7 +69,7 @@ export class AgentSession {
     } catch { if (id === this.generation) { this.close(); this.out.close(); } }
   }
   private listen() { this.clearAudio(); this.phase = 'listen'; }
-  async start() { await this.say([[teDisclosure, 'te'], [disclosure[this.target], this.target], [intro, 'te']], () => this.listen()); }
+  async start() { await this.say([[agentDisclosure.te, 'te'], [agentDisclosure[this.target], this.target], [intro, 'te']], () => this.listen()); }
   played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.afterPlay(); } }
   async digit(key: string) { if (key === '0' && this.phase !== 'closed') { this.close(); this.out.close(); } }
   async media(frame: Buffer) {

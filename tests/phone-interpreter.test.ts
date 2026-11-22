@@ -199,3 +199,9 @@ test('Telugu speech uses Cartesia when a key is set and falls back to OpenAI; Te
   globalThis.fetch=(async(input:RequestInfo|URL)=>String(input).includes('cartesia')?new Response('x',{status:500}):new Response(Buffer.alloc(600),{status:200})) as typeof fetch;
   assert.equal((await svc.speak('నమస్కారం','te')).length,100);   // Cartesia failed, OpenAI answered
 });
+
+test('agent mode opening has no keypad instructions and speaks both languages',async()=>{
+  const f=agentFixture([],[]); await f.begin();
+  assert.ok(f.spoken[0].startsWith('te నేను సాథి')); assert.ok(f.spoken[1].startsWith('ar أنا مترجم'));
+  assert.ok(!f.spoken.some(x=>/اثنين|ثلاثة|مربع|హాష్|ఒకటి నొక్కి/.test(x)));
+});
