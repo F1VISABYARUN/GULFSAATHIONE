@@ -65,7 +65,7 @@ export function foldLatin(s: string): string {
   return s.toLowerCase().replace(/ph/g, 'f').replace(/aa/g, 'a').replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 const LANDMARKS: [RegExp, string][] = [
-  [/\b(burj|bruj|burch|burz|buruj|burg)( ?k?hal(i|e)?(fa|pha)?)?\b/, 'Burj Khalifa'],
+  [/\b(burj|bruj|burch|burz|buruj|burg) ?k?hal(i|e)(fa|pha)\b/, 'Burj Khalifa'],
   [/\bduba(i|y|yi)? ?m[ao]+l+\b/, 'Dubai Mall'],
   [/\bmal+ (of|af|aaf) (the|di|da) emir(a|e)t(e)?s\b/, 'Mall of the Emirates'],
   [/\bgold s(o|u)u?k\b/, 'Gold Souk'],
@@ -81,7 +81,7 @@ export function knownLandmark(normJoined: string): string | undefined {
 }
 
 /** Where is he? Only from what he said: a known place name or a phrase after "near / daggara / దగ్గర". */
-export function extractAnchor(text: string): { anchor?: string; city?: string } {
+export function extractAnchor(text: string): { anchor?: string; city?: string; needsRepeat?: boolean } {
   const h = runHarness(text, {}, ALL_ON);
   const city = h.slots.places?.find(p => /dubai|deira|sharjah|abu dhabi|ajman|riyadh|jeddah|dammam|muscat|doha|kuwait|manama|bahrain|oman|qatar/i.test(p));
   const norms = tokenize(text);
@@ -93,7 +93,12 @@ export function extractAnchor(text: string): { anchor?: string; city?: string } 
     const before = norms.slice(Math.max(0, iNear - 3), iNear).filter(t => !/^(nenu|naa|ikkada|unnanu|main|i|am)$/.test(t.norm));
     if (before.length) anchor = before.map(t => t.norm.replace(/(loni|lo|ki)$/, '')).join(' ');
   }
-  const known = knownLandmark(norms.map(t => t.norm).join(' '));
+  const spoken = norms.map(t => t.norm).join(' ');
+  // A clipped "Burj" could be any tower. These fragments occurred on the pharmacy call.
+  // A full alternative such as "Burj Al Arab" remains a valid caller-supplied landmark.
+  const fragment = /\b(?:bor cho|bursh kar)\b|\b(?:burj|burch|burz|buruj)\s*(?:daggara|near|$)/;
+  const known = knownLandmark(spoken);
+  if (!known && fragment.test(foldLatin(spoken))) return { city, needsRepeat: true };
   if (known) anchor = known;
   return { anchor, city };
 }
@@ -176,7 +181,11 @@ export async function assist(text: string, ctx: CallContext = {}): Promise<Assis
   }
 
   const intent = detectIntent(text);
-  const { anchor, city } = extractAnchor(text);
+  const { anchor, city, needsRepeat } = extractAnchor(text);
+  if (needsRepeat && ['find_place', 'directions', 'bus_route'].includes(intent)) {
+    return { intent, escalate: false, needs: 'location', liveSearch: 'not_needed',
+      sayTe: 'పేరు పూర్తిగా వినబడలేదు. భవనం పూర్తి పేరు లేదా పక్కన ఉన్న రోడ్డు పేరు చెప్పండి.' };
+  }
   const where = [anchor, city].filter(Boolean).join(', ');
 
   if (intent === 'find_place') {

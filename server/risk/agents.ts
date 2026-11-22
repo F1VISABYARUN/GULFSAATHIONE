@@ -12,7 +12,7 @@ import { similarity } from '../harness/phonetic.ts';
 const DATA = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
 export interface RA { raId: string; name: string; state: string; district: string; rc: string | null; status: string; website: string | null }
-export interface AgentCheck { status: 'registered' | 'registered_other_district' | 'not_found' | 'flagged'; match?: RA; flaggedName?: string; source: string }
+export interface AgentCheck { status: 'registered' | 'registered_other_district' | 'not_found' | 'flagged'; match?: RA; flaggedName?: string; source: string; notifiedRegister: 'unavailable' | 'needs_district' | 'exact_match' | 'no_exact_match' }
 
 let cache: { ras: RA[]; notified: ReturnType<typeof loadNotified> } | undefined;
 function load() {
@@ -31,15 +31,20 @@ export function raCount() { return load().ras.length; }
 export function checkAgent(name: string, district?: string, raId?: string): AgentCheck {
   const { ras, notified } = load();
   const source = 'MEA list of active RAs, as on 08-04-2026';
+  const coverage: Pick<AgentCheck, 'source' | 'notifiedRegister'> = {
+    source, notifiedRegister: !notified ? 'unavailable' : district?.trim() ? 'no_exact_match' : 'needs_district',
+  };
   const norm = (v: string) => v.normalize('NFC').trim().replace(/\s+/g,' ').toLowerCase();
   const flag = district && notified?.agents.find(a => norm(a.name) === norm(name) && norm(a.district) === norm(district));
-  if (flag && notified) return { status:'flagged', flaggedName:flag.name, source:notified.source + ' as of ' + notified.asOf };
+  if (flag && notified) return { status:'flagged', flaggedName:flag.name, notifiedRegister:'exact_match', source:notified.source + ' as of ' + notified.asOf };
   if (raId) {
-    const m = ras.find(r => r.raId.toLowerCase() === raId.toLowerCase());
-    if (m) return { status: m.status === 'Active' ? 'registered' : 'not_found', match: m, source };
+    const id = norm(raId);
+    const m = ras.find(r => norm(r.raId) === id || (r.rc && norm(r.rc) === id));
+    if (!m || m.status !== 'Active') return { status: 'not_found', ...coverage };
+    return { status: 'registered', match: m, ...coverage };
   }
   const q = core(name);
-  if (q.length < 3) return { status: 'not_found', source };
+  if (q.length < 3) return { status: 'not_found', ...coverage };
   let best: { r: RA; s: number } | undefined;
   for (const r of ras) {
     const c = core(r.name);
@@ -47,9 +52,9 @@ export function checkAgent(name: string, district?: string, raId?: string): Agen
     const s = c === q ? 1 : similarity(c, q);
     if (s >= 0.86 && (!best || s > best.s)) best = { r, s };
   }
-  if (!best) return { status: 'not_found', source };
+  if (!best) return { status: 'not_found', ...coverage };
   const sameDistrict = !district || !best.r.district || best.r.district.toLowerCase().includes(district.toLowerCase());
-  return { status: sameDistrict ? 'registered' : 'registered_other_district', match: best.r, source };
+  return { status: sameDistrict ? 'registered' : 'registered_other_district', match: best.r, ...coverage };
 }
 
 export function listAgents(district?: string, state = 'Telangana'): RA[] {

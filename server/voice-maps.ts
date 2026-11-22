@@ -53,17 +53,26 @@ export function bareLandmark(text:string,city:string):string|undefined{
 }
 export async function findPlace(text:string,city:string,what:string){
   const location=extractAnchor(text);city=city||location.city||'';
+  if (location.needsRepeat) return {...need,sayTe:'భవనం పూర్తి పేరు వినబడలేదు. పేరు మళ్లీ చెప్పండి లేదా పక్క రోడ్డు పేరు చెప్పండి.'};
   const anchor=location.anchor||bareLandmark(text,city);
   if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(what==='embassy'){
-    const mission=missions.find(m=>m.city.toLowerCase()===city.trim().toLowerCase());
+    const servedCity=city.trim().toLowerCase();
+    const mission=missions.find(m=>[m.city,...(m.also_serves??[])].some(c=>c.toLowerCase()===servedCity));
     if(mission)return {status:'official',places:[{...mission,place_id:'mission:'+mission.city,name_te:pronounce(mission.name),distance_m:null}],sayTe:`${mission.name}. సంప్రదింపు: ${mission.phone}. దూరం నిర్ధారించలేదు.`};
     if(!city)return {status:'needs_city',sayTe:'మీరు ఏ నగరంలో ఉన్నారు?'};
   }
   const origins=await search([anchor,city].filter(Boolean).join(', '));
   if(!origins)return unavailable;
-  const exact=origins.filter(p=>p.displayName.text.toLowerCase()===anchor.toLowerCase());
-  const origin=origins.length===1?origins[0]:exact.length===1?exact[0]:undefined;
+  const normalizeName = (name:string) => name.normalize('NFC').toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu,' ').trim();
+  const name = normalizeName(anchor);
+  const exact=origins.filter(p=>name && normalizeName(p.displayName.text)===name);
+  const origin=exact.length===1?exact[0]:undefined;
+  if (!origin && origins.length===1) {
+    return {status:'needs_landmark',candidate:origins[0].displayName.text,
+      sayTe:`మ్యాప్‌లో ${origins[0].displayName.text} అని ఉంది. అదే అయితే పూర్తి పేరు చెప్పండి. వేరేదైతే దగ్గరలోని రోడ్డు పేరు చెప్పండి.`};
+  }
   if(!origin)return {...need,sayTe:'ఆ గుర్తు ఖచ్చితంగా దొరకలేదు. ప్రాంతం లేదా మరో గుర్తు చెప్పండి.'};
   const queryKind=what==='embassy'?'Embassy or Consulate of India':what;
   const results=await search(`${queryKind} near ${anchor}, ${city}`,origin.location);
@@ -72,7 +81,8 @@ export async function findPlace(text:string,city:string,what:string){
   return {status:'found',places,sayTe:places.length?places.map(p=>`${p.name}, గుర్తు నుంచి నేరుగా సుమారు ${p.distance_m} మీటర్లు.`).join(' '):'దగ్గరలో ఫలితాలు దొరకలేదు.'};
 }
 export async function voiceDirections(text:string,city:string,destination:string,mode:'walking'|'transit'){
-  const location=extractAnchor(text);const anchor=location.anchor;city=city||location.city||'';if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
+  const location=extractAnchor(text);city=city||location.city||'';
+  const anchor=location.needsRepeat?undefined:location.anchor||bareLandmark(text,city);if(!anchor || anchor.toLowerCase()===city.trim().toLowerCase())return need;
   if(!destination)return {status:'needs_destination',sayTe:'మీరు ఎక్కడికి వెళ్లాలి?'};
   const taxi={status:'unavailable',sayTe:'దారి సమాచారం అందుబాటులో లేదు. టాక్సీ డ్రైవర్‌కు ఈ మాట చెప్పవచ్చు.',taxi_ar:`من فضلك خذني إلى ${destination}.`};
   const key=process.env.GOOGLE_MAPS_API_KEY;if(!key)return taxi;
@@ -80,7 +90,7 @@ export async function voiceDirections(text:string,city:string,destination:string
   const place=(x:string)=>({address:[x,city].filter(Boolean).join(', ')});
   const r=await mapsFetch('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',
     headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.legs.steps.navigationInstruction,routes.legs.steps.transitDetails,routes.legs.steps.distanceMeters'},
-    body:JSON.stringify({origin:place(anchor),destination:place(destination),travelMode:mode==='transit'?'TRANSIT':'WALK',languageCode:'en'})});
+    body:JSON.stringify({origin:place(anchor),destination:place(destination),travelMode:mode==='transit'?'TRANSIT':'WALK',languageCode:'te'})});
   const data=r?await r.json().catch(()=>null):null;
   if(!r?.ok||!data?.routes?.[0])return {...taxi,reason:r?String(data?.error?.status??r.status):'no_response',...(data?.error?.message?{detail:String(data.error.message).slice(0,160)}:{})};
   const route=data.routes[0];const all=route.legs?.[0]?.steps;

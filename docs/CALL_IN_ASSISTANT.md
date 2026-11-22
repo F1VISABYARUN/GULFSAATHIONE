@@ -27,7 +27,7 @@ Configure `SAATHI_SECRET` on the server and bind its value to the private `x-saa
 
 **Relay.** `POST /api/translate` accepts `{"text":"…","from":"te","to":"ar","mode":"relay"}`. Supported language codes are `te`, `en`, `ar` (Gulf Arabic), `hi`, `ur`, and `ml`. Set `OPENAI_API_KEY` and select the model with `OPENAI_TEXT_MODEL`. On outbound turns the server checks the translation against the Telugu harness entities and requests a separate Telugu readback. The response contains `say_to_other`, `say_to_worker`, `back_translation`, `confidence`, and `locked_ok`. On inbound turns the worker hears the Telugu translation directly. Confidence is a model assessment, without statistical calibration. Generated speech carries the label “unchecked by native speaker”. A lock mismatch withholds the translation. When the provider is unavailable or unsure, an exact match from the fixed Arabic phrasebook may be offered for confirmation.
 
-**Places and directions.** Enable Places API (New) and Directions API for `GOOGLE_MAPS_API_KEY`. Search starts from the caller's spoken landmark. Distances are approximate straight-line metres from that landmark. The Telugu pronunciation is approximate. Official Indian mission results come from `server/data/missions.json`; each contact has an official source and service scope. Street addresses awaiting verification are empty. A mission result with `distance_m: null` has no verified distance. Transit coverage depends on Google. The tools keep the spoken landmark and route in request memory only. Check the retention settings of your telephony and maps providers separately.
+**Places and directions.** Enable Places API (New) and Routes API for `GOOGLE_MAPS_API_KEY`. Search starts from the caller's spoken landmark. Distances are approximate straight-line metres from that landmark. The Telugu pronunciation is approximate. Official Indian mission results come from `server/data/missions.json`; each contact has an official source and service scope. Street addresses awaiting verification are empty. A mission result with `distance_m: null` has no verified distance. Transit coverage depends on Google. The tools keep the spoken landmark and route in request memory only. Check the retention settings of your telephony and maps providers separately.
 
 **Place SMS.** Configure an approved MSG91 template with variables `place_name` and `maps_link`, set `MSG91_PLACE_TEMPLATE_ID` and `MSG91_AUTH_KEY`. The tool resolves the selected ID and uses the registered worker or family phone. It requires recorded worker consent and the caller's explicit confirmation of the place and recipient. Missing SMS credentials produce `dry-run`. An `accepted` response means the provider accepted the request. Delivery requires a separate receipt.
 
@@ -265,3 +265,11 @@ Place the definitions under the agent's API tools configuration. Replace the hos
   }
 }
 ```
+
+### Spoken landmark and source verification
+
+On a fragment such as “బుర్ష్ కార్”, ask for the complete building name or a nearby street. For a single Google candidate that differs from the spoken name, read the suggested name and ask the caller to repeat the full name or give a different landmark. Send the caller’s next utterance to the same tool. Only a unique matching origin can produce place distances. Walking and transit requests specify Telugu for Google’s instructions.
+
+The Dubai consulate welfare line also covers Sharjah, Ajman, Umm Al Quwain, Ras Al Khaimah and Fujairah. Its official response identifies Dubai as the consulate city and leaves the distance unknown. [Indian mission hotline scope](https://www.indembassyuae.gov.in/page/hotlines-24x7/)
+
+The eight mission entries still lack verified street addresses. On 22 November 2026 the build environment could not retrieve the official mission pages or the eMigrate register. A human-reviewed official notified-agents snapshot is still needed. Agent checks return notified-register coverage separately from active licence status: unavailable, district needed, exact match, or no exact match. An explicit RC/RA number must match the bundled register before Saathi reports a registration.
