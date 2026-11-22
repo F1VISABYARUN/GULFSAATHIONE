@@ -106,8 +106,19 @@ export function agentServices(config: Config, call: string, caseId?: string): Ag
         } catch { return ''; }
       };
       const [heard, fromSarvam] = await Promise.all([base.stt(audio, language), sarvam()]);
-      if (/[\u0C00-\u0C7F]/.test(heard)) return /[\u0C00-\u0C7F]/.test(fromSarvam) ? fromSarvam : heard;
-      // OpenAI heard something that is not Telugu (it guessed Urdu for Arabic): listen again with the target language as a hint.
+      const telugu = /[\u0C00-\u0C7F]/;
+      const arabicScript = /[\u0600-\u06FF\u0750-\u077F]/;
+      const sarvamTelugu = telugu.test(fromSarvam) ? fromSarvam : '';
+      // For an Arabic- or Urdu-speaking other person the script decides who spoke: OpenAI's own language guess on phone-quality
+      // Telugu is unreliable (it returned Turkish, Tamil and "Hello"), so anything that is not Arabic script is the Telugu speaker.
+      if (config.target === 'ar' || config.target === 'ur') {
+        if (arabicScript.test(heard)) {
+          try { const hinted = (await base.stt(audio, config.target)).trim(); if (arabicScript.test(hinted)) return hinted; } catch { /* keep the first result */ }
+          return heard;
+        }
+        return sarvamTelugu || (telugu.test(heard) ? heard : '');
+      }
+      if (telugu.test(heard)) return sarvamTelugu || heard;
       if (heard.trim() && config.target) {
         try { const hinted = (await base.stt(audio, config.target)).trim(); if (hinted) return hinted; } catch { /* keep the first result */ }
       }
