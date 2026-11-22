@@ -131,3 +131,14 @@ test('a failed Plivo request gives the allowance back; a call that never rang gi
   assert.equal((await report(hangup.replace('https://gulfsaathione.vercel.app', base), { To: '919848000777', CallStatus: 'no-answer', Duration: '0', HangupCauseName: 'Rejected', HangupSource: 'Carrier' })).status, 200);
   assert.equal((await post(body, '5.5.5.5')).status, 200);                                   // slot returned after the rejected call
 });
+
+test('a request refused by the per-number limit does not use up the network allowance', async t => {
+  Object.assign(process.env, PLIVO); t.after(() => { for (const k of Object.keys(PLIVO)) delete process.env[k]; });
+  const { post } = await app(t);
+  const original = globalThis.fetch;
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => String(url).startsWith('https://api.plivo.com/') ? Response.json({ request_uuid: 'u' }) : original(url as any, init));
+  const body = { phone: '9848000555', consent: true };
+  assert.equal((await post(body, '6.6.6.6')).status, 200); assert.equal((await post(body, '6.6.6.6')).status, 200);
+  for (let i = 0; i < 12; i++) assert.equal((await post(body, '6.6.6.6')).status, 429);        // refused repeatedly, never "slow_down" (that would be the 11th network use)
+  assert.equal((await post({ phone: '9848000556', consent: true }, '6.6.6.6')).status, 200);   // same network can still ask for another number
+});
