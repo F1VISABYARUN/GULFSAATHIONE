@@ -8,14 +8,18 @@ export const disclosure: Record<string, string> = {
   ur:'میں مصنوعی ذہانت کا ترجمان ہوں۔ آواز ترجمے کی خدمات کو بھیجی جاتی ہے۔ دونوں راضی ہوں تو تیلگو بولنے والا ایک اور پھر دوسرا شخص دو دبائے۔ پھر اپنی باری پر ایک یا دو دبا کر بولیں اور آخر میں ہیش دبائیں۔ تصدیق کے لیے تین اور روکنے کے لیے صفر دبائیں۔',
   ml:'ഞാൻ ഒരു എ ഐ പരിഭാഷകനാണ്. സംസാരം പരിഭാഷാ സേവനങ്ങളിലേക്ക് അയയ്ക്കും. ഇരുവർക്കും സമ്മതമെങ്കിൽ തെലുങ്ക് സംസാരിക്കുന്നയാൾ ഒന്നും തുടർന്ന് മറ്റേയാൾ രണ്ടും അമർത്തുക. ഓരോ തവണയും ഒന്നോ രണ്ടോ അമർത്തി സംസാരിച്ച ശേഷം ഹാഷ് അമർത്തുക. ശരിയെങ്കിൽ മൂന്ന്, നിർത്താൻ പൂജ്യം അമർത്തുക.',
 };
+// First-pass wording by the author, not reviewed by native speakers.
+const confirmPrompt: Record<string,string> = { te:'సరైతే మూడు నొక్కండి. కాకపోతే ఒకటి నొక్కి మళ్ళీ చెప్పండి.', ar:'إذا كان صحيحاً اضغط ثلاثة، وإلا اضغط اثنين وكرر.', en:'If correct press three, otherwise press two and repeat.', hi:'सही हो तो तीन दबाएँ, नहीं तो दो दबाकर फिर बोलें।', ur:'درست ہو تو تین دبائیں، ورنہ دو دبا کر پھر بولیں۔', ml:'ശരിയെങ്കിൽ മൂന്ന് അമർത്തുക, അല്ലെങ്കിൽ രണ്ട് അമർത്തി വീണ്ടും പറയുക.' };
+const transferFailed = 'మనిషికి కలపలేకపోయాను. మన టీమ్‌కు తెలియజేశాను. ఒకటి నొక్కి మాట్లాడండి.';
 const repeat: Record<string,string> = { te:'దయచేసి ఒకటి నొక్కి మళ్ళీ చెప్పండి.', ar:'اضغط اثنين وكرر من فضلك.', en:'Press two and please repeat.', hi:'दो दबाकर फिर बोलें।', ur:'دو دبا کر پھر بولیں۔', ml:'രണ്ട് അമർത്തി വീണ്ടും പറയുക.' };
 
 export interface Result {
-  status: string; say_to_worker?: string; say_to_other?: string; back_translation?: string; locked_ok?: boolean;
+  status: string; covert?: boolean; say_to_worker?: string; say_to_other?: string; back_translation?: string; locked_ok?: boolean;
 }
 export interface Services {
   stt(audio: Buffer, language: string): Promise<string>;
-  translate(text: string, from: string, to: string): Promise<Result>;
+  translate(text: string, from: string, to: string, confirmed?: boolean): Promise<Result>;
+  alert?(text: string): Promise<void>;
   speak(text: string, language: string): Promise<Buffer>;
   handoff(): Promise<void>;
 }
@@ -32,13 +36,14 @@ export class PhoneSession {
   private generation = 0;
   private checkpoint = '';
   private afterPlay = () => {};
-  private phase: 'opening'|'consent1'|'consent2'|'ready'|'capture'|'busy'|'confirm'|'handoff'|'closed' = 'opening';
+  private phase: 'opening'|'consent1'|'consent2'|'ready'|'capture'|'busy'|'confirm'|'confirmText'|'handoff'|'closed' = 'opening';
   private from = 'te';
   private frames: Buffer[] = [];
   private length = 0;
   private voiced = false;
   private silence = 0;
   private pending?: {text: string; lang: string};
+  private source?: {text: string; from: string};
 
   constructor(private target: string, private service: Services, private out: Output) {
     if (!Object.hasOwn(disclosure, target)) throw Error('Unsupported language');
@@ -47,7 +52,7 @@ export class PhoneSession {
     this.generation++;
     this.checkpoint = '';
     this.frames = []; this.length = 0; this.silence = 0; this.voiced = false;
-    this.pending = undefined;
+    this.pending = undefined; this.source = undefined;
   }
   close() { this.reset(); this.phase = 'closed'; }
   private async say(lines: [string,string][], next: () => void) {
@@ -76,6 +81,11 @@ export class PhoneSession {
       if (key === '1' && this.phase === 'consent1') this.phase = 'consent2';
       else if (key === '2' && this.phase === 'consent2') this.phase = 'ready';
       return;
+    }
+    if (key === '3' && this.phase === 'confirmText' && this.source) {
+      const source = this.source;
+      this.source = undefined; this.phase = 'busy';
+      await this.relayText(this.generation, source.text, source.from, true); return;
     }
     if (key === '3' && this.phase === 'confirm' && this.pending) {
       const pending = this.pending;
@@ -118,13 +128,41 @@ export class PhoneSession {
       this.out.metric?.('asr', heard - start);
       if (id !== this.generation) return;
       if (!text || text.length > 4000) { await this.retry(); return; }
-      const result = await this.service.translate(text, from, to);
+      await this.relayText(id, text, from, false, start);
+    } catch {
+      if (id === this.generation) await this.retry();
+    }
+  }
+  // Translate one transcript. A flagged amount or distress word is first read back to its own speaker;
+  // only after key 3 is the same text translated with confirmed=true.
+  private async relayText(id: number, text: string, from: string, confirmed: boolean, began = Date.now()) {
+    const to = from === 'te' ? this.target : 'te';
+    try {
+      const sent = Date.now();
+      const result = await this.service.translate(text, from, to, confirmed);
       if (id !== this.generation) return;
-      this.out.metric?.('relay',Date.now() - heard);
+      this.out.metric?.('relay', Date.now() - sent);
+      if (result.covert) {
+        // Private phrase: no transfer, no announcement. Look like an ordinary unclear turn and tell the desk quietly.
+        this.service.alert?.(text).catch(() => {});
+        await this.retry(); return;
+      }
       if (['emergency','escalate_human'].includes(result.status)) {
         this.phase = 'handoff';
-        await this.service.handoff();
-        this.out.metric?.('handoff_accepted',Date.now()-heard);
+        try {
+          await this.service.handoff();
+          this.out.metric?.('handoff_accepted', Date.now() - sent);
+        } catch {
+          if (id !== this.generation) return;
+          this.service.alert?.(text).catch(() => {});
+          this.phase = 'busy';
+          await this.say([[transferFailed,'te']], () => { this.phase = 'ready'; });
+        }
+        return;
+      }
+      if (result.status === 'needs_confirm' && !confirmed) {
+        this.source = { text, from };
+        await this.say([[text,from],[confirmPrompt[from] ?? confirmPrompt.en,from]], () => { this.phase = 'confirmText'; });
         return;
       }
       const targetText = to === 'te' ? result.say_to_worker : result.say_to_other;
@@ -135,12 +173,8 @@ export class PhoneSession {
       const preview: [string,string][] = [[text,from]];
       if (from === 'te') preview.push([result.back_translation, 'te']);
       await this.say(preview, () => { this.phase = 'confirm'; });
-      if (id === this.generation) this.out.metric?.('readback_queued',Date.now()-start);
+      if (id === this.generation) this.out.metric?.('readback_queued', Date.now() - began);
     } catch {
-      if (id !== this.generation) return;
-      if (this.phase === 'handoff') {
-        await this.say([['ఇప్పుడు కొనసాగించలేకపోతున్నాను.','te']], () => { this.close(); this.out.close(); });
-      } else await this.retry();
+      if (id === this.generation) await this.retry();
     }
-  }
-}
+  }}

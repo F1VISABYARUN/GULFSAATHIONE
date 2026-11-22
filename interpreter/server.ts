@@ -27,7 +27,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
   const server = createServer((req,res)=>{
     res.setHeader('Cache-Control','no-store');
     const url = new URL(config.origin + (req.url || '/'));
-    if (req.method !== 'GET' || !['/answer','/human'].includes(url.pathname)) { res.writeHead(404).end(); return; }
+    if (req.method !== 'GET' || !['/answer','/human','/human-result'].includes(url.pathname)) { res.writeHead(404).end(); return; }
     if (!signed(req,url,config.authToken)) { res.writeHead(403).end(); return; }
     const now = Date.now();
     for (const [k,v] of tickets) if (v.expires <= now) tickets.delete(k);
@@ -39,7 +39,14 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     if (!/^[\w-]{1,80}$/.test(call)) { res.writeHead(400).end(); return; }
     res.setHeader('Content-Type','application/xml');
     if (url.pathname === '/human') {
-      res.end('<Response><Dial><Number>'+config.human+'</Number></Dial></Response>'); return;
+      // Plivo calls the action URL when the dial ends; that is the only evidence of what happened.
+      res.end('<Response><Dial timeout="25" action="'+config.origin+'/human-result" method="GET"><Number>'+config.human+'</Number></Dial></Response>'); return;
+    }
+    if (url.pathname === '/human-result') {
+      const status = url.searchParams.get('DialStatus') ?? url.searchParams.get('DialBLegStatus') ?? 'unknown';
+      console.info(JSON.stringify({component:'phone-interpreter',event:'human_dial_ended',call,status}));
+      // Not connected: return the caller to the interpreter instead of hanging up. Parameter names are unverified against Plivo.
+      res.end(status === 'completed' ? '<Response/>' : '<Response><Redirect method="GET">'+config.origin+'/answer</Redirect></Response>'); return;
     }
     const ticket = randomBytes(24).toString('hex');
     const caseId = url.searchParams.get('case_id') ?? undefined;

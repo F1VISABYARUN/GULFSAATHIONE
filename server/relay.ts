@@ -1,4 +1,6 @@
 import { runHarness, ALL_ON } from './harness/index.ts';
+import { tokenize } from './harness/tokens.ts';
+import { numberValues } from './harness/numbers.ts';
 import type { CallContext } from './harness/types.ts';
 import { SALARY_WORDS } from './harness/lexicon.ts';
 import { ARABIC_SCRIPTS } from './assistant.ts';
@@ -63,12 +65,20 @@ function digitValues(text: string): string[] {
       ? value.replace(/,/g, '') : value);
 }
 
-export async function relay(text:string,from:string,to:string,ctx:CallContext={},opts:{model?:string}={}) {
+// Negation and Telugu money amounts must survive the round trip; numeral checks alone miss "ఐదు లక్షలు" words and "లేదు".
+const NEGATION=/లేదు|లేవు|లేరు|లేకుండా|కాదు|వద్దు|ఇవ్వలే|రాలే|\bnot\b|\bno\b|\bnever\b|didn'?t|doesn'?t|haven'?t|hasn'?t|hadn'?t|wasn'?t|weren'?t|\bdon'?t\b/iu;
+export function meaningKept(source:string,back:string,ctx:CallContext={}):boolean {
+  if(NEGATION.test(source)&&!NEGATION.test(back)) return false;
+  const amounts=(t:string)=>[...new Set([...numberValues(tokenize(t)),...digitValues(t).map(Number).filter(n=>n>=10)])].sort((x,y)=>x-y).join('|');
+  return amounts(source)===amounts(back);
+}
+
+export async function relay(text:string,from:string,to:string,ctx:CallContext={},opts:{model?:string;confirmed?:boolean}={}) {
   const m=opts.model&&TEST_MODELS.includes(opts.model)?opts.model:defaultModel();
   const blocked=(legal=false)=>({status:legal?'escalate_human':'needs_confirm',say_to_other:'',say_to_worker:legal?human:confirm,back_translation:'',confidence:'low',locked_ok:false});
   if(sensitive.test(text)) return blocked(true);
   const h=from==='te'?runHarness(text,ctx,ALL_ON):undefined;
-  if(h?.readBacks.length) return blocked();
+  if(h?.readBacks.length&&!opts.confirmed) return blocked();
   const locks=[...new Set([...(h?.entities??[]).filter(e=>!e.superseded && ['money','name','phone','place','gulf','passportType'].includes(e.type)).map(e=>e.text),
     ...(h?.tokens??[]).filter(t=>SALARY_WORDS.has(t.norm)).map(t=>t.raw),
     ...(text.match(/passport|salary|visa|పాస్‌?పోర్ట్|పాస్పోర్ట్|జీతం|వీసా/gi)??[])])];
@@ -101,6 +111,7 @@ export async function relay(text:string,from:string,to:string,ctx:CallContext={}
     const back=to==='te'?forward:await model(forward.text,to,'te',locks,m);
     if(back.safety==='human')return blocked(true);
     if(back.safety!=='ordinary'||back.confidence!=='high'||typeof back.text!=='string'||!back.text.trim()||!intact(back.text))return blocked();
+    if(from==='te'&&to!=='te'&&!meaningKept(text,back.text,ctx))return blocked();
     const say=to==='te'?'':forward.text;
     const pronounce_te=await phon;
     return {status:'translated',say_to_other:say,pronounce_te,say_to_worker:back.text,back_translation:back.text,confidence:'high',locked_ok:true,label:'unchecked by native speaker'};
