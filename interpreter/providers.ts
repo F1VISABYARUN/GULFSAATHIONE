@@ -68,6 +68,7 @@ export function services(config: Config, call: string, caseId?: string): Service
         body:JSON.stringify({case_id:caseId, caller_said:text, call_kind:'interpreter'})});
     },
     async handoff() {
+      if (process.env.INTERPRETER_TRANSFER === 'off') throw Error('transfer disabled');   // test mode: never ring the desk number
       const url = 'https://api.plivo.com/v1/Account/'+encodeURIComponent(config.authId)+'/Call/'+encodeURIComponent(call)+'/';
       await checked(url, {method:'POST',headers:{authorization:'Basic '+Buffer.from(config.authId+':'+config.authToken).toString('base64'),
         'content-type':'application/json'},body:JSON.stringify({legs:'aleg',aleg_url:config.origin+'/human',aleg_method:'GET'})});
@@ -154,6 +155,10 @@ export function agentServices(config: Config, call: string, caseId?: string, fro
     },
     speak: (text, language) => base.speak(text, language),
     handoff: () => base.handoff(),
+    async report(text) {
+      const result = await runTool('report_problem', {caller_said: text}) as {instruction?: string};
+      return typeof result?.instruction === 'string' ? result.instruction : '';
+    },
     alert: text => base.alert?.(text) ?? Promise.resolve(),
     async check(text) {
       if (gateDecision([{text}], {}).action === 'ESCALATE') return 'emergency';

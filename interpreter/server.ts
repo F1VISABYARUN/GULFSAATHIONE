@@ -24,6 +24,8 @@ const trace = (event:string,data:object={}) => console.info(JSON.stringify({comp
 export function createInterpreter(config: Config, makeServices: (c:Config,call:string,caseId?:string)=>Services = services,
   makeAgent: (c:Config,call:string,caseId?:string,from?:string)=>AgentServices = agentServices) {
   if (!Object.hasOwn(disclosure,config.target) || !/^\+[1-9]\d{6,14}$/.test(config.human)) throw Error('Invalid interpreter destination');
+  let active = 0;                                  // streams open right now
+  const maxCalls = Number(process.env.INTERPRETER_MAX_CALLS || 20);
   const tickets = new Map<string,{call:string;caseId?:string;from?:string;mode:string;expires:number}>();
   const used = new Map<string,number>();
   const ws = new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false});
@@ -51,6 +53,10 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
       // Not connected: return the caller to the interpreter instead of hanging up. Parameter names are unverified against Plivo.
       res.end(status === 'completed' ? '<Response/>' : '<Response><Redirect method="GET">'+config.origin+'/answer</Redirect></Response>'); return;
     }
+    if (active + tickets.size >= maxCalls) {      // protect the calls already running: refuse politely instead of degrading everyone
+      trace('busy',{active,pending:tickets.size,max:maxCalls});
+      res.end('<Response><Speak>Sorry, all lines are busy. Please call again in a few minutes.</Speak><Hangup/></Response>'); return;
+    }
     const ticket = randomBytes(24).toString('hex');
     const caseId = url.searchParams.get('case_id') ?? undefined;
     if (caseId !== undefined && !/^GS-[a-zA-Z0-9-]{1,48}$/.test(caseId)) { res.writeHead(400).end(); return; }
@@ -69,7 +75,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     if (!ticket || ticket.expires <= Date.now()) {socket.destroy(); return;}
     ws.handleUpgrade(req,socket,head,peer=>{
       const counts: Record<string,number> = {};
-      trace('stream_connected',{mode:ticket.mode});
+      active++; trace('stream_connected',{mode:ticket.mode,active});
       let stream = '';
       const send = (message:object) => { if (peer.readyState === peer.OPEN) peer.send(JSON.stringify(message)); };
       const output: AgentOutput & Output = {
@@ -88,7 +94,7 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
         : new PhoneSession(config.target,makeServices(config,ticket.call,ticket.caseId),output);
       const timeout = setTimeout(()=>peer.terminate(),30*60*1000).unref();
       const startup = setTimeout(()=>peer.terminate(),15000).unref();
-      peer.on('close',(code)=>{ clearTimeout(timeout); clearTimeout(startup); session.close(); trace('stream_closed',{code,counts}); });
+      peer.on('close',(code)=>{ clearTimeout(timeout); clearTimeout(startup); session.close(); active--; trace('stream_closed',{code,counts,active}); });
       peer.on('error',()=>peer.terminate());
       peer.on('message',async(raw,binary)=>{
         try {
