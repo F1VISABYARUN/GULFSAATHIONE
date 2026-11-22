@@ -5,6 +5,7 @@
 import { SpeechError, transcribeRecording } from './stt/providers.ts';
 import { randomUUID } from 'node:crypto';
 import multer from 'multer';
+import express from 'express';
 import type { Express, Request, Response } from 'express';
 import { runHarness, ALL_ON } from './harness/index.ts';
 import { withQuestionContext, parseBolnaTranscript, salaryReceipt, CONFIRM_SALARY } from './harness/qa.ts';
@@ -129,6 +130,14 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const { translations: _reviewQueue, ...worker } = rec;
     res.json({ worker, preDepartureWarnings: preDeparture });
   });
+  // Place one Check-in call now for a registered case (testing, or a caseworker's manual call): { kind: arrival|weekly|briefing|alert|retry }
+  app.post('/api/saathi/cases/:id/call', guard, async (req, res) => {
+    const w = await store.worker(String(req.params.id));
+    const kind = str(req.body?.kind) || 'arrival';
+    if (!w || w.status === 'closed' || !w.consent) return res.sendStatus(404);
+    if (!['arrival', 'weekly', 'briefing', 'alert', 'retry'].includes(kind)) return res.status(400).json({ error: 'unknown call kind' });
+    res.json(await placeCall({ caseId: w.caseId, kind: kind as DueCall['kind'], phone: w.phone }));
+  });
   app.get('/api/saathi/workers/:caseId', guard, async (req, res) => {
     const w = await store.worker(String(req.params.caseId));
     if (!w) return res.status(404).json({ error: 'not found' });
@@ -176,6 +185,14 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (sms === undefined) return res.sendStatus(404);
     if (!sms) return res.sendStatus(409);
     res.json(sms);
+  });
+  // What the call server needs to run a Check-in call (the same variables the Bolna Check-in agent received).
+  app.get('/api/saathi/checkin-context/:id', guard, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const w = await store.worker(String(req.params.id));
+    if (!w || w.status === 'closed' || !w.consent) return res.sendStatus(404);
+    res.json({ worker_name: w.name ?? '', employer_name: w.promise.employerName ?? '', promised_job: w.promise.job ?? '',
+      dest_city: w.destCity ?? '', dest_country: w.destCountry ?? '', code_phrase: w.codePhrase ?? '' });
   });
   app.get('/api/saathi/cases/:id/file', guard, async (req, res) => {
     const w = await store.worker(String(req.params.id));
@@ -325,6 +342,19 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
   app.post('/tools/record-checkin', guard, record);
 
   // ---- post-call webhook for the new backend: safety net + missed calls ------------------
+  // Plivo hangup callback for Check-in calls placed by our own call server (the equivalent of Bolna's post-call webhook for missed calls).
+  // Unanswered or empty calls are recorded as missed so the scheduler retries them; answered calls are recorded by record_checkin itself.
+  app.post('/webhooks/plivo-status', guard, express.urlencoded({ extended: false, limit: '20kb' }), async (req, res) => {
+    const caseId = str(req.query.case_id), kind = str(req.query.kind) || 'call';
+    const w = caseId ? await store.worker(caseId) : undefined;
+    if (!w) return res.json({ ok: true, ignored: 'unknown case' });
+    const status = str(req.body?.CallStatus) || 'unknown';
+    const seconds = Number(req.body?.Duration ?? req.body?.BillDuration ?? 0) || 0;
+    const answeredRecently = (await store.calls(caseId)).some(c => c.status === 'answered' && Date.now() - new Date(c.at).getTime() < (seconds + 180) * 1000);
+    if (answeredRecently) return res.json({ ok: true, answered: true });
+    await store.addCall({ id: str(req.body?.CallUUID) || randomUUID(), caseId, kind, at: new Date().toISOString(), status: status === 'completed' ? 'incomplete' : status, reasons: ['missed'] });
+    res.json({ ok: true, missed: true });
+  });
   app.post('/webhooks/saathi', guard, async (req, res) => {
     const e = req.body ?? {};
     const rd = e.context_details?.recipient_data ?? {};
@@ -361,7 +391,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
 }
 
 // ---------------------------------------------------------------- scheduling (pure, testable)
-export interface DueCall { caseId: string; kind: 'arrival' | 'weekly' | 'retry'; phone: string }
+export interface DueCall { caseId: string; kind: 'arrival' | 'weekly' | 'briefing' | 'alert' | 'retry'; phone: string }
 
 export function dueCalls(now: Date, workers: WorkerRec[], calls: import('./store.ts').CallRec[]): DueCall[] {
   const out: DueCall[] = [];
@@ -384,6 +414,24 @@ export function dueCalls(now: Date, workers: WorkerRec[], calls: import('./store
 }
 
 export async function placeCall(d: DueCall) {
+  // Default: our own call server through Plivo. Bolna is used only when the Plivo settings are absent (or CHECKIN_VIA=bolna).
+  const plivoId = process.env.PLIVO_AUTH_ID, plivoToken = process.env.PLIVO_AUTH_TOKEN, origin = process.env.INTERPRETER_ORIGIN, plivoFrom = process.env.PLIVO_FROM_NUMBER;
+  if (plivoId && plivoToken && origin && plivoFrom && process.env.CHECKIN_VIA !== 'bolna') {
+    const digits = (n: string) => n.replace(/^\+/, '');
+    if (!/^\+[1-9]\d{7,14}$/.test(d.phone) || !/^\+?[1-9]\d{7,14}$/.test(plivoFrom)) return { ...d, placed: false, reason: 'Expected E.164 numbers' };
+    const answer = new URL('/answer', origin);
+    answer.searchParams.set('mode', 'checkin'); answer.searchParams.set('case_id', d.caseId); answer.searchParams.set('kind', d.kind);
+    const statusUrl = new URL('/webhooks/plivo-status', process.env.SAATHI_BASE_URL || 'https://gulfsaathione.vercel.app');
+    statusUrl.searchParams.set('case_id', d.caseId); statusUrl.searchParams.set('kind', d.kind); statusUrl.searchParams.set('secret', process.env.SAATHI_SECRET || '');
+    const r = await fetch('https://api.plivo.com/v1/Account/' + encodeURIComponent(plivoId) + '/Call/', {
+      method: 'POST', headers: { authorization: 'Basic ' + Buffer.from(plivoId + ':' + plivoToken).toString('base64'), 'content-type': 'application/json' },
+      body: JSON.stringify({ from: digits(plivoFrom), to: digits(d.phone), answer_url: answer.toString(), answer_method: 'GET',
+        hangup_url: statusUrl.toString(), hangup_method: 'POST' }), signal: AbortSignal.timeout(15000),
+    });
+    if (!r.ok) return { ...d, placed: false, status: r.status, via: 'plivo' };
+    const receipt = await r.json().catch(() => ({}));
+    return { ...d, placed: typeof receipt.request_uuid === 'string' && !!receipt.request_uuid, status: r.status, via: 'plivo', execution_id: receipt.request_uuid };
+  }
   const key = process.env.BOLNA_API_KEY, agent = process.env.BOLNA_CHECKIN_AGENT_ID;
   const w = (await store.worker(d.caseId))!;
   const user_data = {

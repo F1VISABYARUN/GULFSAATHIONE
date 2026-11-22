@@ -5,7 +5,8 @@ import type { IncomingMessage } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { PhoneSession, disclosure, type Services, type Output } from './session.ts';
-import { services, agentServices, type Config } from './providers.ts';
+import { services, agentServices, checkinServices, type Config, type CheckinContext } from './providers.ts';
+import { checkin } from '../bolna/agents.ts';
 import { AgentSession, type AgentServices, type AgentOutput } from './agent.ts';
 
 // Plivo V3 GET canonicalization: URL-decoded, sorted first value of each query key.
@@ -22,14 +23,15 @@ export function signed(req: IncomingMessage, url: URL, token: string) {
 
 const trace = (event:string,data:object={}) => console.info(JSON.stringify({component:'phone-interpreter',event,...data}));
 export function createInterpreter(config: Config, makeServices: (c:Config,call:string,caseId?:string)=>Services = services,
-  makeAgent: (c:Config,call:string,caseId?:string,from?:string)=>AgentServices = agentServices) {
+  makeAgent: (c:Config,call:string,caseId?:string,from?:string)=>AgentServices = agentServices,
+  makeCheckin: (c:Config,call:string,ctx:CheckinContext)=>AgentServices = checkinServices) {
   if (!Object.hasOwn(disclosure,config.target) || !/^\+[1-9]\d{6,14}$/.test(config.human)) throw Error('Invalid interpreter destination');
   let active = 0;                                  // streams open right now
   const maxCalls = Number(process.env.INTERPRETER_MAX_CALLS || 20);
-  const tickets = new Map<string,{call:string;caseId?:string;from?:string;mode:string;expires:number}>();
+  const tickets = new Map<string,{call:string;caseId?:string;from?:string;mode:string;checkin?:CheckinContext;expires:number}>();
   const used = new Map<string,number>();
   const ws = new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false});
-  const server = createServer((req,res)=>{
+  const server = createServer(async (req,res)=>{
     res.setHeader('Cache-Control','no-store');
     const url = new URL(config.origin + (req.url || '/'));
     if (req.method !== 'GET' || !['/answer','/human','/human-result'].includes(url.pathname)) { res.writeHead(404).end(); return; }
@@ -61,8 +63,21 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
     const caseId = url.searchParams.get('case_id') ?? undefined;
     if (caseId !== undefined && !/^GS-[a-zA-Z0-9-]{1,48}$/.test(caseId)) { res.writeHead(400).end(); return; }
     const mode = url.searchParams.get('mode') ?? config.mode ?? 'agent';
-    if (!['agent','keypad'].includes(mode)) { res.writeHead(400).end(); return; }
-    tickets.set(ticket,{call,caseId,from:url.searchParams.get('From') ?? undefined,mode,expires:now+60000});
+    if (!['agent','keypad','checkin'].includes(mode)) { res.writeHead(400).end(); return; }
+    let ctx: CheckinContext | undefined;
+    if (mode === 'checkin') {
+      // Saathi phoned the worker (placed by our scheduler through Plivo). The case decides who they are and what to ask.
+      const kind = url.searchParams.get('kind') ?? '';
+      const alertText = (url.searchParams.get('alert_text') ?? '').slice(0,300);
+      if (!caseId || !['arrival','weekly','briefing','alert','retry'].includes(kind)) { res.writeHead(400).end(); return; }
+      try {
+        const response = await fetch(config.backend+'/api/saathi/checkin-context/'+encodeURIComponent(caseId),{headers:{'x-saathi-secret':config.secret},redirect:'error',signal:AbortSignal.timeout(5000)});
+        if (!response.ok) throw Error('context unavailable');
+        const vars = await response.json() as Record<string,string>;
+        ctx = { caseId, kind, phone: url.searchParams.get('To') ?? '', vars: { ...vars, alert_text: alertText } };
+      } catch { trace('checkin_context_failed',{kind}); res.end('<Response><Hangup/></Response>'); return; }
+    }
+    tickets.set(ticket,{call,caseId,from:url.searchParams.get('From') ?? undefined,mode,checkin:ctx,expires:now+60000});
     trace('answer',{mode,bound:Boolean(caseId)});
     const address = config.origin.replace(/^https:/,'wss:')+'/media/'+ticket;
     res.end('<Response><Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">'+address+'</Stream></Response>');
@@ -89,7 +104,10 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
         },
         clear:()=>send({event:'clearAudio',streamId:stream}),close:()=>peer.close(),
       };
-      const session = ticket.mode === 'agent'
+      const welcome = ticket.checkin ? checkin.welcome.replace(/\{(\w+)\}/g,(whole,key)=>ticket.checkin!.vars[key] ?? whole) : '';
+      const session = ticket.mode === 'checkin' && ticket.checkin
+        ? new AgentSession(config.target,makeCheckin(config,ticket.call,ticket.checkin),output,700,'checkin',welcome)
+        : ticket.mode === 'agent'
         ? new AgentSession(config.target,makeAgent(config,ticket.call,ticket.caseId,ticket.from),output)
         : new PhoneSession(config.target,makeServices(config,ticket.call,ticket.caseId),output);
       const timeout = setTimeout(()=>peer.terminate(),30*60*1000).unref();

@@ -4,7 +4,7 @@ import { numberValues } from '../server/harness/numbers.ts';
 import { tokenize } from '../server/harness/tokens.ts';
 
 export interface Turn { who: 'worker' | 'other' | 'agent'; text: string; alt?: string }
-export interface AgentStep { say_to_other?: string; confirm_te?: string; say_to_worker?: string; done?: boolean }
+export interface AgentStep { say_to_other?: string; confirm_te?: string; say_to_worker?: string; done?: boolean; recorded?: boolean }
 export interface AgentServices {
   stt(audio: Buffer, language: string): Promise<string | { text: string; alt?: string }>;
   think(history: Turn[], target: string): Promise<AgentStep>;
@@ -86,6 +86,7 @@ export class AgentSession {
   private length = 0; private voiced = false; private silence = 0;
   private history: Turn[] = [];
   private pendingOut?: { toOther: string; step: AgentStep };   // waiting for the worker's yes
+  private recordedOnce = false;      // record_checkin has run in this call
   private farewell = false;          // the worker clearly said goodbye: the call may end after our reply. Never set by the model.
   private lastConfirmed = '';        // the last message the worker approved and we spoke
   private disclosed = false;       // the other person has been told once that we are an AI speaking for the worker
@@ -97,7 +98,10 @@ export class AgentSession {
   private bargeBytes = 0;
   private debug = process.env.INTERPRETER_DEBUG === '1';
 
-  constructor(private target: string, private service: AgentServices, private out: AgentOutput, private graceMs = 700) {
+  // role 'checkin': Saathi phones the worker (arrival, weekly, briefing, alert) with the Bolna Check-in script; there is no other person,
+  // so no confirmation step and no AI notice. The script, tools and welcome line come from bolna/agents.ts.
+  constructor(private target: string, private service: AgentServices, private out: AgentOutput, private graceMs = 700,
+    private role: 'interpreter' | 'checkin' = 'interpreter', private opening = greeting) {
     if (!Object.hasOwn(disclosure, target)) throw Error('Unsupported language');
   }
   private clearAudio() { this.frames = []; this.length = 0; this.silence = 0; this.voiced = false; this.voicedBytes = 0; }
@@ -120,7 +124,7 @@ export class AgentSession {
     } catch { if (id === this.generation) { this.close(); this.out.close(); } }
   }
   private listen() { this.clearAudio(); this.phase = 'listen'; this.out.metric?.('listening', 0); }
-  async start() { await this.say([[greeting, 'te']], () => this.listen()); }
+  async start() { await this.say([[this.opening, 'te']], () => this.listen()); }
   played(mark: string) { if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.deafUntil = Date.now() + this.graceMs; this.afterPlay(); } }
   async digit(key: string) { if (key === '0' && this.phase !== 'closed') { this.close(); this.out.close(); } }
   // The caller can interrupt us: sustained voice while we speak stops our audio and starts listening, like Bolna.
@@ -158,6 +162,7 @@ export class AgentSession {
       this.out.metric?.('asr', Date.now() - began);
       if (id !== this.generation) return;
       if (!text || text.length > 2000) { this.listen(); return; }
+      if (this.role === 'checkin') { await this.finishCheckin(id, text, alt, began); return; }
       const who = telugu(text) ? 'worker' : 'other';
       if (this.pendingOut && who === 'worker') {
         const pending = this.pendingOut;
@@ -185,6 +190,30 @@ export class AgentSession {
       await this.speakStep(id, who, text, step);
     } catch (e) { this.log('error', { message: String((e as Error)?.message ?? e).slice(0, 200) }); if (id === this.generation) this.listen(); }
   }
+  // One check-in turn: every sound from the worker is an answer (even "అవును" or "హలో"), the Bolna script drives the questions.
+  private async finishCheckin(id: number, text: string, alt: string, began: number) {
+    if (sameAs(text, this.lastSpoken)) { this.log('ignored', { why: 'echo' }); this.listen(); return; }
+    this.log('heard', { who: 'worker', text });
+    if (BYE.test(text)) this.farewell = true;
+    const verdict = await this.service.check(text);
+    if (id !== this.generation) return;
+    if (verdict === 'covert') { this.service.alert?.(text).catch(() => {}); await this.say([['సరే, అర్థమైంది. మామూలుగా మాట్లాడండి.', 'te']], () => this.listen()); return; }
+    if (verdict === 'emergency') { await this.transfer(id, text); return; }
+    this.history.push({ who: 'worker', text, ...(alt && alt !== text ? { alt } : {}) });
+    const step = await this.service.think(this.history, this.target);
+    if (id !== this.generation) return;
+    this.out.metric?.('think', Date.now() - began);
+    let toWorker = (step.say_to_worker ?? '').trim();
+    if (toWorker && !telugu(toWorker)) toWorker = '';
+    if (step.recorded) this.recordedOnce = true;
+    if (step.done && this.recordedOnce) this.farewell = true;          // ends only after the answers were saved
+    if (this.farewell && !toWorker) toWorker = 'సరే, జాగ్రత్తగా ఉండండి.';
+    if (!toWorker) { this.listen(); return; }
+    this.history.push({ who: 'agent', text: toWorker });
+    this.lastSpoken = toWorker;
+    this.log('say', { to_worker: toWorker });
+    await this.say([[toWorker, 'te']], () => { if (this.farewell) { this.close(); this.out.close(); } else this.listen(); });
+  }
   // Danger: record the case (same tool as the Helpline), say its Telugu line, and only after that line has played ask for a person.
   private async transfer(id: number, text: string) {
     this.phase = 'handoff';
@@ -193,6 +222,7 @@ export class AgentSession {
     if (id !== this.generation) return;
     this.out.metric?.('emergency', 0);
     this.phase = 'busy';
+    if (this.role === 'checkin') { await this.say([[line, 'te']], () => this.listen()); return; }   // like the Bolna script: record it, say the instruction, stay with the worker
     await this.say([[line, 'te']], async () => {
       try { await this.service.handoff(); this.phase = 'handoff'; this.out.metric?.('handoff_requested', 0); }
       catch {

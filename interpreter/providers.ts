@@ -2,7 +2,7 @@ import { gateDecision } from '../server/live.ts';
 import { wavFromMulaw, mulawFromPcm24k } from './media.ts';
 import type { Result, Services } from './session.ts';
 import type { AgentServices, AgentStep, Turn } from './agent.ts';
-import { PERSONA } from '../bolna/agents.ts';
+import { PERSONA, checkin, tools as bolnaTools } from '../bolna/agents.ts';
 
 export interface Config {
   origin: string; backend: string; secret: string; authId: string; authToken: string;
@@ -113,6 +113,35 @@ const TOOL_DEFS = [
   tool('report_problem','Record that the worker is in trouble (passport taken, not paid, locked in, stranger took them, no food). Call at once, then say its instruction.', {caller_said:'The worker\'s exact words.', threatened:'yes if beaten or threatened, else empty.', taken_by_stranger:'yes if someone other than the employer took them, else empty.', passport_with_worker:'no if the passport was taken, else empty.'}),
 ];
 
+// One model turn with tools: the model may call tools (our own endpoints); their answers come back to it; the final JSON is the step.
+async function chatWithTools(config: Config, system: string, history: Turn[], defs: object[], run: (name: string, args: Record<string, unknown>) => Promise<unknown>) {
+  const model = process.env.INTERPRETER_AGENT_MODEL || 'gpt-4.1';
+  const messages: object[] = [{role:'system',content:system},
+    {role:'user',content:history.slice(-24).map(t=>t.who.toUpperCase()+': '+t.text+(t.alt ? '   [second recogniser heard: '+t.alt+']' : '')).join('\n')}];
+  const called: string[] = [];
+  for (let round = 0; round < 3; round++) {
+    const response = await checked('https://api.openai.com/v1/chat/completions', {method:'POST',
+      headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
+      body:JSON.stringify({model, response_format:{type:'json_object'}, ...(model.startsWith('gpt-5') ? {reasoning_effort:'low'} : {temperature:0}),
+        messages, ...(round < 2 ? {tools: defs} : {})})});
+    const body = await response.json();
+    const message = body.choices?.[0]?.message;
+    if (message?.tool_calls?.length) {
+      messages.push(message);
+      for (const callInfo of message.tool_calls) {
+        let result: unknown;
+        const name = callInfo.function?.name; called.push(name);
+        try { result = await run(name, JSON.parse(callInfo.function?.arguments || '{}')); }
+        catch { result = {error: 'tool unavailable'}; }
+        messages.push({role:'tool', tool_call_id: callInfo.id, content: JSON.stringify(result).slice(0, 3000)});
+      }
+      continue;
+    }
+    try { return {step: JSON.parse(message?.content) as AgentStep, called}; } catch { return {step: {} as AgentStep, called}; }
+  }
+  return {step: {} as AgentStep, called};
+}
+
 export function agentServices(config: Config, call: string, caseId?: string, from?: string): AgentServices {
   const base = services(config, call, caseId);
   const headers = { 'x-saathi-secret': config.secret, 'content-type': 'application/json' };
@@ -188,29 +217,41 @@ export function agentServices(config: Config, call: string, caseId?: string, fro
     // The model may call the same tools as the Bolna Helpline (places, directions, Exit Path, agent and fee checks, problem report).
     // Each tool is one of our own backend endpoints; its answer comes back to the model, which puts the returned Telugu in say_to_worker.
     async think(history: Turn[], target: string): Promise<AgentStep> {
-      const model = process.env.INTERPRETER_AGENT_MODEL || 'gpt-4.1';
-      const messages: object[] = [{role:'system',content:AGENT_PROMPT(target)},
-        {role:'user',content:history.slice(-24).map(t=>t.who.toUpperCase()+': '+t.text+(t.alt ? '   [second recogniser heard: '+t.alt+']' : '')).join('\n')}];
-      for (let round = 0; round < 3; round++) {
-        const response = await checked('https://api.openai.com/v1/chat/completions', {method:'POST',
-          headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
-          body:JSON.stringify({model, response_format:{type:'json_object'}, ...(model.startsWith('gpt-5') ? {reasoning_effort:'low'} : {temperature:0}),
-            messages, ...(round < 2 ? {tools: TOOL_DEFS} : {})})});
-        const body = await response.json();
-        const message = body.choices?.[0]?.message;
-        if (message?.tool_calls?.length) {
-          messages.push(message);
-          for (const callInfo of message.tool_calls) {
-            let result: unknown;
-            try { result = await runTool(callInfo.function?.name, JSON.parse(callInfo.function?.arguments || '{}')); }
-            catch { result = {error: 'tool unavailable'}; }
-            messages.push({role:'tool', tool_call_id: callInfo.id, content: JSON.stringify(result).slice(0, 3000)});
-          }
-          continue;
-        }
-        try { return JSON.parse(message?.content) as AgentStep; } catch { return {}; }
-      }
-      return {};
+      return (await chatWithTools(config, AGENT_PROMPT(target), history, TOOL_DEFS, runTool)).step;
+    },
+  };
+}
+
+// ---------------------------------------------------------------- Check-in calls (Saathi phones the worker)
+export interface CheckinContext { caseId: string; kind: string; phone: string; vars: Record<string, string> }
+
+/** The Bolna Check-in script, welcome line and tools, run on our own server. Nothing is re-written: bolna/agents.ts stays the source. */
+export function checkinServices(config: Config, call: string, ctx: CheckinContext): AgentServices {
+  // target 'te': every sound is the worker, so the Arabic-script/other-speaker rules of the interpreter do not apply
+  const base = agentServices({ ...config, target: 'te' }, call, ctx.caseId, ctx.phone);
+  const vars: Record<string, string> = { ...ctx.vars, case_id: ctx.caseId, call_kind: ctx.kind };
+  const fill = (text: string) => text.replace(/\{(\w+)\}/g, (whole, key) => vars[key] ?? whole);
+  const system = fill(checkin.prompt) + '\n\n# Output format\nReply with JSON {"say_to_worker": string, "done": boolean}. say_to_worker is exactly what you say aloud, in Telugu letters, short. done=true only after record_checkin has been called and you have said goodbye.';
+  const names = checkin.tools as readonly string[];
+  const defs = names.map(name => {
+    const d = bolnaTools[name as keyof typeof bolnaTools].def;
+    return {type:'function', function:{name, description: fill(d.description), parameters:{type:'object', required: [],
+      properties: Object.fromEntries(Object.entries(d.parameters.properties).map(([k, v]) => [k, {type:'string', description: fill((v as {description: string}).description)}]))}}};
+  });
+  const headers = { 'x-saathi-secret': config.secret, 'content-type': 'application/json' };
+  async function run(name: string, args: Record<string, unknown>) {
+    if (!names.includes(name)) return {error: 'unknown tool'};
+    const path = new URL(bolnaTools[name as keyof typeof bolnaTools].params.url).pathname;
+    const clean = Object.fromEntries(Object.entries(args).map(([k, v]) => [k, typeof v === 'string' ? v.slice(0, 1000) : '']));
+    // the call's own identity always wins over what the model typed
+    const body = {...clean, case_id: ctx.caseId, caller_phone: ctx.phone, ...(name === 'record_checkin' ? {call_kind: ctx.kind} : {})};
+    return (await checked(config.backend + path, {method:'POST', headers, body: JSON.stringify(body)})).json();
+  }
+  return {
+    ...base,
+    async think(history) {
+      const { step, called } = await chatWithTools(config, system, history, defs, run);
+      return { ...step, recorded: called.includes('record_checkin') };
     },
   };
 }
