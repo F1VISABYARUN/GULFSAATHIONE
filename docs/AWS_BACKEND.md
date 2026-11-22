@@ -8,6 +8,9 @@ already runs it (`tsx server/index.ts`, port 8080, ffmpeg installed). When `VERC
 - Data: the same Upstash Redis (`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) works from AWS. Nothing to move.
 - The call server (`interpreter`) keeps running as it does today.
 
+## Shortcut: scripts (added after the first version of this page)
+`deploy/backend.env.example` lists the variables. After creating `/root/backend.env`, run `bash scripts/aws-deploy.sh` (builds both images, replaces both containers, health-checks the backend) and once `bash scripts/aws-install-cron.sh` (daily job; reads `CRON_SECRET` from the env file). The CloudFront step below is still manual. Not run on a real server yet.
+
 ## What you have to do (about 1–2 hours the first time)
 1. **Second container on the same EC2** (or a second instance). Build the backend image from the root Dockerfile:
    `docker build -t saathi-backend .` then
