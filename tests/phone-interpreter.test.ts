@@ -179,3 +179,23 @@ test('agent: private phrase is silent, emergency transfers, failed transfer keep
   const g=agentFixture([],['x'],{check:async()=>'emergency',handoff:async()=>{throw Error('x');}}); await g.begin(); await g.turn();
   assert.ok(g.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.ok(!g.stops.includes('close'));
 });
+
+test('Telugu speech uses Cartesia when a key is set and falls back to OpenAI; Telugu hearing prefers Sarvam',async t=>{
+  const original=globalThis.fetch; const calls:string[]=[];
+  t.after(()=>{globalThis.fetch=original;delete process.env.CARTESIA_API_KEY;});
+  process.env.CARTESIA_API_KEY='fixture';
+  globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(input); calls.push(url);
+    if(url.includes('cartesia')) return new Response(Buffer.alloc(600),{status:200});
+    if(url.includes('openai.com')) return new Response(Buffer.alloc(600),{status:200});
+    const model=(init?.body as FormData).get('model');
+    return Response.json({status:'transcribed',text:model==='saaras:v3'?'సారం టెక్స్ట్':'ఓపెన్ టెక్స్ట్'});
+  }) as typeof fetch;
+  const {agentServices}=await import('../interpreter/providers.ts');
+  const svc=agentServices(cfg,'call');
+  assert.equal((await svc.speak('నమస్కారం','te')).length,100); assert.ok(calls.at(-1)!.includes('cartesia'));
+  await svc.speak('hello','ar'); assert.ok(calls.at(-1)!.includes('openai.com'));
+  assert.equal(await svc.stt(Buffer.alloc(80,0),''),'సారం టెక్స్ట్');
+  globalThis.fetch=(async(input:RequestInfo|URL)=>String(input).includes('cartesia')?new Response('x',{status:500}):new Response(Buffer.alloc(600),{status:200})) as typeof fetch;
+  assert.equal((await svc.speak('నమస్కారం','te')).length,100);   // Cartesia failed, OpenAI answered
+});
