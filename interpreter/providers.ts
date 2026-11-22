@@ -43,6 +43,17 @@ export function services(config: Config, call: string, caseId?: string): Service
       return result;
     },
     async speak(text, language) {
+      // Telugu uses the same Cartesia voice as the Bolna Helpline when a key is set; everything else uses OpenAI.
+      if (language === 'te' && process.env.CARTESIA_API_KEY) {
+        try {
+          const response = await checked('https://api.cartesia.ai/tts/bytes', {method:'POST',
+            headers:{'X-API-Key':process.env.CARTESIA_API_KEY,'Cartesia-Version':process.env.CARTESIA_VERSION || '2025-04-16','content-type':'application/json'},
+            body:JSON.stringify({model_id:process.env.CARTESIA_MODEL || 'sonic-3.5',transcript:text,language:'te',
+              voice:{mode:'id',id:process.env.CARTESIA_VOICE_ID || '563850d9-0517-4797-ba75-b00d3934813a'},
+              output_format:{container:'raw',encoding:'pcm_s16le',sample_rate:24000}})});
+          return mulawFromPcm24k(Buffer.from(await response.arrayBuffer()));
+        } catch { /* fall back to OpenAI speech below */ }
+      }
       const response = await checked('https://api.openai.com/v1/audio/speech', {method:'POST',
         headers:{authorization:'Bearer '+config.openai,'content-type':'application/json'},
         body:JSON.stringify({model:'gpt-4o-mini-tts',input:text,voice:'alloy',response_format:'pcm',
@@ -74,7 +85,20 @@ export function agentServices(config: Config, call: string, caseId?: string): Ag
   const base = services(config, call, caseId);
   const headers = { 'x-saathi-secret': config.secret, 'content-type': 'application/json' };
   return {
-    stt: (audio, language) => base.stt(audio, language),
+    // Hear with OpenAI (auto language). If it heard Telugu, also ask Sarvam (the Bolna Helpline's ear) and prefer its text.
+    async stt(audio, language) {
+      const heard = await base.stt(audio, language);
+      if (!/[\u0C00-\u0C7F]/.test(heard) || process.env.INTERPRETER_SARVAM === 'off') return heard;
+      try {
+        const form = new FormData();
+        form.append('audio', new Blob([new Uint8Array(wavFromMulaw(audio))], {type:'audio/wav'}), 'turn.wav');
+        form.append('language', 'te'); form.append('model', 'saaras:v3');
+        const response = await checked(config.backend+'/api/saathi/stt', {method:'POST', headers:{'x-saathi-secret':config.secret}, body:form});
+        const result = await response.json();
+        const text = result.status === 'transcribed' && typeof result.text === 'string' ? result.text.trim() : '';
+        return /[\u0C00-\u0C7F]/.test(text) ? text : heard;
+      } catch { return heard; }
+    },
     speak: (text, language) => base.speak(text, language),
     handoff: () => base.handoff(),
     alert: text => base.alert?.(text) ?? Promise.resolve(),

@@ -29,3 +29,8 @@ Key 0 stops the call. Model: `INTERPRETER_AGENT_MODEL` (default gpt-4.1). Consen
 
 ## Still unverified
 Plivo's real `dtmf` / `playedStream` / `clearAudio` events, `DialStatus` parameter name, end-to-end latency, native-speaker review of prompts.
+
+## Voices and ears (optional keys)
+- `CARTESIA_API_KEY` (server env): Telugu speech uses the same Cartesia voice as the Bolna Helpline (`CARTESIA_VOICE_ID`, `CARTESIA_MODEL` default `sonic-3.5`, `CARTESIA_VERSION` default `2025-04-16`). Any failure falls back to OpenAI speech. Request shape written from memory and **unverified against Cartesia's API**.
+- `SARVAM_API_KEY` goes on the **Vercel app** (it serves `/api/saathi/stt`). When OpenAI hears Telugu, Sarvam `saaras:v3` also transcribes and its text is preferred; any failure falls back to OpenAI. `INTERPRETER_SARVAM=off` disables it.
+- Arabic and other languages always use OpenAI for hearing and speaking.
