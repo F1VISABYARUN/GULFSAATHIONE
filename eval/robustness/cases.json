@@ -1,368 +1,456 @@
 {
- "note": "Hand-written probe sentences, NOT recordings and NOT benchmark scores. 'must' lists what the harness has to find; 'mustNot' lists what it must never invent. Every false-positive probe comes from a failure seen in a real run (FLEURS read speech, IndicVoices, or Bolna calls).",
- "cases": [
-  {
-   "id": "fp-year-1",
-   "kind": "false_positive",
-   "text": "2010 లో నేను ఇండియా వచ్చాను",
-   "mustNot": [
-    "money",
-    "fee",
-    "salary"
-   ],
-   "why": "a year was turned into ₹2,010"
-  },
-  {
-   "id": "fp-year-2",
-   "kind": "false_positive",
-   "text": "2018 నుండి నేను దుబాయ్ లో పని చేస్తున్నాను",
-   "mustNot": [
-    "money",
-    "fee",
-    "salary"
-   ],
-   "why": "year next to a time word"
-  },
-  {
-   "id": "fp-year-3",
-   "kind": "false_positive",
-   "text": "he came in 2015 and left in 2019",
-   "mustNot": [
-    "money",
-    "fee",
-    "salary"
-   ],
-   "why": "years in English"
-  },
-  {
-   "id": "fp-here-1",
-   "kind": "false_positive",
-   "text": "ఇక్కడ వర్షం పడుతోంది",
-   "mustNot": [
-    "gulf:iqama"
-   ],
-   "why": "ఇక్కడ (here) was repaired to iqama"
-  },
-  {
-   "id": "fp-here-2",
-   "kind": "false_positive",
-   "text": "ikkada nenu okkadine unnanu",
-   "mustNot": [
-    "gulf:iqama"
-   ],
-   "why": "Latin spelling of the same word"
-  },
-  {
-   "id": "fp-here-3",
-   "kind": "false_positive",
-   "text": "అక్కడ ఎవరూ లేరు, ఎక్కడ ఉన్నారు",
-   "mustNot": [
-    "gulf"
-   ],
-   "why": "there / where"
-  },
-  {
-   "id": "fp-bare-1",
-   "kind": "false_positive",
-   "text": "మా ఊరిలో 3000 మంది ఉన్నారు",
-   "mustNot": [
-    "money",
-    "fee",
-    "salary"
-   ],
-   "why": "a head count with no money cue"
-  },
-  {
-   "id": "fp-long-1",
-   "kind": "false_positive",
-   "text": "నా నంబర్ 98485210345",
-   "mustNot": [
-    "money"
-   ],
-   "must": [
-    "phone"
-   ],
-   "why": "11 digits were turned into ₹98,48,52,10,345 with no readback"
-  },
-  {
-   "id": "id-uan-1",
-   "kind": "digit_typing",
-   "text": "నా యూఏఎన్ నంబర్ 1 0 0 2 3 4 5 6 7 8 9 0",
-   "must": [
-    "idnumber:UAN"
-   ],
-   "mustNot": [
-    "phone",
-    "money"
-   ],
-   "why": "a 12-digit UAN was stored as a phone number"
-  },
-  {
-   "id": "id-uan-2",
-   "kind": "digit_typing",
-   "text": "my UAN number is 100234567890",
-   "must": [
-    "idnumber:UAN"
-   ],
-   "mustNot": [
-    "phone",
-    "money"
-   ],
-   "why": "English cue"
-  },
-  {
-   "id": "id-12-nocue",
-   "kind": "digit_typing",
-   "text": "9 8 4 8 5 2 1 0 3 4 5 6",
-   "must": [
-    "idnumber"
-   ],
-   "mustNot": [
-    "phone",
-    "money"
-   ],
-   "readback": true,
-   "why": "12 digits that are not a country-coded phone"
-  },
-  {
-   "id": "id-acct-1",
-   "kind": "digit_typing",
-   "text": "ఖాతా నంబర్ 123456789012345",
-   "must": [
-    "idnumber:account"
-   ],
-   "mustNot": [
-    "phone",
-    "money"
-   ],
-   "why": "bank account number"
-  },
-  {
-   "id": "ph-ok-1",
-   "kind": "must_still_work",
-   "text": "nenu 9848521034 number ki call cheyyandi",
-   "must": [
-    "phone"
-   ],
-   "mustNot": [
-    "money"
-   ],
-   "why": "a normal 10-digit mobile"
-  },
-  {
-   "id": "ph-ok-2",
-   "kind": "must_still_work",
-   "text": "9 8 4 8 5 2 1 0 3 4",
-   "must": [
-    "phone"
-   ],
-   "mustNot": [
-    "money",
-    "idnumber"
-   ],
-   "why": "spoken digits"
-  },
-  {
-   "id": "ph-short-1",
-   "kind": "must_still_work",
-   "text": "9 8 4 8 5 2 1 0 3",
-   "must": [
-    "phone"
-   ],
-   "readback": true,
-   "why": "9 digits is incomplete: ask again"
-  },
-  {
-   "id": "fee-ok-1",
-   "kind": "must_still_work",
-   "text": "agent ki 150000 ichanu",
-   "must": [
-    "money",
-    "fee:150000"
-   ],
-   "why": "digits with a fee cue"
-  },
-  {
-   "id": "fee-ok-2",
-   "kind": "must_still_work",
-   "text": "agent ki oka laksha yaabhai velu ichanu",
-   "must": [
-    "money",
-    "fee:150000"
-   ],
-   "why": "spoken amount"
-  },
-  {
-   "id": "fee-ok-3",
-   "kind": "must_still_work",
-   "text": "ఏజెంట్ కి 1,50,000 ఇచ్చాను",
-   "must": [
-    "money"
-   ],
-   "why": "Telugu with digits"
-  },
-  {
-   "id": "sal-ok-1",
-   "kind": "must_still_work",
-   "text": "salary 1200 dirhams",
-   "must": [
-    "money",
-    "salary:1200"
-   ],
-   "why": "salary with currency"
-  },
-  {
-   "id": "upi-ok-1",
-   "kind": "must_still_work",
-   "text": "ప్రేమ@ybl కి 700 పంపండి",
-   "must": [
-    "money"
-   ],
-   "mustNot": [
-    "phone",
-    "idnumber"
-   ],
-   "why": "UPI handle is not a phone, 700 is an amount (send cue)"
-  },
-  {
-   "id": "gulf-ok-1",
-   "kind": "must_still_work",
-   "text": "huroobu case petti ikamaa ledu",
-   "must": [
-    "gulf:huroob"
-   ],
-   "why": "real ASR variants must still be repaired"
-  },
-  {
-   "id": "gulf-ok-2",
-   "kind": "must_still_work",
-   "text": "kafeelu naa passport teesukunnadu",
-   "must": [
-    "gulf:kafeel"
-   ],
-   "why": "suffix-vowel variant"
-  },
-  {
-   "id": "gulf-ok-3",
-   "kind": "must_still_work",
-   "text": "ఇకామా లేదు",
-   "must": [
-    "gulf:iqama"
-   ],
-   "why": "Telugu-script iqama"
-  },
-  {
-   "id": "fp-place-normal",
-   "kind": "false_positive",
-   "text": "నార్మల్ గా ఉంది, ఏమీ సమస్య లేదు",
-   "mustNot": [
-    "place"
-   ],
-   "why": "IndicVoices clip 03: 'normal' was repaired to the district Nirmal"
-  },
-  {
-   "id": "fp-place-manam",
-   "kind": "false_positive",
-   "text": "మనం అందరం కలిసి వెళ్దాం",
-   "mustNot": [
-    "place"
-   ],
-   "why": "IndicVoices clip 04: 'manam' (we) was repaired to Manama"
-  },
-  {
-   "id": "fp-place-aasara",
-   "kind": "false_positive",
-   "text": "ఆసరా పథకం కింద నాకు డబ్బులు వచ్చాయి",
-   "mustNot": [
-    "place"
-   ],
-   "why": "IndicVoices clip 09: the scheme name Aasara was repaired to the mandal Basar (10 times in one clip)"
-  },
-  {
-   "id": "fp-year-words",
-   "kind": "false_positive",
-   "text": "రెండు వేల ఇరవై ఐదు లో కొత్త రూల్ వచ్చింది",
-   "mustNot": [
-    "money",
-    "fee",
-    "salary"
-   ],
-   "why": "IndicVoices clip 04: a year spoken in words became ₹2,025"
-  },
-  {
-   "id": "fp-thousands-people",
-   "kind": "false_positive",
-   "text": "మా ఊరిలో మూడు వేల మంది ఉన్నారు",
-   "mustNot": [
-    "money",
-    "fee",
-    "salary"
-   ],
-   "why": "FLEURS: spoken thousands with no money cue"
-  },
-  {
-   "id": "fp-driving",
-   "kind": "false_positive",
-   "text": "డ్రైవింగ్ చేసేటప్పుడు జాగ్రత్తగా ఉండాలి",
-   "mustNot": [
-    "job"
-   ],
-   "why": "FLEURS te_018: the word 'driving' filled the job slot with 'driver'"
-  },
-  {
-   "id": "fp-number-list",
-   "kind": "false_positive",
-   "text": "అరవై నాలుగు ఏడు వందల డెబ్బై ఐదు పదమూడు వందల తొంబై రెండు",
-   "mustNot": [
-    "money"
-   ],
-   "why": "IndicVoices clip 10: a list of numbers read aloud was merged into one amount"
-  },
-  {
-   "id": "dg-variants",
-   "kind": "digit_typing",
-   "text": "తొమ్మిది సున్నా మూడు ఆరు ఎమ్మిది ఐదు ఎమ్మిది ఐదు ఒకటి ఆరు ఏడుకి",
-   "must": [
-    "phone"
-   ],
-   "mustNot": [
-    "money"
-   ],
-   "readback": true,
-   "why": "IndicVoices clip 07: 'emmidi' (8) and 'eduki' (7+ki) were not digits, so 11 spoken digits produced nothing"
-  },
-  {
-   "id": "dg-upi-spoken",
-   "kind": "digit_typing",
-   "text": "ఏడు సున్న తొమ్మిది ఎనిమిది ఆరు నాలుగు సున్న నాలుగు తొమ్మిది ఐదు ఐదు ఎట్ ది రేట్ వయ్ బి ఎల్",
-   "must": [
-    "idnumber"
-   ],
-   "mustNot": [
-    "phone",
-    "money"
-   ],
-   "readback": true,
-   "why": "IndicVoices clip 08: digits followed by 'at the rate' are a UPI handle, not a phone"
-  },
-  {
-   "id": "fp-two-years",
-   "kind": "false_positive",
-   "text": "కార్టర్ సహాయం చేశాడు, 1978; 1970ల చివరిలో, 1979 లో",
-   "mustNot": [
-    "phone",
-    "money"
-   ],
-   "why": "FLEURS te_001: two years separated by punctuation were joined into one 8-digit 'phone'"
-  },
-  {
-   "id": "ph-commas",
-   "kind": "must_still_work",
-   "text": "నా నంబర్ 9, 8, 4, 8, 5, 2, 1, 0, 3, 4",
-   "must": [
-    "phone"
-   ],
-   "why": "digits dictated one by one with commas (seen in whisper output) still make a phone"
-  }
- ]
+  "note": "Hand-written probe sentences, NOT recordings and NOT benchmark scores. 'must' lists what the harness has to find; 'mustNot' lists what it must never invent. Every false-positive probe comes from a failure seen in a real run (FLEURS read speech, IndicVoices, or Bolna calls).",
+  "cases": [
+    {
+      "id": "fp-year-1",
+      "kind": "false_positive",
+      "text": "2010 లో నేను ఇండియా వచ్చాను",
+      "mustNot": [
+        "money",
+        "fee",
+        "salary"
+      ],
+      "why": "a year was turned into ₹2,010"
+    },
+    {
+      "id": "fp-year-2",
+      "kind": "false_positive",
+      "text": "2018 నుండి నేను దుబాయ్ లో పని చేస్తున్నాను",
+      "mustNot": [
+        "money",
+        "fee",
+        "salary"
+      ],
+      "why": "year next to a time word"
+    },
+    {
+      "id": "fp-year-3",
+      "kind": "false_positive",
+      "text": "he came in 2015 and left in 2019",
+      "mustNot": [
+        "money",
+        "fee",
+        "salary"
+      ],
+      "why": "years in English"
+    },
+    {
+      "id": "fp-here-1",
+      "kind": "false_positive",
+      "text": "ఇక్కడ వర్షం పడుతోంది",
+      "mustNot": [
+        "gulf:iqama"
+      ],
+      "why": "ఇక్కడ (here) was repaired to iqama"
+    },
+    {
+      "id": "fp-here-2",
+      "kind": "false_positive",
+      "text": "ikkada nenu okkadine unnanu",
+      "mustNot": [
+        "gulf:iqama"
+      ],
+      "why": "Latin spelling of the same word"
+    },
+    {
+      "id": "fp-here-3",
+      "kind": "false_positive",
+      "text": "అక్కడ ఎవరూ లేరు, ఎక్కడ ఉన్నారు",
+      "mustNot": [
+        "gulf"
+      ],
+      "why": "there / where"
+    },
+    {
+      "id": "fp-bare-1",
+      "kind": "false_positive",
+      "text": "మా ఊరిలో 3000 మంది ఉన్నారు",
+      "mustNot": [
+        "money",
+        "fee",
+        "salary"
+      ],
+      "why": "a head count with no money cue"
+    },
+    {
+      "id": "fp-long-1",
+      "kind": "false_positive",
+      "text": "నా నంబర్ 98485210345",
+      "mustNot": [
+        "money"
+      ],
+      "must": [
+        "phone"
+      ],
+      "why": "11 digits were turned into ₹98,48,52,10,345 with no readback"
+    },
+    {
+      "id": "id-uan-1",
+      "kind": "digit_typing",
+      "text": "నా యూఏఎన్ నంబర్ 1 0 0 2 3 4 5 6 7 8 9 0",
+      "must": [
+        "idnumber:UAN"
+      ],
+      "mustNot": [
+        "phone",
+        "money"
+      ],
+      "why": "a 12-digit UAN was stored as a phone number"
+    },
+    {
+      "id": "id-uan-2",
+      "kind": "digit_typing",
+      "text": "my UAN number is 100234567890",
+      "must": [
+        "idnumber:UAN"
+      ],
+      "mustNot": [
+        "phone",
+        "money"
+      ],
+      "why": "English cue"
+    },
+    {
+      "id": "id-12-nocue",
+      "kind": "digit_typing",
+      "text": "9 8 4 8 5 2 1 0 3 4 5 6",
+      "must": [
+        "idnumber"
+      ],
+      "mustNot": [
+        "phone",
+        "money"
+      ],
+      "readback": true,
+      "why": "12 digits that are not a country-coded phone"
+    },
+    {
+      "id": "id-acct-1",
+      "kind": "digit_typing",
+      "text": "ఖాతా నంబర్ 123456789012345",
+      "must": [
+        "idnumber:account"
+      ],
+      "mustNot": [
+        "phone",
+        "money"
+      ],
+      "why": "bank account number"
+    },
+    {
+      "id": "ph-ok-1",
+      "kind": "must_still_work",
+      "text": "nenu 9848521034 number ki call cheyyandi",
+      "must": [
+        "phone"
+      ],
+      "mustNot": [
+        "money"
+      ],
+      "why": "a normal 10-digit mobile"
+    },
+    {
+      "id": "ph-ok-2",
+      "kind": "must_still_work",
+      "text": "9 8 4 8 5 2 1 0 3 4",
+      "must": [
+        "phone"
+      ],
+      "mustNot": [
+        "money",
+        "idnumber"
+      ],
+      "why": "spoken digits"
+    },
+    {
+      "id": "ph-short-1",
+      "kind": "must_still_work",
+      "text": "9 8 4 8 5 2 1 0 3",
+      "must": [
+        "phone"
+      ],
+      "readback": true,
+      "why": "9 digits is incomplete: ask again"
+    },
+    {
+      "id": "fee-ok-1",
+      "kind": "must_still_work",
+      "text": "agent ki 150000 ichanu",
+      "must": [
+        "money",
+        "fee:150000"
+      ],
+      "why": "digits with a fee cue"
+    },
+    {
+      "id": "fee-ok-2",
+      "kind": "must_still_work",
+      "text": "agent ki oka laksha yaabhai velu ichanu",
+      "must": [
+        "money",
+        "fee:150000"
+      ],
+      "why": "spoken amount"
+    },
+    {
+      "id": "fee-ok-3",
+      "kind": "must_still_work",
+      "text": "ఏజెంట్ కి 1,50,000 ఇచ్చాను",
+      "must": [
+        "money"
+      ],
+      "why": "Telugu with digits"
+    },
+    {
+      "id": "sal-ok-1",
+      "kind": "must_still_work",
+      "text": "salary 1200 dirhams",
+      "must": [
+        "money",
+        "salary:1200"
+      ],
+      "why": "salary with currency"
+    },
+    {
+      "id": "upi-ok-1",
+      "kind": "must_still_work",
+      "text": "ప్రేమ@ybl కి 700 పంపండి",
+      "must": [
+        "money"
+      ],
+      "mustNot": [
+        "phone",
+        "idnumber"
+      ],
+      "why": "UPI handle is not a phone, 700 is an amount (send cue)"
+    },
+    {
+      "id": "gulf-ok-1",
+      "kind": "must_still_work",
+      "text": "huroobu case petti ikamaa ledu",
+      "must": [
+        "gulf:huroob"
+      ],
+      "why": "real ASR variants must still be repaired"
+    },
+    {
+      "id": "gulf-ok-2",
+      "kind": "must_still_work",
+      "text": "kafeelu naa passport teesukunnadu",
+      "must": [
+        "gulf:kafeel"
+      ],
+      "why": "suffix-vowel variant"
+    },
+    {
+      "id": "gulf-ok-3",
+      "kind": "must_still_work",
+      "text": "ఇకామా లేదు",
+      "must": [
+        "gulf:iqama"
+      ],
+      "why": "Telugu-script iqama"
+    },
+    {
+      "id": "fp-place-normal",
+      "kind": "false_positive",
+      "text": "నార్మల్ గా ఉంది, ఏమీ సమస్య లేదు",
+      "mustNot": [
+        "place"
+      ],
+      "why": "IndicVoices clip 03: 'normal' was repaired to the district Nirmal"
+    },
+    {
+      "id": "fp-place-manam",
+      "kind": "false_positive",
+      "text": "మనం అందరం కలిసి వెళ్దాం",
+      "mustNot": [
+        "place"
+      ],
+      "why": "IndicVoices clip 04: 'manam' (we) was repaired to Manama"
+    },
+    {
+      "id": "fp-place-aasara",
+      "kind": "false_positive",
+      "text": "ఆసరా పథకం కింద నాకు డబ్బులు వచ్చాయి",
+      "mustNot": [
+        "place"
+      ],
+      "why": "IndicVoices clip 09: the scheme name Aasara was repaired to the mandal Basar (10 times in one clip)"
+    },
+    {
+      "id": "fp-year-words",
+      "kind": "false_positive",
+      "text": "రెండు వేల ఇరవై ఐదు లో కొత్త రూల్ వచ్చింది",
+      "mustNot": [
+        "money",
+        "fee",
+        "salary"
+      ],
+      "why": "IndicVoices clip 04: a year spoken in words became ₹2,025"
+    },
+    {
+      "id": "fp-thousands-people",
+      "kind": "false_positive",
+      "text": "మా ఊరిలో మూడు వేల మంది ఉన్నారు",
+      "mustNot": [
+        "money",
+        "fee",
+        "salary"
+      ],
+      "why": "FLEURS: spoken thousands with no money cue"
+    },
+    {
+      "id": "fp-driving",
+      "kind": "false_positive",
+      "text": "డ్రైవింగ్ చేసేటప్పుడు జాగ్రత్తగా ఉండాలి",
+      "mustNot": [
+        "job"
+      ],
+      "why": "FLEURS te_018: the word 'driving' filled the job slot with 'driver'"
+    },
+    {
+      "id": "fp-number-list",
+      "kind": "false_positive",
+      "text": "అరవై నాలుగు ఏడు వందల డెబ్బై ఐదు పదమూడు వందల తొంబై రెండు",
+      "mustNot": [
+        "money"
+      ],
+      "why": "IndicVoices clip 10: a list of numbers read aloud was merged into one amount"
+    },
+    {
+      "id": "dg-variants",
+      "kind": "digit_typing",
+      "text": "తొమ్మిది సున్నా మూడు ఆరు ఎమ్మిది ఐదు ఎమ్మిది ఐదు ఒకటి ఆరు ఏడుకి",
+      "must": [
+        "phone"
+      ],
+      "mustNot": [
+        "money"
+      ],
+      "readback": true,
+      "why": "IndicVoices clip 07: 'emmidi' (8) and 'eduki' (7+ki) were not digits, so 11 spoken digits produced nothing"
+    },
+    {
+      "id": "dg-upi-spoken",
+      "kind": "digit_typing",
+      "text": "ఏడు సున్న తొమ్మిది ఎనిమిది ఆరు నాలుగు సున్న నాలుగు తొమ్మిది ఐదు ఐదు ఎట్ ది రేట్ వయ్ బి ఎల్",
+      "must": [
+        "idnumber"
+      ],
+      "mustNot": [
+        "phone",
+        "money"
+      ],
+      "readback": true,
+      "why": "IndicVoices clip 08: digits followed by 'at the rate' are a UPI handle, not a phone"
+    },
+    {
+      "id": "fp-two-years",
+      "kind": "false_positive",
+      "text": "కార్టర్ సహాయం చేశాడు, 1978; 1970ల చివరిలో, 1979 లో",
+      "mustNot": [
+        "phone",
+        "money"
+      ],
+      "why": "FLEURS te_001: two years separated by punctuation were joined into one 8-digit 'phone'"
+    },
+    {
+      "id": "ph-commas",
+      "kind": "must_still_work",
+      "text": "నా నంబర్ 9, 8, 4, 8, 5, 2, 1, 0, 3, 4",
+      "must": [
+        "phone"
+      ],
+      "why": "digits dictated one by one with commas (seen in whisper output) still make a phone"
+    },
+    {
+      "id": "zp-1",
+      "kind": "must_still_work",
+      "text": "I got paid zero rupees",
+      "must": [
+        "salary_unpaid"
+      ],
+      "mustNot": [
+        "fee",
+        "salary_paid"
+      ],
+      "why": "zero pay is a salary statement, not a fee"
+    },
+    {
+      "id": "zp-2",
+      "kind": "must_still_work",
+      "text": "paid nothing for three months",
+      "must": [
+        "salary_unpaid"
+      ],
+      "why": "nothing paid"
+    },
+    {
+      "id": "zp-3",
+      "kind": "must_still_work",
+      "text": "నాకు జీతం సున్నా వచ్చింది",
+      "must": [
+        "salary_unpaid"
+      ],
+      "why": "Telugu: salary zero came"
+    },
+    {
+      "id": "zp-4",
+      "kind": "must_still_work",
+      "text": "ఒక్క రూపాయి కూడా ఇవ్వలేదు",
+      "must": [
+        "salary_unpaid"
+      ],
+      "why": "not one rupee given"
+    },
+    {
+      "id": "zp-5",
+      "kind": "false_positive",
+      "text": "salary 25000 paid every month",
+      "mustNot": [
+        "salary_unpaid"
+      ],
+      "why": "a normal paid salary must not read as unpaid"
+    },
+    {
+      "id": "zp-6",
+      "kind": "false_positive",
+      "text": "I paid the agent zero, there was no fee",
+      "mustNot": [
+        "salary_unpaid"
+      ],
+      "why": "zero to the agent is not a salary statement"
+    },
+    {
+      "id": "pp-1",
+      "kind": "must_still_work",
+      "text": "my passport the agent took it",
+      "must": [
+        "passport_held",
+        "passport_by:agent"
+      ],
+      "why": "passport taken by the agent"
+    },
+    {
+      "id": "pp-2",
+      "kind": "must_still_work",
+      "text": "పాస్‌పోర్ట్ ఏజెంట్ తీసుకున్నాడు",
+      "must": [
+        "passport_held",
+        "passport_by:agent"
+      ],
+      "why": "Telugu: agent took the passport"
+    },
+    {
+      "id": "pp-3",
+      "kind": "must_still_work",
+      "text": "నా పాస్‌పోర్ట్ కంపెనీ వాళ్ళు తీసుకున్నారు",
+      "must": [
+        "passport_held",
+        "passport_by:employer"
+      ],
+      "why": "company took it"
+    }
+  ]
 }

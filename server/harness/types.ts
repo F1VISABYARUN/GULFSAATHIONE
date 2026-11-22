@@ -37,6 +37,7 @@ export interface CaseSlots {
   job?: string;
   salaryPaid?: boolean;
   passportHeld?: boolean;
+  passportTakenBy?: 'agent' | 'employer'; // who the worker says took the passport
   huroob?: boolean;
   distress?: string[];
   phones?: string[];

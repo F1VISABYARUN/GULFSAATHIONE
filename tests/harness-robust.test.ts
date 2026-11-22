@@ -51,3 +51,18 @@ test('digits with a glued Telugu suffix are numbers, and the corrected text keep
   assert.ok(numberValues(tokenize(t)).includes(1789));
   assert.equal(runHarness(t, {}, ALL_ON).corrected, t);
 });
+
+test('"paid zero" reads as salary not received, never as a fee or a paid salary', () => {
+  for (const text of ['I got paid zero rupees', 'paid nothing for three months', 'నాకు జీతం సున్నా వచ్చింది', 'ఒక్క రూపాయి కూడా ఇవ్వలేదు', 'salary 0 rupees paid']) {
+    const s = runHarness(text, {}, ALL_ON).slots;
+    assert.equal(s.salaryPaid, false, text); assert.equal(s.feeINR, undefined, text);
+  }
+  assert.notEqual(runHarness('salary 25000 paid every month', {}, ALL_ON).slots.salaryPaid, false);
+  assert.notEqual(runHarness('I paid the agent zero, there was no fee', {}, ALL_ON).slots.salaryPaid, false);
+});
+test('who took the passport is recorded and is never a junk name', () => {
+  const a = runHarness('my passport the agent took it', {}, ALL_ON).slots;
+  assert.equal(a.passportHeld, true); assert.equal(a.passportTakenBy, 'agent'); assert.equal(a.agentName, undefined);
+  assert.equal(runHarness('my passport the sponsor took it', {}, ALL_ON).slots.passportTakenBy, 'employer');
+  assert.equal(runHarness('నా పాస్‌పోర్ట్ కంపెనీ వాళ్ళు తీసుకున్నారు', {}, ALL_ON).slots.passportTakenBy, 'employer');
+});
