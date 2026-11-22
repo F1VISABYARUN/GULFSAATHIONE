@@ -21,6 +21,10 @@ export function tags(text: string, on: boolean): { tags: string[]; readbacks: nu
     if (e.type === 'gulf') { t.add('gulf'); t.add('gulf:' + String(e.value)); }
   }
   if (h.slots.job) t.add('job');
+  if (h.slots.salaryPaid === false) t.add('salary_unpaid');
+  if (h.slots.salaryPaid === true) t.add('salary_paid');
+  if (h.slots.passportHeld) t.add('passport_held');
+  if (h.slots.passportTakenBy) t.add('passport_by:' + h.slots.passportTakenBy);
   if (h.slots.feeINR !== undefined) { t.add('fee'); t.add('fee:' + h.slots.feeINR); }
   if (h.slots.salary) { t.add('salary'); t.add('salary:' + h.slots.salary.amount); }
   return { tags: [...t], readbacks: h.readBacks.length };

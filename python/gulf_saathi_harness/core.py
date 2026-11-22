@@ -308,6 +308,15 @@ def _with_questions(turns: list[dict]) -> str:
 # ---------------------------------------------------------------- public API
 
 _NEG_WORD = re.compile(r'(ledu|ledhu|ledandi|ledani|aledu|atledu|tledu|nahi|not|never)$')
+_PAID_MORE = {'vachchindi', 'vachindi', 'vachchaaru', 'received', 'got', 'gave', 'given', 'ivvaledu', 'ivvalede', 'raledu'}
+_ZERO = {'zero', 'sunnaa', 'sunna', 'nil', 'nothing', 'zilch'}
+_UNIT = {'roopaayi', 'rupayi', 'rupee', 'rupees', 'paisa', 'paise'}
+_AGENT = {'agent', 'ejent', 'ejant', 'edyun'}
+_EMPLOYER = {'kafeel', 'arbab', 'employer', 'company', 'kampenee', 'spaansar', 'sponsor', 'yajamaani', 'onar', 'owner'}
+_PASSPORT = re.compile(r'^paa?s+port$')
+_TOOK = re.compile(r'^(took|taken|teesuk\w*|tisuk\w*|lakk\w*|rakh|liya|lesukunn\w*)$')
+_NOT_THE_BOOK = {'photo', 'copy', 'xerox', 'size', 'number', 'renewal', 'office', 'embassy'}
+_SELF = {'i', 'we', 'nenu', 'memu'}
 _PAID = {'ichhadu', 'ichadu', 'ichharu', 'icharu', 'ichindi', 'vachindi', 'paid', 'mili', 'diya', 'padindi', 'credited'}
 
 
@@ -339,10 +348,33 @@ def normalize(text: str = '', turns: list[dict] | None = None, code_phrase: str 
             if cue and (best is None or d < best[1]):
                 best = (cue, d)
         kind = best[0] if best else ('salary' if m['currency'] != 'INR' else None)
+        if m['amount'] == 0:
+            continue  # "paid zero" is a salary statement, handled below
         if kind == 'salary':
             facts['salary'] = {'amount': m['amount'], 'currency': m['currency']}
         elif kind == 'fee' and m['currency'] == 'INR':
             facts['fee_inr'] = m['amount']
+    sal_all = set(LEX['salary_words'])
+
+    def pay_cue(w):
+        return any(x in sal_all or x in _PAID or x in _PAID_MORE for x in w)
+
+    def around(i, back, fwd):
+        return toks[max(0, i - back):i + fwd]
+    for m in money:
+        if m['amount'] == 0:
+            w = around(m['start'], 5, m['end'] - m['start'] + 5)
+            if pay_cue(w) and not any(x in _AGENT for x in w):
+                facts['salary_paid'] = False
+    for i, w0 in enumerate(toks):
+        if w0 in _ZERO:
+            w = around(i, 3, 4)
+            if pay_cue(w) and not any(x in _AGENT for x in w):
+                facts['salary_paid'] = False
+        if w0 == 'okka' and i + 1 < len(toks) and toks[i + 1] in _UNIT:
+            w = around(i, 3, 6)
+            if any(_NEG_WORD.search(x) or x.endswith('ivvaledu') or x.endswith('raledu') for x in w) and not any(x in _AGENT for x in w):
+                facts['salary_paid'] = False
     for g in LEX['gulf']:
         for v in g['variants'] + (g['asr'] if repair else []):
             if _phrase_hits(toks, v, False):
@@ -356,6 +388,21 @@ def normalize(text: str = '', turns: list[dict] | None = None, code_phrase: str 
     kinds = [d['kind'] for d in LEX['distress'] if any(_phrase_hits(toks, p, repair) for p in d['phrases'])]
     if 'passport_held' in kinds:
         facts['passport_held'] = True
+    for i, w0 in enumerate(toks):
+        if not _PASSPORT.match(w0):
+            continue
+        w = around(i, 4, 6)
+        j = next((k for k in range(max(0, i - 4), min(len(toks), i + 6)) if _TOOK.match(toks[k])), -1)
+        if j < 0 or any(x in ('ledu', 'ledhu', 'kadu', 'kaadu', 'nahi', 'not', 'no', 'ivvaledu', 'raledu') or _NEG_WORD.search(x) or x in _NOT_THE_BOOK for x in w):
+            continue
+        if j > 0 and toks[j - 1] in _SELF:
+            continue
+        facts['passport_held'] = True
+        if any(x in _AGENT for x in w):
+            facts['passport_taken_by'] = 'agent'
+        elif any(x in _EMPLOYER for x in w):
+            facts['passport_taken_by'] = 'employer'
+        break
     if 'salary_unpaid' in kinds:
         facts['salary_paid'] = False
     if 'taken_by_stranger' in kinds:

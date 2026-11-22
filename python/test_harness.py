@@ -83,6 +83,16 @@ def test_confirm_list():
     assert any('distress' in c['why'] for c in confirm_list('నన్ను ఓనర్ కోరుతున్నాడు'))
     assert confirm_list('salary 1200 dirhams') == []
 
+def test_zero_pay_and_passport_taker():
+    from gulf_saathi_harness import normalize as extract_facts
+    extract = extract_facts
+    for text in ('I got paid zero rupees', 'paid nothing for three months', 'నాకు జీతం సున్నా వచ్చింది', 'ఒక్క రూపాయి కూడా ఇవ్వలేదు', 'salary 0 rupees paid'):
+        f = extract(text); assert f.get('salary_paid') is False and 'fee_inr' not in f, text
+    assert extract('salary 25000 paid every month').get('salary_paid') is not False
+    assert extract('I paid the agent zero, there was no fee').get('salary_paid') is not False
+    f = extract('my passport the agent took it'); assert f['passport_held'] and f['passport_taken_by'] == 'agent'
+    f = extract('నా పాస్‌పోర్ట్ కంపెనీ వాళ్ళు తీసుకున్నారు'); assert f['passport_held'] and f['passport_taken_by'] == 'employer'
+
 
 if __name__ == "__main__":
     for name, fn in list(globals().items()):

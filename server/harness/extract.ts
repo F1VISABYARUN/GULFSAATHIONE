@@ -9,6 +9,14 @@ import { MANDAL_DISTRICTS, DISTRICT_NAMES, districtOf } from './gazetteer.ts';
 
 const SURNAMES = new Set(['reddy', 'goud', 'gowda', 'rao', 'yadav', 'naidu', 'chary', 'babu', 'khan', 'ahmed', 'kumar', 'shetty', 'patel', 'singh']);
 const POSITIVE_PAID = new Set(['ichhadu', 'ichadu', 'ichaadu', 'ichharu', 'icharu', 'ichindi', 'vachindi', 'paid', 'mili', 'diya', 'padindi', 'credited', 'vesaru', 'vesadu']);
+const PAID_MORE = new Set(['vachchindi', 'vachindi', 'vachchaaru', 'received', 'got', 'gave', 'given', 'ivvaledu', 'ivvalede', 'raledu']);
+const ZERO_WORDS = new Set(['zero', 'sunnaa', 'sunna', 'nil', 'nothing', 'zilch']);
+const UNIT_WORDS = new Set(['roopaayi', 'rupayi', 'rupee', 'rupees', 'paisa', 'paise']);
+const NOT_NAME = new Set(['did', 'didn', 'does', 'was', 'were', 'will', 'would', 'took', 'taken', 'not']);
+const SELF = new Set(['i', 'we', 'nenu', 'memu']);
+const NOT_THE_BOOK = new Set(['photo', 'copy', 'xerox', 'size', 'number', 'renewal', 'office', 'embassy']);
+const PASSPORT_WORD = /^paa?s+port$/;
+const TOOK_VERB = /^(took|taken|teesuk\w*|tisuk\w*|lakk\w*|rakh|liya|lesukunn\w*)$/;
 const NEGATIVE_SUFFIX = /(ledu|ledhu|ledandi|ledhandi|ledani|aledu|atledu|tledu|nahi|nahin|not|never|ivvaledu|raledu)$/;
 
 export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
@@ -19,8 +27,25 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   for (const e of live.filter(e => e.type === 'money')) {
     const v = e.value as MoneyValue;
     const kind = moneyKind(tokens, e, v);
+    if (v.amount === 0) continue;   // "paid zero" is a salary statement, handled below; never "fee 0" or "salary 0 paid"
     if (kind === 'salary') slots.salary = { amount: v.amount, currency: v.currency };
     else if (kind === 'fee' && (!v.currency || v.currency === 'INR')) slots.feeINR = v.amount;
+  }
+  const norms = tokens.map(t => t.norm);
+  const around = (i: number, back: number, fwd: number) => norms.slice(Math.max(0, i - back), i + fwd);
+  const agentNear = (w: string[]) => w.some(x => AGENT_WORDS.has(x));
+  const paidCue = (w: string[]) => w.some(x => SALARY_WORDS.has(x) || POSITIVE_PAID.has(x) || PAID_MORE.has(x));
+  // ---- "paid zero": a zero amount, "nothing", "sunna" or "okka rupayi" next to a pay cue means salary NOT received
+  for (const e of live.filter(e => e.type === 'money' && (e.value as MoneyValue).amount === 0)) {
+    const w = around(e.start, 5, e.end - e.start + 5);
+    if (paidCue(w) && !agentNear(w)) slots.salaryPaid = false;
+  }
+  for (let i = 0; i < norms.length; i++) {
+    if (ZERO_WORDS.has(norms[i])) { const w = around(i, 3, 4); if (paidCue(w) && !agentNear(w)) slots.salaryPaid = false; }
+    if (norms[i] === 'okka' && UNIT_WORDS.has(norms[i + 1] ?? '')) {
+      const w = around(i, 3, 6);
+      if (w.some(x => NEGATIVE_SUFFIX.test(x)) && !agentNear(w)) slots.salaryPaid = false;
+    }
   }
 
   // ---- visa / passport / gulf signals
@@ -37,6 +62,18 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
   // ---- distress + passport + salary polarity
   const distress = live.filter(e => e.type === 'distress');
   if (distress.some(d => d.value === 'passport_held')) slots.passportHeld = true;
+  // "my passport the agent took it": passport and a took-verb close together, and who took it
+  for (let i = 0; i < norms.length; i++) {
+    if (!PASSPORT_WORD.test(norms[i])) continue;
+    const w = around(i, 4, 6);
+    const j = norms.findIndex((x, k) => k >= Math.max(0, i - 4) && k < i + 6 && TOOK_VERB.test(x));
+    if (j < 0 || w.some(x => NEG.has(x) || NEGATIVE_SUFFIX.test(x) || NOT_THE_BOOK.has(x))) continue;
+    if (SELF.has(norms[j - 1] ?? '')) continue;   // "I took my passport to the bank" is not a confiscation
+    slots.passportHeld = true;
+    if (agentNear(w)) slots.passportTakenBy = 'agent';
+    else if (w.some(x => EMPLOYER_WORDS.has(x))) slots.passportTakenBy = 'employer';
+    break;
+  }
   if (distress.some(d => d.value === 'salary_unpaid')) slots.salaryPaid = false;
   if (distress.some(d => d.value === 'taken_by_stranger')) slots.takenByStranger = true;
   if (distress.some(d => d.value === 'code_phrase')) slots.codePhrase = true;
@@ -63,7 +100,7 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
     // never take a word that another layer already locked (e.g. "who rub" = huroob, an amount, a place)
     if (live.some(e => e.type !== 'name' && e.start <= k && k < e.end) || entities.some(e => e.type === 'gulf' && e.start <= k && k < e.end)) return undefined;
     const t = tokens[k];
-    if (STOPWORDS.has(t.norm) || /\d/.test(t.norm) || t.norm.length < 3 || VERB_LIKE.test(t.norm)) return undefined;
+    if (STOPWORDS.has(t.norm) || NOT_NAME.has(t.norm) || /\d/.test(t.norm) || t.norm.length < 3 || VERB_LIKE.test(t.norm)) return undefined;
     let name = cap(t.norm);
     if (k + 1 < tokens.length && SURNAMES.has(tokens[k + 1].norm)) name += ' ' + cap(tokens[k + 1].norm);
     return name;
@@ -108,7 +145,7 @@ export function extractSlots(tokens: Token[], entities: Entity[]): CaseSlots {
 
 const AGENT_WORDS = new Set(['agent', 'ejent', 'ejant', 'edyun']);
 const EMPLOYER_WORDS = new Set(['kafeel', 'arbab', 'employer', 'company', 'kampenee', 'spaansar', 'sponsor', 'yajamaani', 'onar', 'owner']);
-const VERB_LIKE = /(ledu|ledhu|adu|aru|indi|anu|amu|undi|unnadu|aledu|tunnadu|tunnaru|chesadu|cheppadu)$/;
+const VERB_LIKE = /(took|taken|ledu|ledhu|adu|aru|indi|anu|amu|undi|unnadu|aledu|tunnadu|tunnaru|chesadu|cheppadu)$/;
 const NEG = new Set(['ledu', 'ledhu', 'kadu', 'kaadu', 'nahi', 'not', 'no', 'ivvaledu', 'raledu']);
 function negatedAfter(tokens: Token[], end: number): boolean {
   return tokens.slice(end, end + 2).some(t => NEG.has(t.norm));
