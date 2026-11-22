@@ -7,7 +7,7 @@ const phone = document.getElementById('phone');
 const consent = document.getElementById('consent');
 const HELP = '+91 80659 52403';
 const text = {
-  calling: ['Calling you now. Please answer your phone.', 'ఇప్పుడు మీకు కాల్ చేస్తున్నాం. ఫోన్ ఎత్తండి.'],
+  requested: ['Call requested. Keep your phone nearby. If it does not ring within a minute, call ' + HELP + ' yourself.', 'కాల్ అభ్యర్థన పంపాం. ఫోన్ దగ్గర ఉంచుకోండి. ఒక నిమిషంలో మోగకపోతే మీరే ' + HELP + 'కు కాల్ చేయండి.'],
   bad_number: ['Please enter a valid phone number.', 'సరైన ఫోన్ నంబర్ ఇవ్వండి.'],
   consent_required: ['Please tick the box to agree.', 'అంగీకార పెట్టెను టిక్ చేయండి.'],
   closed: ['Call requests are not open right now. You can call ' + HELP + ' yourself.', 'కాల్ అభ్యర్థనలు ప్రస్తుతం అందుబాటులో లేవు. మీరే ' + HELP + 'కు కాల్ చేయవచ్చు.'],
@@ -31,8 +31,8 @@ if (form) {
     try {
       const response = await fetch('/api/call-me/request', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: phone.value, consent: true }) });
       const result = await response.json().catch(() => ({}));
-      show(result.status ?? 'failed', result.status === 'calling');
-      if (result.status === 'calling') return;
+      show(result.status ?? 'failed', result.status === 'requested');
+      if (result.status === 'requested') return;
     } catch { show('failed'); }
     button.disabled = false;
   });
