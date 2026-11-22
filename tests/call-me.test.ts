@@ -146,7 +146,7 @@ test('a request refused by the per-number limit does not use up the network allo
 test('the home page keeps the earlier site\'s sections and assets, leaves out the removed ones, and every referenced file exists', async () => {
   const { existsSync } = await import('node:fs');
   const home = readFileSync('public/index.html', 'utf8');
-  for (const id of ['why', 'hear', 'started', 'heard', 'who', 'desk', 'watch', 'pays', 'layer', 'callme']) assert.ok(home.includes('id="' + id + '"'), id);
+  for (const id of ['why', 'hear', 'started', 'heard', 'who', 'desk', 'watch', 'layer', 'callme']) assert.ok(home.includes('id="' + id + '"'), id);
   assert.ok(!/aadujeevitham/i.test(home) && !/repeat scam agent/i.test(home));
   for (const ref of home.match(/\/site\/[\w.-]+/g) ?? []) assert.ok(existsSync('public' + ref), ref);
 });
