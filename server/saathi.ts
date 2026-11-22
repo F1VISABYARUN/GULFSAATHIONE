@@ -35,12 +35,11 @@ export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolea
   }[level];
 }
 
-export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider(), confirmSalary = false) {
+export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider(), confirmSalary = false, salaryExchange?: { q: string; text: string }) {
   const w = await store.worker(caseId);
   const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
   const level = levelOf(risks);
-  await store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id), ...(confirmSalary ? { needsConfirmation: ['salary_received' as const] } : {}) });
-  const target = await store.change(caseId, worker => {
+  const target = await store.recordAlertCall({ id: executionId || randomUUID(), caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id), salaryExchange, ...(confirmSalary ? { needsConfirmation: ['salary_received' as const] } : {}) }, worker => {
     const alert = level === 'critical' || level === 'high';
     const crossing = LEVEL[worker.riskLevel] < LEVEL.high && alert;
     if (LEVEL[level] > LEVEL[worker.riskLevel]) worker.riskLevel = level;
@@ -146,7 +145,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const calls = (await store.calls(w.caseId)).sort((a,b) => a.at.localeCompare(b.at)).map(c => {
       const transcript = c.transcript ?? '';
       const text = /^(assistant|user):/m.test(transcript) ? withQuestionContext(parseBolnaTranscript(transcript)) : transcript;
-      return { id: c.id, kind: c.kind, date: c.at, text };
+      return { id: c.id, kind: c.kind, date: c.at, text: c.salaryExchange ? text + ' . ' + withQuestionContext([c.salaryExchange]) : text };
     });
     res.json(buildCaseFile(calls, { promise: w.promise, codePhrase: w.codePhrase, places: w.destCity ? [w.destCity] : [] },
       { id: w.caseId, workerName: w.name }));
@@ -234,7 +233,10 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const normalizeAnswer = (value: string) => value.trim().toLowerCase().replace(/[.!?।]+$/u, '').trim();
     const quoted = !!answer && caller.split(/[.!?।\n]+/u).some(line => normalizeAnswer(line) === normalizeAnswer(answer));
     const paired = salaryReceipt({ q: str(b.salary_question), text: quoted ? answer : '' });
-    const direct = runHarness(caller, {}, ALL_ON).slots.salaryPaid;
+    const directSlots = runHarness(caller, {}, ALL_ON).slots;
+    slots.salary = directSlots.salary;
+    slots.feeINR = directSlots.feeINR;
+    const direct = directSlots.salaryPaid;
     const conflict = typeof paired === 'boolean' && direct !== undefined && paired !== direct;
     const salaryPaid = conflict ? undefined : typeof paired === 'boolean' ? paired : direct;
     if (salaryPaid === undefined) delete slots.salaryPaid;
@@ -243,7 +245,8 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       (conflict || paired === 'unknown' || ['yes','no'].includes(str(b.salary_received)) || !!str(b.salary_question) || str(b.call_kind) === 'weekly');
     if (b.code_phrase_used === 'yes') slots.codePhrase = true;
     if (b.movement_restricted === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'confinement'])];
-    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said), undefined, confirmSalary);
+    const salaryExchange = typeof paired === 'boolean' && !conflict ? { q: str(b.salary_question), text: answer } : undefined;
+    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', caller, undefined, confirmSalary, salaryExchange);
     if (confirmSalary && !slots.codePhrase && level === 'ok') {
       return res.json({ case_id: caseId, level, status: 'needs_confirm', field: 'salary_received', reasons: risks.map(r => r.id), instruction: CONFIRM_SALARY });
     }

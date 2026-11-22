@@ -32,7 +32,7 @@ export interface WorkerRec {
   reasons: string[];
   createdAt: string;
 }
-export interface CallRec { id: string; caseId: string; kind: string; at: string; status: string; transcript?: string; reasons: string[]; needsConfirmation?: 'salary_received'[] }
+export interface CallRec { id: string; caseId: string; kind: string; at: string; status: string; transcript?: string; reasons: string[]; needsConfirmation?: 'salary_received'[]; salaryExchange?: { q: string; text: string } }
 interface Db { workers: WorkerRec[]; calls: CallRec[] }
 
 const FILE = join(dirname(fileURLToPath(import.meta.url)), 'data', 'cases', 'saathi-db.json');

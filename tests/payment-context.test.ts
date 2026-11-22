@@ -32,6 +32,7 @@ test('receipt requires one unambiguous salary question and a clear answer', () =
 
 test('checkin, report and webhook retain ambiguous speech for follow-up and prioritize independent danger', async t => {
   process.env.STORE = 'memory';
+  process.env.SAATHI_SECRET = 'fixture';
   const app = express();
   app.use(express.json());
   registerSaathi(app, (_req, _res, next) => next());
@@ -53,6 +54,9 @@ test('checkin, report and webhook retain ambiguous speech for follow-up and prio
   assert.notEqual(danger.instruction, CONFIRM_SALARY);
   const confirmed = await post('/tools/record-checkin', {...b, case_id:initial.case_id, caller_said:'రాలేదు.', salary_answer:'రాలేదు'});
   assert.ok(confirmed.reasons.includes('SALARY_UNPAID'));
+  assert.deepEqual((await store.calls(initial.case_id)).at(-1)?.salaryExchange, {q: CONFIRM_SALARY, text: 'రాలేదు'});
+  const caseFile = await fetch('http://127.0.0.1:' + (server.address() as AddressInfo).port + '/api/saathi/cases/' + initial.case_id + '/file');
+  assert.equal((await caseFile.json()).facts.salaryPaid, false);
   const payload = {status:'completed', context_details:{recipient_data:{case_id:initial.case_id}},
     transcript: 'assistant: ' + CONFIRM_SALARY + '\nuser: అదలక'};
   const webhook = await post('/webhooks/saathi',payload);
