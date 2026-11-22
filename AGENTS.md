@@ -22,6 +22,9 @@ npm test
 npx tsc --noEmit
 ```
 
+## How to confirm it works
+After starting, `curl -s localhost:3000/api/health` returns `{"ok":true,"hasKey":false,...}`, and `npm test` ends with `# pass 199` and `# fail 0`. `hasKey:false` is correct without an OpenAI key.
+
 ## Test login
 There are no user accounts. Private API routes and the caseworker page use one access key, sent as the `x-saathi-secret` header. With the start command above the key is **`demo-secret`**. On the caseworker page (`/caseworker.html`) type `demo-secret` into the access key box.
 
@@ -51,6 +54,7 @@ Open `http://localhost:3000`.
 6. **Caseworker desk.** Open `/caseworker.html`, enter `demo-secret`, open case `GS-DEMO1`: case file, timeline, acknowledge, notes, close. API equivalent: `GET /api/saathi/cases` and `GET /api/saathi/cases/GS-DEMO1/file` with the header.
 7. **Visa-ending plan (Exit Path).** Send structured fields: `POST /tools/exit-path` with `{"country":"UAE","visa_type":"visit visa","expiry":"2026-12-10"}`. Expect `daysLeft`, a digit-by-digit `readBack` of the date and a next question (`status: ask`) or a plan. It only states fines and fees read on official pages; anything else it says it cannot confirm and refers to the embassy. Data: `server/data/exit_rules.json`. Note: the free-text field `caller_said` is built for Telugu speech; short English sentences it does not recognise are treated as possible danger and escalate to a human (a deliberate safe default).
 8. **Speech-to-text harness in text mode.** `/harness.html` (or `POST /api/analyze-text` with `{"text":"..."}`): paste what a speech model heard, such as Telugu or English money, phone numbers and negations ("ivvaledu" = "did not give"), and see the corrected reading and risks.
+   Expected and harmless: the browser console shows one 404 for `/api/results` on this page, because the speech-model benchmark results file is not included in the zip.
 9. **Call-me form.** `GET /api/call-me/status` returns `{"mode":"closed"}` without Plivo settings: the form on the home page then says calls are not open. This is expected in a fresh install.
 
 ## Environment variables
