@@ -142,3 +142,11 @@ test('a request refused by the per-number limit does not use up the network allo
   for (let i = 0; i < 12; i++) assert.equal((await post(body, '6.6.6.6')).status, 429);        // refused repeatedly, never "slow_down" (that would be the 11th network use)
   assert.equal((await post({ phone: '9848000556', consent: true }, '6.6.6.6')).status, 200);   // same network can still ask for another number
 });
+
+test('the home page keeps the earlier site\'s sections and assets, leaves out the removed ones, and every referenced file exists', async () => {
+  const { existsSync } = await import('node:fs');
+  const home = readFileSync('public/index.html', 'utf8');
+  for (const id of ['why', 'hear', 'started', 'heard', 'who', 'desk', 'watch', 'pays', 'layer', 'callme']) assert.ok(home.includes('id="' + id + '"'), id);
+  assert.ok(!/aadujeevitham/i.test(home) && !/repeat scam agent/i.test(home));
+  for (const ref of home.match(/\/site\/[\w.-]+/g) ?? []) assert.ok(existsSync('public' + ref), ref);
+});
