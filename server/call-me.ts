@@ -2,6 +2,7 @@
 // Direct calls, no code step. Cost and abuse controls: explicit consent, limits per number, per network address and per day,
 // and an optional list of approved numbers (CALL_ME_ALLOWLIST) for demos.
 import { createHash } from 'node:crypto';
+import express from 'express';
 import type { Express, Request, Response } from 'express';
 import { store } from './store.ts';
 
@@ -27,19 +28,32 @@ export function callMeMode(): 'direct' | 'approved' | 'closed' {
   return allowlist().size ? 'approved' : 'direct';
 }
 
-/** The interpreter call server answers: the same conversation as a call to the number, with the person's own number passed to the tools. */
-async function placeCall(phone: string): Promise<boolean> {
+const mask = (phone: string) => phone.slice(0, 3) + '*'.repeat(Math.max(0, phone.length - 7)) + phone.slice(-4);
+const hangupKey = () => hash('callme-hangup');
+/** Where Plivo reports how the call ended. It is our own address, so a carrier rejection leaves evidence in our logs instead of a 404. */
+const hangupUrl = () => {
+  const url = new URL('/api/call-me/hangup', process.env.SAATHI_BASE_URL || 'https://gulfsaathione.vercel.app');
+  url.searchParams.set('k', hangupKey());
+  return url.toString();
+};
+
+/** The interpreter call server answers: the same conversation as a call to the number, with the person's own number passed to the tools.
+ *  Plivo accepting the request only means the call was queued; it says nothing about the phone ringing. */
+async function placeCall(phone: string): Promise<{ ok: boolean; uuid?: string }> {
   const id = process.env.PLIVO_AUTH_ID!, token = process.env.PLIVO_AUTH_TOKEN!, from = process.env.PLIVO_FROM_NUMBER!;
   const answer = new URL('/answer', process.env.INTERPRETER_ORIGIN!);
   answer.searchParams.set('mode', 'agent'); answer.searchParams.set('caller_phone', phone);
   try {
     const r = await fetch('https://api.plivo.com/v1/Account/' + encodeURIComponent(id) + '/Call/', {
       method: 'POST', headers: { authorization: 'Basic ' + Buffer.from(id + ':' + token).toString('base64'), 'content-type': 'application/json' },
-      body: JSON.stringify({ from: from.replace(/^\+/, ''), to: phone.replace(/^\+/, ''), answer_url: answer.toString(), answer_method: 'GET' }), signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ from: from.replace(/^\+/, ''), to: phone.replace(/^\+/, ''), answer_url: answer.toString(), answer_method: 'GET',
+        hangup_url: hangupUrl(), hangup_method: 'POST' }), signal: AbortSignal.timeout(15000),
     });
-    const receipt: any = r.ok ? await r.json().catch(() => ({})) : {};
-    return r.ok && typeof receipt.request_uuid === 'string';
-  } catch { return false; }
+    const receipt: any = await r.json().catch(() => ({}));
+    const uuid = typeof receipt.request_uuid === 'string' ? receipt.request_uuid : undefined;
+    console.info(JSON.stringify({ component: 'call-me', event: 'plivo_response', http: r.status, to: mask(phone), uuid, error: r.ok ? undefined : String(receipt.error ?? receipt.message ?? '').slice(0, 200) }));
+    return { ok: r.ok && Boolean(uuid), uuid };
+  } catch (error) { console.error(JSON.stringify({ component: 'call-me', event: 'plivo_error', to: mask(phone), error: String((error as Error).message).slice(0, 200) })); return { ok: false }; }
 }
 
 const clientKey = (req: Request) => hash('ip|' + String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '').split(',')[0].trim());
@@ -47,6 +61,18 @@ const say = (res: Response, code: number, status: string) => res.status(code).js
 
 export function registerCallMe(app: Express) {
   app.get('/api/call-me/status', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ mode: callMeMode() }); });
+
+  // Plivo's report of how a website call ended. Fields are logged as received (names are Plivo's; the number is masked).
+  // A call that never connected (no duration, not completed) gives that number its daily slot back.
+  app.post('/api/call-me/hangup', express.urlencoded({ extended: false, limit: '20kb' }), async (req: Request, res: Response) => {
+    if (req.query.k !== hangupKey()) return res.sendStatus(403);
+    const b = req.body ?? {}, to = typeof b.To === 'string' ? '+' + b.To.replace(/^\+/, '') : '';
+    const seconds = Number(b.Duration ?? 0) || 0, status = String(b.CallStatus ?? ''), unanswered = seconds === 0 && status !== 'completed';
+    console.info(JSON.stringify({ component: 'call-me', event: 'hangup', uuid: String(b.CallUUID ?? '').slice(0, 60), status, cause: b.HangupCauseName ?? b.HangupCause, code: b.HangupCauseCode ?? b.HangupCause,
+      source: b.HangupSource, seconds, to: to ? mask(to) : undefined, unanswered }));
+    if (unanswered && normalizePhone(to)) await store.refund('calls:' + hash(normalizePhone(to)!)).catch(() => {});
+    res.json({ ok: true });
+  });
 
   app.post('/api/call-me/request', async (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
@@ -60,7 +86,12 @@ export function registerCallMe(app: Express) {
       if (!(await store.allow('net:' + clientKey(req), HOUR, 10))) return say(res, 429, 'slow_down');
       if (!(await store.allow('calls:' + hash(phone), DAY, 2))) return say(res, 429, 'too_many_calls');
       if (!(await store.allow('calls:global', DAY, Number(process.env.CALL_ME_DAILY_MAX || 50)))) return say(res, 429, 'daily_limit');
-      return (await placeCall(phone)) ? say(res, 200, 'calling') : say(res, 502, 'call_failed');
+      const placed = await placeCall(phone);
+      if (!placed.ok) {                                   // nothing was queued: give the allowance back
+        await Promise.all([store.refund('net:' + clientKey(req)), store.refund('calls:' + hash(phone)), store.refund('calls:global')]);
+        return say(res, 502, 'call_failed');
+      }
+      return res.status(200).json({ status: 'requested', ref: placed.uuid });
     } catch (error) { console.error(error); return say(res, 503, 'unavailable'); }
   });
 }

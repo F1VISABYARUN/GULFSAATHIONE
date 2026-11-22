@@ -42,11 +42,12 @@ test('"Get a call" places the call directly: no code step, consent required, Pli
   assert.equal((await post({ phone: '12345', consent: true })).status, 400);                            // bad number
   assert.equal(sent.length, 0);
   const ok = await post({ phone: '98480 12345', consent: true });
-  assert.equal(ok.status, 200); assert.deepEqual(await ok.json(), { status: 'calling' });
+  assert.equal(ok.status, 200); assert.deepEqual(await ok.json(), { status: 'requested', ref: 'u1' });
   assert.equal(sent[0].url, 'https://api.plivo.com/v1/Account/AUTHID/Call/'); assert.match(sent[0].auth, /^Basic /);
   assert.equal(sent[0].body.to, '919848012345'); assert.equal(sent[0].body.from, '918065952403');
   const answer = new URL(sent[0].body.answer_url);
   assert.equal(answer.origin + answer.pathname, 'https://phone.example/answer');
+  assert.equal(sent[0].body.hangup_method, 'POST'); assert.match(sent[0].body.hangup_url, /\/api\/call-me\/hangup\?k=[0-9a-f]{64}$/);
   assert.equal(answer.searchParams.get('mode'), 'agent'); assert.equal(answer.searchParams.get('caller_phone'), '+919848012345');
 });
 
@@ -109,4 +110,24 @@ test('the call server uses the number a call was placed to (caller_phone) as the
   const ws = new WebSocket(local.replace('http', 'ws') + endpoint); t.after(() => ws.terminate()); await once(ws, 'open');
   const first = once(ws, 'message'); ws.send(JSON.stringify({ event: 'start', start: { callId: 'c9', streamId: 's', mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000 } } })); await first;
   assert.deepEqual(seen, ['+919848012345']);
+});
+
+test('a failed Plivo request gives the allowance back; a call that never rang gives the number its slot back; the hangup report needs the key', async t => {
+  Object.assign(process.env, PLIVO); t.after(() => { for (const k of Object.keys(PLIVO)) delete process.env[k]; });
+  const { post, base } = await app(t);
+  const original = globalThis.fetch; let accept = false; let hangup = '';
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
+    if (!String(url).startsWith('https://api.plivo.com/')) return original(url as any, init);
+    if (accept) { hangup = JSON.parse(String(init?.body)).hangup_url; return Response.json({ request_uuid: 'u9' }); }
+    return Response.json({ error: 'rejected' }, { status: 400 });
+  });
+  const body = { phone: '9848000777', consent: true };
+  for (let i = 0; i < 3; i++) assert.equal((await post(body, '5.5.5.5')).status, 502);     // refused three times, still not "too many"
+  accept = true;
+  assert.equal((await post(body, '5.5.5.5')).status, 200); assert.equal((await post(body, '5.5.5.5')).status, 200);
+  assert.equal((await post(body, '5.5.5.5')).status, 429);                                   // two queued calls use the two slots
+  const report = (url: string, fields: object) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields as Record<string, string>) });
+  assert.equal((await report(base + '/api/call-me/hangup?k=wrong', { To: '919848000777' })).status, 403);
+  assert.equal((await report(hangup.replace('https://gulfsaathione.vercel.app', base), { To: '919848000777', CallStatus: 'no-answer', Duration: '0', HangupCauseName: 'Rejected', HangupSource: 'Carrier' })).status, 200);
+  assert.equal((await post(body, '5.5.5.5')).status, 200);                                   // slot returned after the rejected call
 });

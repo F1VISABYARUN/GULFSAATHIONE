@@ -133,6 +133,14 @@ export const store = {
       return true;
     });
   },
+  /** Gives back the most recent use of `key` (a request that never reached the provider, or never rang, should not use up the allowance). */
+  async refund(key: string): Promise<void> {
+    await mutate(db => {
+      const list = db.requests ?? [];
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].key === key) { list.splice(i, 1); break; }
+      db.requests = list;
+    });
+  },
   async worker(caseId: string) { return (await load()).workers.find(w => w.caseId === caseId); },
   async workers() { return (await load()).workers; },
   async change<T>(caseId: string, edit: (w: WorkerRec) => T) {
