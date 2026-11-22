@@ -24,6 +24,11 @@ async function openCase(w){
   if(selected!==w.caseId)return;
   el('caseTitle').textContent=w.caseId;el('file').textContent=JSON.stringify(file,null,2);
   el('notes').replaceChildren(...w.notes.map(n=>element('li',n.at+' · '+n.text)));
+  el('handoff').textContent=w.acknowledged?'Acknowledged by '+w.acknowledged.by+' · '+w.acknowledged.at:'Awaiting caseworker acknowledgement';
+  el('claimForm').hidden=!!w.acknowledged || w.status!=='alert';
+  el('smsState').textContent=w.familySms?'Family SMS · '+w.familySms.status+(w.familySms.providerId?' · '+w.familySms.providerId:''):'Family SMS has no recorded attempt';
+  el('receiptForm').hidden=!(w.familySms?.status==='accepted' && w.familySms.providerId);
+  el('receiptId').value='';
   el('noteForm').hidden=el('closeForm').hidden=w.status==='closed';
   el('note').value=el('source').value='';el('reviews').replaceChildren();
   for(const r of reviews){
@@ -46,3 +51,6 @@ el('level').onchange=el('status').onchange=el('reload').onclick=action(queue);
 el('noteForm').onsubmit=action(async()=>{await api(path(selected)+'/note',{note:el('note').value});await queue();});
 el('closeForm').onsubmit=action(async()=>{await api(path(selected)+'/close',{outcome:el('outcome').value});await queue();});
 el('translate').onsubmit=action(async()=>{const w=records.find(r=>r.caseId===selected);await api(path(selected)+'/translations',{from:el('from').value,text:el('source').value});await openCase(w);});
+
+el('claimForm').onsubmit=action(async()=>{await api(path(selected)+'/acknowledge',{caseworker:el('claimName').value});await queue();});
+el('receiptForm').onsubmit=action(async()=>{await api(path(selected)+'/family-sms/delivery',{caseworker:el('receiptBy').value,providerId:el('receiptId').value,status:el('receiptStatus').value});await queue();});

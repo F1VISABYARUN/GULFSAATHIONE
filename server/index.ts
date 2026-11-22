@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { reviewAccess } from './review/access.ts';
 import express from 'express';
 import multer from 'multer';
 import { existsSync, readFileSync } from 'node:fs';
@@ -18,6 +19,8 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 app.use(express.json({ limit: '1mb' }));
+app.use(['/api/bolna', '/api/results/bolna', '/audio/bolna'], reviewAccess);
+app.get('/facts.html', reviewAccess, (_req, res) => res.sendFile(join(root, 'server', 'review', 'facts.html')));
 app.use(express.static(join(root, 'public')));
 app.use('/audio/bolna', express.static(join(root, 'eval', 'audio', 'bolna')));
 
@@ -42,7 +45,11 @@ function parseContext(raw: unknown): CallContext {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, hasKey: hasKey(), sttModel: process.env.OPENAI_STT_MODEL || 'gpt-4o-transcribe' });
+  const revision = process.env.VERCEL_GIT_COMMIT_SHA || process.env.RELEASE_COMMIT || '';
+  res.set('Cache-Control', 'no-store').json({
+    ok: true, hasKey: hasKey(), sttModel: process.env.OPENAI_STT_MODEL || 'gpt-4o-transcribe',
+    revision: /^[0-9a-f]{40}$/i.test(revision) ? revision : null,
+  });
 });
 
 app.get('/api/dataset', (_req, res) => res.json(loadDataset()));
@@ -138,7 +145,10 @@ app.get('/api/results/bolna', (_req, res) => {
 });
 
 // Vercel runs the exported app as a function; locally we listen on a port.
-if (process.env.VERCEL && !process.env.STORE) process.env.STORE = 'memory'; // read-only disk on Vercel
+app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err.status !== 503 || res.headersSent) return next(err);
+  res.status(503).json({ error: 'Case storage unavailable' });
+});
 export default app;
 if (!process.env.VERCEL) {
   const port = Number(process.env.PORT || 3000);

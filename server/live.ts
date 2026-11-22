@@ -1,5 +1,6 @@
 // Live integration: the gate Bolna (or any voice agent) can call mid-call, and the post-call webhook.
 
+import { registerSaathi } from './saathi.ts';
 import { registerVoiceTools } from './voice-tools.ts';
 import type { Express } from 'express';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -45,7 +46,7 @@ export function gateDecision(turns: Turn[], ctx: CallContext) {
     action, sayTe,
     // instruction for the LLM agent; keeps it from promising things that did not happen
     instruction: action === 'ESCALATE'
-      ? 'A human caseworker has been alerted. Keep the caller on the line, ask only for location and safety. Do NOT say the family or embassy was informed unless the backend confirms it. Do not end the call.'
+      ? 'Request a human handoff. Keep the caller on the line and ask about location and safety only if safe. Claim contact only after a confirmed handoff or delivery receipt. Do not end the call.'
       : action === 'CONFIRM' ? 'Read back the uncertain item and wait for yes/no before saving it.' : 'Continue the conversation.',
     risks: risks.map(r => ({ id: r.id, severity: r.severity, te: r.te, en: r.en })),
     readBacks: h.readBacks, slots: h.slots, corrected: h.corrected,
@@ -57,13 +58,15 @@ function saveCase(cf: CaseFile & { source?: unknown }) {
   writeFileSync(join(CASES, `${cf.id}.json`), JSON.stringify(cf, null, 2));
 }
 function loadCase(id: string): CaseFile | undefined {
-  const p = join(CASES, `${id.replace(/[^A-Za-z0-9_-]/g, '')}.json`);
+  if (!/^GS-[A-Za-z0-9_-]+$/.test(id)) return;
+  const p = join(CASES, `${id}.json`);
   return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : undefined;
 }
 
 // Optional shared secret: set SAATHI_SECRET and send it as the x-saathi-secret header (or ?secret=).
 const guard = (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
   const want = process.env.SAATHI_SECRET;
+  if (!want && process.env.VERCEL) return void res.status(503).json({ error: 'Configure SAATHI_SECRET' });
   if (!want) return next();
   if (req.get('x-saathi-secret') === want || req.query.secret === want) return next();
   res.status(401).json({ error: 'missing or wrong x-saathi-secret' });
@@ -71,7 +74,7 @@ const guard = (req: import('express').Request, res: import('express').Response, 
 
 export function registerLive(app: Express) {
   registerVoiceTools(app,guard);
-  import('./saathi.ts').then(m => m.registerSaathi(app, guard));
+  registerSaathi(app, guard);
   // Mid-call gate. Body: { transcript?: "assistant: ..\nuser: ..", turns?: Turn[], text?: string, context?: CallContext, recipient_data?: {...} }
   app.post('/api/gate', guard, (req, res) => {
     const b = req.body ?? {};
@@ -81,7 +84,7 @@ export function registerLive(app: Express) {
   });
 
   // Ad-hoc case file from transcripts. Body: { calls: [{text, date, kind}], context, workerName }
-  app.post('/api/casefile', (req, res) => {
+  app.post('/api/casefile', guard, (req, res) => {
     const b = req.body ?? {};
     const cf = buildCaseFile(b.calls ?? [], b.context ?? {}, { workerName: b.workerName });
     if (b.save) saveCase(cf);
@@ -148,7 +151,7 @@ export function registerLive(app: Express) {
 
   app.get('/api/cases', guard, (_req, res) => {
     if (!existsSync(CASES)) return res.json([]);
-    const list = readdirSync(CASES).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(join(CASES, f), 'utf8')) as CaseFile)
+    const list = readdirSync(CASES).filter(f => /^GS-[A-Za-z0-9_-]+\.json$/.test(f)).map(f => JSON.parse(readFileSync(join(CASES, f), 'utf8')) as CaseFile)
       .map(c => ({ id: c.id, createdAt: c.createdAt, worker: c.worker, severity: c.severity, escalate: c.escalate, risks: c.risks.map(r => r.id), summaryEn: c.summaryEn }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     res.json(list);

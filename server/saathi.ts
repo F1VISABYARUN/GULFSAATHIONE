@@ -3,6 +3,7 @@
 // LLM's guesses never decide risk on their own.
 
 import { SpeechError, transcribeRecording } from './stt/providers.ts';
+import { randomUUID } from 'node:crypto';
 import multer from 'multer';
 import type { Express, Request, Response } from 'express';
 import { runHarness, ALL_ON } from './harness/index.ts';
@@ -28,14 +29,14 @@ function levelOf(risks: Risk[]): WorkerRec['riskLevel'] {
 export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolean): string {
   if (codePhrase) return 'సరే, అర్థమైంది. మామూలుగా మాట్లాడండి.';
   return {
-    critical: 'మీరు ఒంటరి కాదు. మీ కేసు అత్యవసరం అని నమోదైంది, మా మనిషి ఇప్పుడే చూస్తారు. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పండి.',
-    high: 'మీ సమస్య నమోదైంది. మా మనిషి ఎంబసీతో మాట్లాడటానికి దీన్ని తీసుకుంటారు. జీతం లేదా పాస్‌పోర్ట్ తిరిగి వస్తుందని మేము హామీ ఇవ్వలేము.',
+    critical: 'మీరు ఒంటరి కాదు. మీ కేసు అత్యవసరం అని నమోదైంది, సాథి బృందం పరిశీలించాల్సి ఉంది. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పండి.',
+    high: 'మీ సమస్య నమోదైంది. సాథి బృందం పరిశీలించాల్సి ఉంది. జీతం లేదా పాస్‌పోర్ట్ తిరిగి వస్తుందని మేము హామీ ఇవ్వలేము.',
     medium: 'నమోదు చేశాను. సాథి మళ్ళీ మిమ్మల్ని కాల్ చేస్తుంది.',
     ok: 'మంచిది, బాగున్నారని నమోదు చేశాను. వచ్చే వారం మళ్ళీ కాల్ చేస్తాం.',
   }[level];
 }
 
-export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider(), confirmSalary = false, salaryExchange?: { q: string; text: string }) {
+export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider(), confirmSalary = false, salaryExchange?: { q: string; text: string }, executionId?: string) {
   const w = await store.worker(caseId);
   const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
   const level = levelOf(risks);
@@ -57,9 +58,10 @@ export async function applyToWorker(caseId: string, slots: CaseSlots, kind: stri
   });
   let smsStatus: SmsStatus | undefined;
   if (target) {
-    try { smsStatus = await sms.send(target, caseId); } catch { smsStatus = 'failed'; }
+    let providerId: string | undefined;
+    try { smsStatus = await sms.send(target, caseId, id => { providerId = id; }); } catch { smsStatus = 'failed'; }
     const status = smsStatus;
-    await store.change(caseId, worker => { if (worker.familySms) worker.familySms.status = status; });
+    await store.change(caseId, worker => { if (worker.familySms) Object.assign(worker.familySms, { status, providerId }); });
   }
   return { risks, level, smsStatus };
 }
@@ -68,7 +70,12 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
 export function isOverdue(w: WorkerRec, now = Date.now()) {
   if (w.status === 'closed' || LEVEL[w.riskLevel] < LEVEL.high) return false;
-  const since = Math.max(Date.parse(w.alertSince ?? w.createdAt), Date.parse(w.notes?.at(-1)?.at ?? w.alertSince ?? w.createdAt));
+  let since = Date.parse(w.alertSince ?? w.createdAt);
+  for (const note of w.notes ?? []) {
+    // Older generated exit-path notes predate the source field.
+    if (note.source === 'system' || (!note.source && note.text.startsWith('Exit path: '))) continue;
+    since = Math.max(since, Date.parse(note.at));
+  }
   return now - since >= 24 * 3600_000;
 }
 
@@ -137,7 +144,38 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     }
     const workers = (await store.workers()).filter(w => (!level || w.riskLevel === level) && (!status || w.status === status));
     res.json(workers.map(w => ({ caseId: w.caseId, name: w.name, riskLevel: w.riskLevel, status: w.status,
-      overdue: isOverdue(w), notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+      acknowledged: w.acknowledged, familySms: w.familySms, overdue: isOverdue(w), notes: w.notes ?? [], outcome: w.outcome, closedAt: w.closedAt })));
+  });
+  app.post('/api/saathi/cases/:id/acknowledge', guard, async (req, res) => {
+    const by = str(req.body?.caseworker).trim();
+    if (!by || by.length > 100) return res.status(400).json({ error: 'caseworker name required' });
+    const receipt = await store.change(String(req.params.id), w => {
+      if (w.acknowledged) return w.acknowledged.by === by ? w.acknowledged : null;
+      if (w.status !== 'alert') return null;
+      return (w.acknowledged = { by, at: new Date().toISOString() });
+    });
+    if (receipt === undefined) return res.sendStatus(404);
+    if (!receipt) return res.sendStatus(409);
+    res.json(receipt);
+  });
+  // Trusted desk operator checks the delivery report for this exact MSG91 request.
+  app.post('/api/saathi/cases/:id/family-sms/delivery', guard, async (req, res) => {
+    const by = str(req.body?.caseworker).trim();
+    const id = str(req.body?.providerId);
+    const status = req.body?.status;
+    if (!by || by.length > 100 || !id || !['delivered','failed'].includes(status)) return res.sendStatus(400);
+    const sms = await store.change(String(req.params.id), w => {
+      const record = w.familySms;
+      if (!record || record.providerId !== id) return null;
+      if (record.deliveryCheck) return record.status === status ? record : null;
+      if (record.status !== 'accepted') return null;
+      record.status = status;
+      record.deliveryCheck = { by, at: new Date().toISOString() };
+      return record;
+    });
+    if (sms === undefined) return res.sendStatus(404);
+    if (!sms) return res.sendStatus(409);
+    res.json(sms);
   });
   app.get('/api/saathi/cases/:id/file', guard, async (req, res) => {
     const w = await store.worker(String(req.params.id));
@@ -155,7 +193,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (!text || text.length > 4000) return res.status(400).json({ error: 'note must be 1–4000 characters' });
     const note = await store.change(String(req.params.id), w => {
       if (w.status === 'closed') return null;
-      const item = { at: new Date().toISOString(), text };
+      const item = { at: new Date().toISOString(), text, source: 'caseworker' as const };
       (w.notes ??= []).push(item);
       return item;
     });
@@ -279,7 +317,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       if (/^(no|n|ledu|లేదు)/i.test(str(b.passport_with_worker).trim())) slots.passportHeld = true;
       await applyToWorker(caseId, slots, 'exit_path', said);
       const note = `Exit path: ${plan.country ?? '?'}, ${plan.visa ?? '?'} visa, expiry ${plan.expiryISO ?? '?'} (${plan.daysLeft ?? '?'} days), urgency ${plan.urgency}, flags ${plan.flags.join(',') || 'none'}`;
-      await store.change(caseId, wk => { (wk.notes ??= []).push({ at: new Date().toISOString(), text: note }); });
+      await store.change(caseId, wk => { (wk.notes ??= []).push({ at: new Date().toISOString(), text: note, source: 'system' }); });
     }
     res.json({ ...plan, case_id: caseId || undefined, instruction: plan.sayTe });
   });
@@ -301,7 +339,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const turns = parseBolnaTranscript(e.transcript);
     const slots = runHarness(withQuestionContext(turns), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
     const needsConfirmation = slots.salaryPaid === undefined && turns.some(turn => salaryReceipt(turn) === 'unknown');
-    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript, undefined, needsConfirmation);
+    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript, undefined, needsConfirmation, undefined, str(e.id));
     res.json({ ok: true, level, reasons: risks.map(r => r.id), ...(needsConfirmation ? { needs_confirmation: ['salary_received'] } : {}) });
   });
 
