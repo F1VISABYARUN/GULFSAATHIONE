@@ -6,7 +6,7 @@ import { SpeechError, transcribeRecording } from './stt/providers.ts';
 import multer from 'multer';
 import type { Express, Request, Response } from 'express';
 import { runHarness, ALL_ON } from './harness/index.ts';
-import { withQuestionContext, parseBolnaTranscript } from './harness/qa.ts';
+import { withQuestionContext, parseBolnaTranscript, salaryReceipt, CONFIRM_SALARY } from './harness/qa.ts';
 import { assessRisks, type Risk } from './risk/engine.ts';
 import { checkAgent } from './risk/agents.ts';
 import { store, newCaseId, type WorkerRec } from './store.ts';
@@ -35,11 +35,11 @@ export function instructionFor(level: WorkerRec['riskLevel'], codePhrase: boolea
   }[level];
 }
 
-export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider()) {
+export async function applyToWorker(caseId: string, slots: CaseSlots, kind: string, transcript?: string, sms = familyProvider(), confirmSalary = false) {
   const w = await store.worker(caseId);
   const risks = assessRisks(slots, w?.promise).filter(r => !r.id.startsWith('AGENT_'));
   const level = levelOf(risks);
-  await store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id) });
+  await store.addCall({ id: `${caseId}-${Date.now()}`, caseId, kind, at: new Date().toISOString(), status: 'answered', transcript, reasons: risks.map(r => r.id), ...(confirmSalary ? { needsConfirmation: ['salary_received' as const] } : {}) });
   const target = await store.change(caseId, worker => {
     const alert = level === 'critical' || level === 'high';
     const crossing = LEVEL[worker.riskLevel] < LEVEL.high && alert;
@@ -189,7 +189,7 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       not_found: 'ఈ పేరు ప్రభుత్వ లైసెన్స్ జాబితాలో దొరకలేదు. డబ్బు ఇచ్చే ముందు లైసెన్స్ నంబర్ అడగండి.',
       flagged: 'ఈ పేరు మీద ఫిర్యాదులు ఉన్నాయి. ఇంకా డబ్బు ఇవ్వకండి.',
     }[r.status];
-    res.json({ status: r.status, match: r.match ? { raId: r.match.raId, name: r.match.name, district: r.match.district, rc: r.match.rc } : null, instruction: say, source: r.source });
+    res.json({ status: r.status, match: r.match ? { raId: r.match.raId, name: r.match.name, district: r.match.district, rc: r.match.rc } : null, instruction: say, source: r.source, notified_register: r.notifiedRegister });
   });
 
   // check_fee: { payments: "10000; 25000", caller_said }
@@ -198,7 +198,11 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     const llm = str(b.payments).split(/[;,]/).map(x => Number(x.replace(/[^\d.]/g, ''))).filter(n => n > 0);
     const llmTotal = llm.reduce((a, n) => a + n, 0);
     const heard = b.caller_said ? runHarness(str(b.caller_said), {}, ALL_ON).slots.feeINR : undefined;
-    const total = heard ?? llmTotal;
+    if (heard === undefined) return res.json({
+      status: 'needs_confirm', total: null, over_cap: null,
+      instruction: 'ఏజెంట్ ఫీజు ఎంత అన్నారు? రూపాయల్లో మళ్లీ చెప్పండి.',
+    });
+    const total = heard;
     const over = Math.max(0, total - FEE_CAP);
     const mismatch = heard !== undefined && llmTotal > 0 && Math.abs(heard - llmTotal) > 1;
     res.json({
@@ -223,10 +227,26 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
     if (b.threatened === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'violence'])];
     if (b.passport_with_worker === 'no') slots.passportHeld = true;
     if (b.taken_by_stranger === 'yes' || ['other_person', 'nobody'].includes(str(b.pickup_status))) slots.takenByStranger = true;
-    if (b.salary_received === 'no') slots.salaryPaid = false;
+    // The agent's salary_received and notes may be summaries. Only caller speech
+    // and a receipt question paired with its verbatim answer support this field.
+    const caller = str(b.caller_said).trim();
+    const answer = str(b.salary_answer).trim();
+    const normalizeAnswer = (value: string) => value.trim().toLowerCase().replace(/[.!?।]+$/u, '').trim();
+    const quoted = !!answer && caller.split(/[.!?।\n]+/u).some(line => normalizeAnswer(line) === normalizeAnswer(answer));
+    const paired = salaryReceipt({ q: str(b.salary_question), text: quoted ? answer : '' });
+    const direct = runHarness(caller, {}, ALL_ON).slots.salaryPaid;
+    const conflict = typeof paired === 'boolean' && direct !== undefined && paired !== direct;
+    const salaryPaid = conflict ? undefined : typeof paired === 'boolean' ? paired : direct;
+    if (salaryPaid === undefined) delete slots.salaryPaid;
+    else slots.salaryPaid = salaryPaid;
+    const confirmSalary = salaryPaid === undefined &&
+      (conflict || paired === 'unknown' || ['yes','no'].includes(str(b.salary_received)) || !!str(b.salary_question) || str(b.call_kind) === 'weekly');
     if (b.code_phrase_used === 'yes') slots.codePhrase = true;
     if (b.movement_restricted === 'yes') slots.distress = [...new Set([...(slots.distress ?? []), 'confinement'])];
-    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said));
+    const { risks, level, smsStatus } = await applyToWorker(caseId, slots, str(b.call_kind) || 'report', str(b.caller_said), undefined, confirmSalary);
+    if (confirmSalary && !slots.codePhrase && level === 'ok') {
+      return res.json({ case_id: caseId, level, status: 'needs_confirm', field: 'salary_received', reasons: risks.map(r => r.id), instruction: CONFIRM_SALARY });
+    }
     res.json({ case_id: caseId, level, reasons: risks.map(r => r.id), instruction: instructionFor(level, !!slots.codePhrase) + (smsStatus === 'delivered' && !slots.codePhrase ? ' మీ కుటుంబానికి సమాచారం అందింది.' : '') });
   };
   app.post('/tools/report-problem', guard, record);
@@ -275,9 +295,11 @@ export function registerSaathi(app: Express, guard: (req: Request, res: Response
       await store.addCall({ id: String(e.id ?? Date.now()), caseId, kind: str(rd.call_kind) || 'call', at: new Date().toISOString(), status: String(e.status ?? 'missed'), reasons: ['missed'] });
       return res.json({ ok: true, missed: true });
     }
-    const slots = runHarness(withQuestionContext(parseBolnaTranscript(e.transcript)), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
-    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript);
-    res.json({ ok: true, level, reasons: risks.map(r => r.id) });
+    const turns = parseBolnaTranscript(e.transcript);
+    const slots = runHarness(withQuestionContext(turns), { codePhrase: w.codePhrase, promise: w.promise }, ALL_ON).slots;
+    const needsConfirmation = slots.salaryPaid === undefined && turns.some(turn => salaryReceipt(turn) === 'unknown');
+    const { risks, level } = await applyToWorker(caseId, slots, str(rd.call_kind) || 'call', e.transcript, undefined, needsConfirmation);
+    res.json({ ok: true, level, reasons: risks.map(r => r.id), ...(needsConfirmation ? { needs_confirmation: ['salary_received'] } : {}) });
   });
 
   // ---- scheduler: which calls are due now; places them through Bolna when configured -------

@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runHarness, ALL_ON } from './harness/index.ts';
-import { withQuestionContext, parseBolnaTranscript, type Turn } from './harness/qa.ts';
+import { withQuestionContext, parseBolnaTranscript, salaryReceipt, CONFIRM_SALARY, type Turn } from './harness/qa.ts';
 import { assessRisks } from './risk/engine.ts';
 import { buildCaseFile, renderCaseFileHtml, type CaseFile } from './casefile.ts';
 import type { CallContext } from './harness/types.ts';
@@ -33,12 +33,13 @@ export function gateDecision(turns: Turn[], ctx: CallContext) {
   const h = runHarness(withQuestionContext(turns), ctx, ALL_ON);
   const risks = assessRisks(h.slots, ctx.promise).filter(r => !r.id.startsWith('AGENT_'));
   const critical = risks.some(r => r.severity === 'critical');
-  const action = h.escalate || critical ? 'ESCALATE' : h.readBacks.length ? 'CONFIRM' : risks.length ? 'NOTE' : 'CONTINUE';
+  const confirmSalary = turns.length > 0 && salaryReceipt(turns[turns.length - 1]) === 'unknown' && h.slots.salaryPaid === undefined;
+  const action = h.escalate || critical ? 'ESCALATE' : (h.readBacks.length || confirmSalary) ? 'CONFIRM' : risks.length ? 'NOTE' : 'CONTINUE';
   const sayTe =
     action === 'ESCALATE' ? (h.slots.codePhrase
       ? 'సరే, అర్థమైంది. మీరు మామూలుగా మాట్లాడండి.' // never reveal the code phrase was detected
-      : 'మీరు ఒంటరి కాదు. ఇప్పుడే మా మనిషి మీకు కాల్ చేస్తారు. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పగలరా?')
-    : action === 'CONFIRM' ? h.readBacks[0].te
+      : 'మీరు ఒంటరి కాదు. మీకు మనిషి సహాయం కావాలి. మీరు ఉన్న దగ్గర కనిపించే షాప్, బిల్డింగ్ లేదా రోడ్డు పేరు చెప్పగలరా?')
+    : action === 'CONFIRM' ? (h.readBacks[0]?.te ?? CONFIRM_SALARY)
     : undefined;
   return {
     action, sayTe,
