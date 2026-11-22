@@ -51,6 +51,9 @@ const TALK = `# Section 2 How to talk
 const EMBASSY = `"మీరు వెతకాల్సిన అవసరం లేదు. మీ కేసు అత్యవసరంగా నమోదైంది. సాథి కేస్‌వర్కర్ మీ వివరాలతో రాయబార కార్యాలయానికి తెలియజేస్తారు. ఈ ఫోన్ మీ దగ్గరే ఉంచుకోండి."`;
 const NEVER = `# Never
 Never call an agent safe or good. Never promise rescue, salary recovery, or that anyone will come. Never say the family or the embassy were told unless a tool's instruction says so. Never ask for passport number, bank details or OTP. Never tell anyone to run away, go to a hotel, or search for and call a number themselves: Saathi's team acts for them. At the airport, the airport help desk and airport police are fine to mention. Never end the call while someone is in danger. If you did not catch an important word (a number, a name, a place), repeat it back and ask to confirm. Tools decide, not you: always read a tool's instruction in calm Telugu.`;
+/** The Helpline's voice and rules, reused by the interpreter line for what it says to the worker. */
+export const PERSONA = `${WHO}\n\n${TALK}\n\n${NEVER}`;
+
 // SAATHI_NO_EXIT=1 leaves the exit_path section and tool out (for a live agent that does not have the tool yet)
 const EXIT_ON = process.env.SAATHI_NO_EXIT !== '1';
 const EXIT = `# Exit path (visa ending or expired, afraid of a fine, no passport, wants to go home)
