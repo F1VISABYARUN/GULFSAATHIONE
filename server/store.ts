@@ -34,7 +34,7 @@ export interface WorkerRec {
   createdAt: string;
 }
 export interface CallRec { id: string; caseId: string; kind: string; at: string; status: string; transcript?: string; reasons: string[]; needsConfirmation?: 'salary_received'[]; salaryExchange?: { q: string; text: string } }
-interface Db { workers: WorkerRec[]; calls: CallRec[] }
+interface Db { workers: WorkerRec[]; calls: CallRec[]; requests?: { key: string; at: number }[] }
 
 const DEFAULT_FILE = join(dirname(fileURLToPath(import.meta.url)), 'data', 'cases', 'saathi-db.json');
 const KEY = 'gulf-saathi:db:v1';
@@ -123,6 +123,16 @@ export const store = {
       return rec;
     });
   },
+  /** Records one use of `key` and returns true if fewer than `max` happened in the last `windowMs`; otherwise records nothing and returns false. */
+  async allow(key: string, windowMs: number, max: number): Promise<boolean> {
+    return mutate(db => {
+      const now = Date.now();
+      db.requests = (db.requests ?? []).filter(r => now - r.at < 86_400_000);
+      if (db.requests.filter(r => r.key === key && now - r.at < windowMs).length >= max) return false;
+      db.requests.push({ key, at: now });
+      return true;
+    });
+  },
   async worker(caseId: string) { return (await load()).workers.find(w => w.caseId === caseId); },
   async workers() { return (await load()).workers; },
   async change<T>(caseId: string, edit: (w: WorkerRec) => T) {
@@ -145,7 +155,7 @@ export const store = {
   },
   async addCall(c: CallRec) { return mutate(db => { db.calls.push(c); return c; }); },
   async calls(caseId?: string) { return (await load()).calls.filter(c => !caseId || c.caseId === caseId); },
-  async reset() { await mutate(db => { db.workers = []; db.calls = []; }); },
+  async reset() { await mutate(db => { db.workers = []; db.calls = []; db.requests = []; }); },
 };
 
 export function newCaseId(): string {
