@@ -14,7 +14,9 @@ Status key: **live** = seen working on a real call; **tests** = passes unit test
 | 7 | Never speaks Arabic until the worker says yes to that exact message | tests | `tests/phone-interpreter.test.ts` (confirmation tests) |
 | 8 | AI notice to the other person once, with the first confirmed message | tests | same |
 | 9 | Danger: records the case, says a Telugu line, then calls a person after the line finished | tests | new tests; before this change it transferred silently |
-| 10 | Real Arabic speech from another person heard and reported in Telugu | **unverified** | no real Arabic speaker has been on a call yet |
+| 10 | Real Arabic speech from another person heard and reported in Telugu | tests / **unverified live** | unit tests pass; no real Arabic speaker has been on a call yet |
+| 14 | Call stays open for more tasks; ends only on the worker's goodbye, hang-up or key 0 | tests | `never ends because the model says it is done` |
+| 15 | Own Arabic voice heard back through the speaker is ignored | tests | echo test with spelling variants |
 | 11 | Arabic voice quality (OpenAI voice) | **unverified** | |
 | 12 | Call records for the caseworker (transcript/case file for interpreter calls) | partial | only tool calls (`report_problem`, `exit_path`) create cases; plain conversation is not saved |
 | 13 | Native-speaker review of Telugu/Arabic wording | **not done** | |
@@ -40,6 +42,8 @@ Set `INTERPRETER_TRANSFER=off` in `/root/interpreter.env` for testing so a dange
 | 7 | "నేను దుబాయ్ మాల్ దగ్గర ఉన్నాను, పోలీస్ స్టేషన్ ఎక్కడ ఉందో చూడండి" | Nearby police station read to you in Telugu |
 | 8 | "నా వీసా 5 రోజుల్లో అయిపోతుంది, నేను యూఏఈ లో ఉన్నాను, విజిట్ వీసా" | Exit Path questions, then fines and the embassy line |
 | 9 | "నన్ను ఎయిర్పోర్ట్ లో వేరే వాళ్ళు తీసుకెళ్ళారు, నా కంపెనీ వాళ్ళు రాలేదు" | Calm Telugu line (case recorded). With transfer off: "మనిషికి కలపలేకపోయాను..." and the call continues. **Not silence.** |
-| 10 | Ask a person to say an Arabic sentence near the phone | It reports their words to you in Telugu (not yet verified) |
+| 10 | Ask a person (or play Arabic audio from a second device) to say an Arabic sentence near the phone | You hear their words in Telugu; nothing is spoken back in Arabic. **Not yet verified with real Arabic speech** |
+| 11 | After one task, "ఇంకో మందు కూడా కావాలి" | The call stays open; it asks you before speaking again |
+| 12 | "ఇక చాలు, బై" | A short Telugu farewell, then the call ends. It never ends by itself otherwise |
 
 After the call run `docker logs interpreter --since 10m`. Look for: `heard`, `confirm_ask`, `confirmed` or `cancelled`, `say`, `emergency`, `handoff_failed`.
