@@ -156,3 +156,13 @@ test('a short or mixed yes confirms the message to the other person; questions a
   for (const yes of ['యా చెప్పండి.', 'అవును', 'సరే చెప్పు', 'okay', 'యా, యా', 'ఆ, సరే.']) assert.equal(isYes(yes), true, yes);
   for (const no of ['చెప్తున్నావా?', 'వద్దు చెప్పొద్దు', 'ఎవరికి చెప్పండి?', 'ఏం చెప్పండి', 'నాకు అరబిక్ రాదు, నువ్వు మాట్లాడతావా ఇప్పుడు చెప్పండి అని']) assert.equal(isYes(no), false, no);
 });
+
+test('limits can be raised from the environment, and a bad value falls back to the default', async t => {
+  Object.assign(process.env, PLIVO, { CALL_ME_PER_NUMBER_PER_DAY: '4', CALL_ME_NET_PER_HOUR: 'abc' }); t.after(() => { for (const k of [...Object.keys(PLIVO), 'CALL_ME_PER_NUMBER_PER_DAY', 'CALL_ME_NET_PER_HOUR']) delete process.env[k]; });
+  const { post } = await app(t);
+  const original = globalThis.fetch;
+  t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => String(url).startsWith('https://api.plivo.com/') ? Response.json({ request_uuid: 'u' }) : original(url as any, init));
+  const body = { phone: '9848000321', consent: true };
+  for (let i = 0; i < 4; i++) assert.equal((await post(body, '7.7.7.7')).status, 200);
+  assert.equal((await post(body, '7.7.7.7')).status, 429);
+});

@@ -9,6 +9,8 @@ import { store } from './store.ts';
 const pepper = () => process.env.CALL_ME_PEPPER || process.env.SAATHI_SECRET || 'unset';
 const hash = (value: string) => createHash('sha256').update(pepper() + '|' + value).digest('hex');
 const HOUR = 3_600_000, DAY = 86_400_000;
+/** A positive whole number from the environment, else the default. Limits can be raised for a demo without a code change. */
+const limit = (name: string, fallback: number) => { const n = Number(process.env[name]); return Number.isInteger(n) && n > 0 ? n : fallback; };
 
 /** Accepts +<country><number>, an Indian mobile as 10 digits, 91XXXXXXXXXX, or 0XXXXXXXXXX. Returns E.164 or undefined. */
 export function normalizePhone(input: unknown): string | undefined {
@@ -86,9 +88,9 @@ export function registerCallMe(app: Express) {
       const keys = ['net:' + clientKey(req), 'calls:' + hash(phone), 'calls:global'], taken: string[] = [];
       const take = async (key: string, windowMs: number, max: number) => { const ok = await store.allow(key, windowMs, max); if (ok) taken.push(key); return ok; };
       const refuse = async (code: number, status: string) => { await Promise.all(taken.map(k => store.refund(k))); return say(res, code, status); };   // a refused request must not use up the other limits
-      if (!(await take(keys[0], HOUR, 10))) return refuse(429, 'slow_down');
-      if (!(await take(keys[1], DAY, 2))) return refuse(429, 'too_many_calls');
-      if (!(await take(keys[2], DAY, Number(process.env.CALL_ME_DAILY_MAX || 50)))) return refuse(429, 'daily_limit');
+      if (!(await take(keys[0], HOUR, limit('CALL_ME_NET_PER_HOUR', 10)))) return refuse(429, 'slow_down');
+      if (!(await take(keys[1], DAY, limit('CALL_ME_PER_NUMBER_PER_DAY', 2)))) return refuse(429, 'too_many_calls');
+      if (!(await take(keys[2], DAY, limit('CALL_ME_DAILY_MAX', 50)))) return refuse(429, 'daily_limit');
       const placed = await placeCall(phone);
       if (!placed.ok) {                                   // nothing was queued: give the allowance back
         return refuse(502, 'call_failed');
