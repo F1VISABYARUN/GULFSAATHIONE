@@ -393,3 +393,27 @@ test('the second recogniser\'s guess reaches the model when the two ears disagre
   await agentServices(cfg,'call').think([{who:'worker',text:'నాకు Vivo ట్యాబెట్ కావాలి',alt:'నాకు ఫీవర్ టాబ్లెట్స్ కావాలి'}],'ar');
   assert.ok(user.includes('[second recogniser heard: నాకు ఫీవర్ టాబ్లెట్స్ కావాలి]'));
 });
+
+test('the call never ends because the model says it is done; only a clear goodbye from the worker ends it',async()=>{
+  const f=agentFixture([{say_to_other:'AR one',confirm_te:'ఒకటి చెప్పమంటారా?',say_to_worker:'',done:true},{say_to_other:'',say_to_worker:'సరే, జాగ్రత్తగా ఉండండి.',done:true}],
+    ['టికెట్ కావాలి','అవును','ఇంకో మందు కూడా కావాలి','ఇక చాలు, బై']);
+  await f.begin(); await f.turn(); await f.turn();                          // message spoken although the model asked to finish
+  assert.ok(!f.stops.includes('close'));
+  await f.turn(); assert.ok(!f.stops.includes('close'));                    // "another medicine": still open
+  await f.turn(); assert.ok(f.stops.includes('close'));                     // "that's enough, bye": ends
+});
+test('our own Arabic voice heard back through the speaker (different spelling) is ignored as an echo',async()=>{
+  const spoken='أنا بحاجة إلى أدوية للحمى من فضلك'; const heardBack='انا بحاجه الى ادويه للحمى من فضلك';
+  const f=agentFixture([{say_to_other:spoken,confirm_te:'చెప్పమంటారా?',say_to_worker:''}],['నాకు ఫీవర్ టాబ్లెట్స్ కావాలి','అవును',heardBack]);
+  await f.begin(); await f.turn(); await f.turn(); const before=f.spoken.length;
+  await f.turn();                                                           // our own voice comes back
+  assert.equal(f.spoken.length,before);                                      // no reply to ourselves
+});
+test('when the other person speaks Arabic the worker hears it in Telugu and nothing is said back in Arabic',async()=>{
+  const f=agentFixture([{say_to_other:'AR hi',confirm_te:'చెప్పమంటారా?',say_to_worker:''},{say_to_other:'',say_to_worker:'వాళ్ళు ఇవి మందుల షాపులో దొరుకుతాయి అన్నారు.'}],
+    ['నాకు ఫీవర్ టాబ్లెట్స్ కావాలి','అవును','هذا الدواء موجود في الصيدلية']);
+  await f.begin(); await f.turn(); await f.turn(); const arabicBefore=f.spoken.filter(l=>l.startsWith('ar ')).length;
+  await f.turn();
+  assert.ok(f.spoken.includes('te వాళ్ళు ఇవి మందుల షాపులో దొరుకుతాయి అన్నారు.'));
+  assert.equal(f.spoken.filter(l=>l.startsWith('ar ')).length,arabicBefore);
+});

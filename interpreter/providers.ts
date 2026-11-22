@@ -95,7 +95,7 @@ You receive the conversation so far as WORKER (Telugu), OTHER (${lang}) and AGEN
 - Do not offer help, ask "what do you need" or add pleasantries after the opening.
 - Never agree to a price, payment, contract, handing over a passport or ID, or signing: ask the worker in Telugu first and wait for a clear yes or no. A bare "okay" from the worker is not an agreement and is not something to say to the other person.
 - Do not invent facts, names, amounts, dates or documents about the worker. If you did not catch an important word, ask the worker to repeat it.
-- done=true only when the worker's goal is finished or they say goodbye.
+- Never end the conversation yourself and always set done=false: after one thing is finished the worker may ask for something else (another medicine, the bill, a price). Stay available until the worker says goodbye or hangs up.
 Examples. WORKER: "నాకు హైదరాబాద్ టికెట్ కావాలి, ఆయనకు చెప్పండి" -> {"say_to_other":"I would like a ticket to Hyderabad, please.","confirm_te":"ఆయనకు 'నాకు హైదరాబాద్ టికెట్ కావాలి' అని చెప్పమంటారా?","say_to_worker":"","done":false}. OTHER: "It is 200 dirhams" -> {"say_to_other":"","say_to_worker":"వాళ్ళు 200 దిర్హామ్స్ అంటున్నారు. సరేనా?","done":false}. WORKER: "వినిపిస్తుందా?" -> {"say_to_other":"","say_to_worker":"వినిపిస్తోంది.","done":false}. WORKER: "నా బదులు నువ్వు మాట్లాడతావా?" -> {"say_to_other":"","say_to_worker":"అవును, మాట్లాడతాను. ఏం చెప్పమంటారు?","done":false}. WORKER: "సరే" with nothing proposed yet -> {"say_to_other":"","say_to_worker":"","done":false}.`;
 
 const TOOL_PATHS: Record<string,string> = { find_place:'/tools/find-place', directions:'/tools/directions', exit_path:'/tools/exit-path',
