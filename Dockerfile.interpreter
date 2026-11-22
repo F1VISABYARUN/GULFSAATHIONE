@@ -1,0 +1,9 @@
+# Phone interpreter (Plivo WebSocket bridge). Separate from the root Dockerfile, which Vercel builds.
+FROM node:22-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm install --no-save tsx@4
+COPY . .
+ENV PORT=8080
+EXPOSE 8080
+CMD ["npx", "tsx", "interpreter/server.ts"]

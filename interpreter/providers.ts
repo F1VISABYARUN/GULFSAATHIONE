@@ -25,19 +25,19 @@ export function services(config: Config, call: string, caseId?: string): Service
       const result = await response.json();
       return result.status === 'transcribed' && typeof result.text === 'string' ? result.text : '';
     },
-    async translate(text, from, to) {
+    async translate(text, from, to, confirmed = false) {
       const gate = gateDecision([{text}], {});
       if (gate.action === 'ESCALATE') return {status:'emergency'};
-      if (!caseId && gate.action === 'CONFIRM') return {status:'needs_confirm'};
+      if (!confirmed && !caseId && gate.action === 'CONFIRM') return {status:'needs_confirm'};
       // The backend also gates non-Telugu emergency phrases and withholds legal statements.
       const response = await checked(config.backend+'/api/translate', { method:'POST',
-        headers:{...headers,'content-type':'application/json'}, body:JSON.stringify({text,from,to,mode:'relay',case_id:caseId}) });
+        headers:{...headers,'content-type':'application/json'}, body:JSON.stringify({text,from,to,mode:'relay',case_id:caseId,...(confirmed?{confirmed:true}:{})}) });
       const result: Result = await response.json();
-      if (gate.action === 'CONFIRM' && result.status === 'translated') return {status:'needs_confirm'};
+      if (!confirmed && gate.action === 'CONFIRM' && result.status === 'translated') return {status:'needs_confirm'};
       if (to === 'te' && result.status === 'translated' && result.say_to_worker) {
         const targetGate = gateDecision([{text:result.say_to_worker}], {});
         if (targetGate.action === 'ESCALATE') return {status:'emergency'};
-        if (targetGate.action === 'CONFIRM') return {status:'needs_confirm'};
+        if (!confirmed && targetGate.action === 'CONFIRM') return {status:'needs_confirm'};
       }
       return result;
     },
@@ -47,6 +47,12 @@ export function services(config: Config, call: string, caseId?: string): Service
         body:JSON.stringify({model:'gpt-4o-mini-tts',input:text,voice:'alloy',response_format:'pcm',
           instructions:'Read exactly the supplied words in '+language+'. Do not expand or add words.'})});
       return mulawFromPcm24k(Buffer.from(await response.arrayBuffer()));
+    },
+    // Silent desk alert for a private phrase: never transfers or announces anything on the shared line.
+    async alert(text) {
+      if (!caseId) return;
+      await checked(config.backend+'/tools/record-checkin', {method:'POST', headers:{...headers,'content-type':'application/json'},
+        body:JSON.stringify({case_id:caseId, caller_said:text, call_kind:'interpreter'})});
     },
     async handoff() {
       const url = 'https://api.plivo.com/v1/Account/'+encodeURIComponent(config.authId)+'/Call/'+encodeURIComponent(call)+'/';

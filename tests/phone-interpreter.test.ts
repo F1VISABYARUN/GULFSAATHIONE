@@ -78,7 +78,7 @@ test('signed Plivo answer issues a single-use media stream and bilingual audio; 
   ws.send(JSON.stringify({event:'start',start:{callId:'demo',streamId:'s',mediaFormat:{encoding:'audio/x-mulaw',sampleRate:8000}}}));
   assert.equal(JSON.parse(String((await first)[0])).event,'playAudio');
   const retry=new WebSocket(local.replace('http','ws')+endpoint); await once(retry,'error');
-  assert.match(await (await callback('/human?CallUUID=demo','2')).text(),/<Dial><Number>/);
+  assert.match(await (await callback('/human?CallUUID=demo','2')).text(),/<Dial [^>]*action="https:\/\/phone.example\/human-result"[^>]*><Number>/);
 });
 test('provider adapters upload decoded audio, check the danger gate, encode TTS and request the correct call transfer',async t=>{
   const calls:string[]=[];
@@ -112,6 +112,36 @@ test('bound case gate suppresses a private phrase before read-back and blocks a 
   const bound=services({...cfg,backend},'id','GS-PHONE');
   const f=fixture({translate:bound.translate,stt:async()=>'amma bagunda'});
   await f.consent();await f.turn('1');
-  assert.deepEqual(f.stops,['handoff']);assert.equal(f.spoken.length,2);
+  assert.deepEqual(f.stops,[]);assert.equal(f.spoken.length,3);
   await assert.rejects(services({...cfg,backend},'id','GS-UNKNOWN').translate('hello','te','ar'));
+});
+
+test('a flagged amount is read back to its speaker and relayed only after key 3',async()=>{
+  const calls:boolean[]=[];
+  const f=fixture({stt:async()=>'ఐదు లక్షలు ఇవ్వలేదు',translate:async(_t,_f,_to,confirmed)=>{calls.push(!!confirmed);return confirmed?ok:{status:'needs_confirm'};}});
+  await f.consent(); await f.turn('1');
+  assert.ok(f.spoken.includes('te ఐదు లక్షలు ఇవ్వలేదు')); assert.ok(f.spoken.some(x=>x.startsWith('te సరైతే')));
+  f.session.played(f.marks.at(-1)!); await f.session.digit('3');
+  assert.deepEqual(calls,[false,true]); assert.ok(f.spoken.includes('te TE check'));
+  await f.session.digit('3'); f.session.played(f.marks.at(-1)!); await f.session.digit('3');
+  assert.ok(f.spoken.includes('ar AR translation'));
+});
+test('a correction replaces the flagged amount and is never sent confirmed',async()=>{
+  const said=['ఐదు లక్షలు ఇవ్వలేదు','యాభై వేలు ఇవ్వలేదు']; const texts:string[]=[];
+  const f=fixture({stt:async()=>said.shift()!,translate:async(t,_f,_to,c)=>{texts.push(t+(c?'!':''));return t.startsWith('ఐదు')?{status:'needs_confirm'}:ok;}});
+  await f.consent(); await f.turn('1'); f.session.played(f.marks.at(-1)!); await f.turn('1');
+  assert.deepEqual(texts,['ఐదు లక్షలు ఇవ్వలేదు','యాభై వేలు ఇవ్వలేదు']);
+  await f.session.digit('3'); assert.ok(!f.spoken.includes('ar AR translation'));
+});
+test('a private phrase triggers a silent desk alert, no transfer and no confirmation',async()=>{
+  const alerts:string[]=[];
+  const f=fixture({translate:async()=>({status:'emergency',covert:true}),alert:async t=>{alerts.push(t);}});
+  await f.consent(); await f.turn('1');
+  assert.deepEqual(f.stops,[]); assert.deepEqual(alerts,['original']);
+});
+test('a failed transfer alerts the desk and keeps the worker on the line',async()=>{
+  const alerts:string[]=[];
+  const f=fixture({translate:async()=>({status:'emergency'}),handoff:async()=>{throw Error('x');},alert:async t=>{alerts.push(t);}});
+  await f.consent(); await f.turn('1');
+  assert.ok(f.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.deepEqual(alerts,['original']); assert.ok(!f.stops.includes('close'));
 });

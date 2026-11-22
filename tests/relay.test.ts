@@ -58,3 +58,10 @@ test('withhold dropped, duplicated or reordered numeric facts before speaking ei
   output='డోలో 160';
   assert.equal((await relay('دولو ١٦٠','ar','te')).status,'translated');
 });
+
+test('meaningKept rejects a dropped negation or a changed Telugu amount',async()=>{
+  const {meaningKept}=await import('../server/relay.ts');
+  assert.equal(meaningKept('ఐదు లక్షలు ఇవ్వలేదు','వాళ్ళు ఐదు లక్షలు ఇచ్చారు'),false);
+  assert.equal(meaningKept('ఐదు లక్షలు ఇవ్వలేదు','ఐదు లక్షలు ఇవ్వలేదు'),true);
+  assert.equal(meaningKept('ఐదు లక్షలు ఇవ్వలేదు','యాభై వేలు ఇవ్వలేదు'),false);
+});

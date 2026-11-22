@@ -28,7 +28,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
       const gate=gateDecision([{text:utterance}],ctx);
       if(gate.action==='ESCALATE'||/يضربني|يضربونني|خطفوني|احتجزوني|मार रहे हैं|मुझे अगवा|مجھے اغوا|എന്നെ തല്ലുന്നു/u.test(utterance)){
         const sayTe=gate.slots.codePhrase?gate.sayTe:'ఇప్పుడు మాట్లాడటం సురక్షితమేనా? మనిషి సహాయం తీసుకుందాం.';
-        return res.json({status:'emergency',escalate:true,sayTe,say_to_worker:sayTe,say_to_other:'',locked_ok:false});
+        return res.json({status:'emergency',escalate:true,...(gate.slots.codePhrase?{covert:true}:{}),sayTe,say_to_worker:sayTe,say_to_other:'',locked_ok:false});
       }
     }
     if(api||req.path==='/tools/translate'){
@@ -36,7 +36,7 @@ export function registerVoiceTools(app:Express,guard:RequestHandler) {
       const to=api?clean('to'):other?'te':clean('target_lang');
       if(!languages.includes(from)||!languages.includes(to)||from===to||(api && b.mode!==undefined&&!['relay','translate'].includes(b.mode)))return res.status(400).json({error:'Invalid language pair or mode'});
       if(other && text)return res.status(400).json({error:'Supply one speaker turn at a time'});
-      const result=await relay(other||text,from,to,ctx,{model:clean('model')||undefined});
+      const result=await relay(other||text,from,to,ctx,{model:clean('model')||undefined,confirmed:api&&b.confirmed===true});
       return res.json({...result,sayTe:result.say_to_worker});
     }
     if(req.path==='/tools/find-place'){
