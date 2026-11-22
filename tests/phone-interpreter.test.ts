@@ -7,9 +7,10 @@ import { createInterpreter } from '../interpreter/server.ts';
 import { PhoneSession, type Services, type Result } from '../interpreter/session.ts';
 import { hasVoice, wavFromMulaw, mulawFromPcm24k } from '../interpreter/media.ts';
 import { services } from '../interpreter/providers.ts';
+import { AgentSession, type AgentServices, type AgentStep } from '../interpreter/agent.ts';
 
 const cfg = {origin:'https://phone.example',backend:'https://api.example',secret:'fixture',authId:'fixture',
-  authToken:'fixture',human:'+19999999999',openai:'fixture',target:'ar'};
+  authToken:'fixture',human:'+19999999999',openai:'fixture',target:'ar',mode:'keypad' as const};
 const ok:Result = { status:'translated',say_to_other:'AR translation',say_to_worker:'TE translation',back_translation:'TE check',locked_ok:true };
 function fixture(overrides:Partial<Services>={}) {
   const spoken:string[] = [], stt:string[] = [], marks:string[] = [], cleared:string[] = [], stops:string[] = [];
@@ -144,4 +145,37 @@ test('a failed transfer alerts the desk and keeps the worker on the line',async(
   const f=fixture({translate:async()=>({status:'emergency'}),handoff:async()=>{throw Error('x');},alert:async t=>{alerts.push(t);}});
   await f.consent(); await f.turn('1');
   assert.ok(f.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.deepEqual(alerts,['original']); assert.ok(!f.stops.includes('close'));
+});
+
+function agentFixture(steps:AgentStep[],said:string[],over:Partial<AgentServices>={}) {
+  const spoken:string[]=[],marks:string[]=[],stops:string[]=[];
+  const service:AgentServices={stt:async()=>said.shift()??'',think:async()=>steps.shift()??{},check:async()=>'ok',
+    speak:async(t,l)=>{spoken.push(l+' '+t);return Buffer.from([255]);},handoff:async()=>{stops.push('handoff');},...over};
+  const session=new AgentSession('ar',service,{play:(_b,m)=>marks.push(m),clear:()=>{},close:()=>stops.push('close')});
+  const turn=async()=>{await session.media(Buffer.alloc(80,0));await session.media(Buffer.alloc(6000,255));session.played(marks.at(-1)!);};
+  const begin=async()=>{await session.start();session.played(marks.at(-1)!);};
+  return {session,spoken,marks,stops,turn,begin};
+}
+test('agent speaks for the worker, answers in the other language and reports back in Telugu',async()=>{
+  const f=agentFixture([{say_to_other:'AR hello',say_to_worker:'TE ok'}],['టికెట్ కావాలి']);
+  await f.begin(); assert.ok(f.spoken.some(x=>x.startsWith('te చెప్పండి'))); await f.turn();
+  assert.ok(f.spoken.includes('ar AR hello')); assert.ok(f.spoken.includes('te TE ok'));
+});
+test('agent never says a number nobody said and never answers an amount before the worker decides',async()=>{
+  const f=agentFixture([{say_to_other:'I pay 500',say_to_worker:'TE'},{say_to_other:'OK',say_to_worker:'వాళ్ళు 300 అన్నారు'}],['టికెట్ కావాలి','سعر التذكرة 300']);
+  await f.begin(); await f.turn();
+  assert.ok(!f.spoken.some(x=>x.includes('500'))); assert.ok(f.spoken.some(x=>x.startsWith('te ఈ సంఖ్య')));
+  await f.turn(); assert.ok(!f.spoken.includes('ar OK')); assert.ok(f.spoken.includes('te వాళ్ళు 300 అన్నారు'));
+});
+test('agent refuses a Telugu report that drops the other speaker number and asks them to repeat',async()=>{
+  const f=agentFixture([{say_to_other:'',say_to_worker:'ఎక్కువ ధర'}],['سعر التذكرة 300']);
+  await f.begin(); await f.turn(); assert.ok(f.spoken.some(x=>x.startsWith('te వాళ్ళు చెప్పింది'))); assert.ok(f.spoken.some(x=>x.startsWith('ar ')&&x!=='ar OK'));
+});
+test('agent: private phrase is silent, emergency transfers, failed transfer keeps the line',async()=>{
+  const alerts:string[]=[];
+  const c=agentFixture([],['x'],{check:async()=>'covert',alert:async t=>{alerts.push(t);}});
+  await c.begin(); await c.turn(); assert.deepEqual(alerts,['x']); assert.deepEqual(c.stops,[]); assert.equal(c.spoken.length,3);
+  const e=agentFixture([],['x'],{check:async()=>'emergency'}); await e.begin(); await e.turn(); assert.deepEqual(e.stops,['handoff']);
+  const g=agentFixture([],['x'],{check:async()=>'emergency',handoff:async()=>{throw Error('x');}}); await g.begin(); await g.turn();
+  assert.ok(g.spoken.some(x=>x.includes('కలపలేకపోయాను'))); assert.ok(!g.stops.includes('close'));
 });

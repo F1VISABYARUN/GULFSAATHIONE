@@ -1,6 +1,6 @@
 import { hasVoice } from './media.ts';
 
-const te = 'నేను సాథి ఏఐ అనువాదకుడిని. మీ మాటలను కంప్యూటర్ సేవలతో అనువదిస్తాను. ఇద్దరూ అంగీకరిస్తే తెలుగు మాట్లాడే వారు ఒకటి, తరువాత రెండో వ్యక్తి రెండు నొక్కండి. తరువాత ప్రతి సారి తెలుగుకు ఒకటి లేదా రెండో భాషకు రెండు నొక్కి మాట్లాడి హాష్ నొక్కండి. సరిగ్గా విన్నట్లయితే మూడు నొక్కండి. ఆపడానికి సున్నా నొక్కండి.';
+export const teDisclosure = 'నేను సాథి ఏఐ అనువాదకుడిని. మీ మాటలను కంప్యూటర్ సేవలతో అనువదిస్తాను. ఇద్దరూ అంగీకరిస్తే తెలుగు మాట్లాడే వారు ఒకటి, తరువాత రెండో వ్యక్తి రెండు నొక్కండి. తరువాత ప్రతి సారి తెలుగుకు ఒకటి లేదా రెండో భాషకు రెండు నొక్కి మాట్లాడి హాష్ నొక్కండి. సరిగ్గా విన్నట్లయితే మూడు నొక్కండి. ఆపడానికి సున్నా నొక్కండి.';
 export const disclosure: Record<string, string> = {
   ar:'أنا مترجم آلي وأرسل الكلام إلى خدمات الترجمة. إذا وافق كلاكما، يضغط المتحدث بالتيلوغو واحداً ثم تضغط أنت اثنين. بعد ذلك اضغط اثنين قبل الكلام ثم مربع عند الانتهاء. اضغط ثلاثة لتأكيد ما سمعت أو صفراً للإيقاف.',
   en:'I am an AI interpreter. Speech is sent to speech and translation providers. If both agree, the Telugu speaker presses one and then the other speaker presses two. After consent press one for Telugu or two for the other language before each turn, then hash to finish. Press three to confirm the read-back or zero to stop.',
@@ -69,7 +69,7 @@ export class PhoneSession {
   }
   private marker = 0;
   async start() {
-    await this.say([[te,'te'],[disclosure[this.target],this.target]], () => { this.phase = 'consent1'; });
+    await this.say([[teDisclosure,'te'],[disclosure[this.target],this.target]], () => { this.phase = 'consent1'; });
   }
   played(mark: string) {
     if (mark && this.checkpoint === mark) { this.checkpoint = ''; this.afterPlay(); }

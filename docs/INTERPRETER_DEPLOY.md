@@ -13,7 +13,14 @@ A Workshop Studio account is temporary and may restrict services.
 
 Plivo: point a number's answer URL (GET) at `<origin>/answer?case_id=GS-XXXX`. Keypad: 1 Telugu speaker, 2 other speaker, # end turn, 3 confirm, 0 stop.
 
-## Behaviour
+## Agent mode (default) and keypad mode
+Default `INTERPRETER_MODE=agent` (override per call with `/answer?mode=keypad`). The worker talks to Saathi by voice: states a goal in Telugu,
+Saathi speaks to the other person in `INTERPRETER_TARGET` on the worker's behalf, and reports their answer back in Telugu. The phone is on speaker,
+so both people hear both languages. The speaker is told apart by script (Telugu letters = worker), so the target language must not be Telugu-script.
+Code, not the model, enforces: no number nobody said, no number dropped from the Telugu report, no reply to an amount until the worker answers.
+Key 0 stops the call. Model: `INTERPRETER_AGENT_MODEL` (default gpt-4.1). Consent is the spoken disclosure at the start, not keypad consent: review this before real use.
+
+## Keypad-mode behaviour
 - A flagged amount or distress word is read back to its speaker first; key 3 releases that exact text for translation.
 - The Telugu back-translation must keep negation and amounts (`meaningKept` in `server/relay.ts`) or the turn is refused.
 - A case's private phrase never transfers the call: the desk is alerted silently via `/tools/record-checkin` and the turn sounds like an ordinary repeat request.
