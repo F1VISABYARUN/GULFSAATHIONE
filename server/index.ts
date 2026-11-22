@@ -13,6 +13,8 @@ import { loadDataset, EVAL_DIR } from '../eval/evaluate.ts';
 import type { CallContext } from './harness/types.ts';
 import { loadCalls, loadFacts, saveFacts, scoreCall, contextFor, harnessText } from '../eval/bolna/score.ts';
 import { registerLive } from './live.ts';
+import { registerCallMe } from './call-me.ts';
+import { registerDataSources } from './data-sources.ts';
 import { buildCaseFile, renderCaseFileHtml } from './casefile.ts';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -106,6 +108,8 @@ app.post('/api/analyze', upload.single('audio'), async (req, res) => {
 });
 
 registerLive(app);
+registerCallMe(app);
+registerDataSources(app);
 
 // Case file for one of the recorded Bolna calls
 app.get('/api/bolna/casefile/:id8', (req, res) => {

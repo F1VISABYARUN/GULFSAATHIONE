@@ -77,7 +77,9 @@ export function createInterpreter(config: Config, makeServices: (c:Config,call:s
         ctx = { caseId, kind, phone: url.searchParams.get('To') ?? '', vars: { ...vars, alert_text: alertText } };
       } catch { trace('checkin_context_failed',{kind}); res.end('<Response><Hangup/></Response>'); return; }
     }
-    tickets.set(ticket,{call,caseId,from:url.searchParams.get('From') ?? undefined,mode,checkin:ctx,expires:now+60000});
+    const callerParam = url.searchParams.get('caller_phone');
+    const person = callerParam && /^\+[1-9]\d{7,14}$/.test(callerParam) ? callerParam : url.searchParams.get('Direction') === 'outbound' ? url.searchParams.get('To') : url.searchParams.get('From');
+    tickets.set(ticket,{call,caseId,from:person ?? undefined,mode,checkin:ctx,expires:now+60000});
     trace('answer',{mode,bound:Boolean(caseId)});
     const address = config.origin.replace(/^https:/,'wss:')+'/media/'+ticket;
     res.end('<Response><Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">'+address+'</Stream></Response>');
